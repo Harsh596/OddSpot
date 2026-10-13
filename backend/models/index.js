@@ -1,0 +1,11 @@
+module.exports = {
+  User: require('./User'),
+  Post: require('./Post'),
+  Vote: require('./Vote'),
+  Comment: require('./Comment'),
+  Community: require('./Community'),
+  Membership: require('./Membership'),
+  Visit: require('./Visit'),
+  Report: require('./Report'),
+  Notification: require('./Notification'),
+};
