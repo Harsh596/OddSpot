@@ -9,8 +9,9 @@ module.exports = {
   },
   // Score needed to move up a tier. Tier only ever goes up.
   thresholds: {
-    country: 50,
+    country: process.env.METER_COUNTRY_THRESHOLD ? Number(process.env.METER_COUNTRY_THRESHOLD) : 50,
   },
+  reportFuzzThreshold: process.env.REPORT_FUZZ_THRESHOLD ? Number(process.env.REPORT_FUZZ_THRESHOLD) : 3,
   decayHalfLifeHours: 48, // score halves every 48h in ranking (not stored score)
   newAccountWeight: 0.5,  // votes from accounts younger than newAccountDays
   newAccountDays: 3,

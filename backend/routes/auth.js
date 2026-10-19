@@ -7,10 +7,15 @@ const { requireAuth } = require('../middleware/auth');
 
 const router = Router();
 
-// Rate limiting for auth routes: 20 attempts per 15 minutes per IP
+// Rate limiting for auth routes: 20 attempts per 15 minutes per IP (overrideable in non-production)
 const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
-  max: 20,
+  max: () => {
+    if (process.env.NODE_ENV !== 'production' && process.env.AUTH_RATE_LIMIT_MAX) {
+      return Number(process.env.AUTH_RATE_LIMIT_MAX);
+    }
+    return 20;
+  },
   standardHeaders: true,
   legacyHeaders: false,
   message: { error: 'Too many auth requests from this IP, please try again after 15 minutes' },
@@ -28,7 +33,7 @@ function generateToken(user) {
 // POST /api/auth/signup
 router.post('/signup', authLimiter, async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password } = req.body || {};
 
     // Basic validation
     if (!username || typeof username !== 'string') {
@@ -95,7 +100,7 @@ router.post('/signup', authLimiter, async (req, res, next) => {
 // POST /api/auth/login
 router.post('/login', authLimiter, async (req, res, next) => {
   try {
-    const { identifier, password } = req.body;
+    const { identifier, password } = req.body || {};
 
     if (!identifier || typeof identifier !== 'string') {
       return res.status(400).json({ error: 'Username or email is required' });

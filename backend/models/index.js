@@ -8,4 +8,5 @@ module.exports = {
   Visit: require('./Visit'),
   Report: require('./Report'),
   Notification: require('./Notification'),
+  IdempotencyKey: require('./IdempotencyKey'),
 };
