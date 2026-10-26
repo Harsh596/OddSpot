@@ -44,7 +44,7 @@ async function requireAuth(req, res, next) {
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       user = cached.user;
     } else {
-      user = await User.findById(decoded.id).select('banned role username passwordChangedAt').lean();
+      user = await User.findById(decoded.id).select('banned role username passwordChangedAt tokenVersion').lean();
       if (user) {
         userCache.set(decoded.id, { user, timestamp: now });
       }
@@ -58,6 +58,18 @@ async function requireAuth(req, res, next) {
     if (user.banned) {
       return res.status(403).json(
         formatErrorResponse(ErrorCodes.AUTH_FORBIDDEN_BANNED, 'This account has been suspended')
+      );
+    }
+
+    // Invalidate access tokens if tokenVersion has been incremented
+    if (
+      decoded.tokenVersion !== undefined &&
+      user.tokenVersion !== undefined &&
+      decoded.tokenVersion !== user.tokenVersion
+    ) {
+      userCache.delete(decoded.id);
+      return res.status(401).json(
+        formatErrorResponse(ErrorCodes.AUTH_TOKEN_EXPIRED, 'Session has expired. Please log in again.')
       );
     }
 
@@ -84,7 +96,7 @@ async function requireAuth(req, res, next) {
   }
 }
 
-function clearUserCache(userId = null) {
+function invalidateUserAuthCache(userId = null) {
   if (userId) {
     userCache.delete(userId);
   } else {
@@ -92,4 +104,8 @@ function clearUserCache(userId = null) {
   }
 }
 
-module.exports = { requireAuth, clearUserCache };
+module.exports = {
+  requireAuth,
+  invalidateUserAuthCache,
+  clearUserCache: invalidateUserAuthCache,
+};

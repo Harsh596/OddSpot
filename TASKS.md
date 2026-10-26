@@ -31,7 +31,17 @@
   - [x] Task P2-T4: Enforced soft-delete filtering (`removed: { $ne: true }`) across all post and comment read and mutation routes (`GET /posts/:id`, `GET /posts/nearby`, `POST /posts/:id/vote`, `POST /posts/:id/comments`, `GET /posts/:id/comments`, `POST /posts/:id/report`).
   - [x] Task P2-T5: Created and verified `backend/middleware/errorHandler.js` mapping Mongo 11000 duplicate keys to 409 `DUPLICATE_KEY`/`CONFLICT`, and Mongoose `ValidationError` and `CastError` to 400 `VALIDATION_FAILED`/`VALIDATION_ERROR` without leaking collection names or stack traces.
   - [x] Dedicated regression test suite: `backend/test/phase2.test.js` (16 tests verifying transactions, injection hooks, reconciliation, idempotency, soft deletes, and error mapping).
-- [ ] **P3: Voting, Like/Dislike Frequencies & Anti-Brigading**
+- [x] **P3: Accounts, Sessions, Rotating Refresh Tokens & Auth Hardening**
+  - [x] Task P3-T1 [SCHEMA]: Updated User schema with `usernameLower`, `emailLower`, `tokenVersion`, `ageConfirmedAt`, `emailVerifiedAt`, `shadowBanned`, `trust`, `lastPostLocation`. Updated `RefreshToken` model (`userId`, `tokenHash`, `familyId`, `expiresAt`, `replacedBy`, `revokedAt`). Created `EmailToken` model (`userId`, `tokenHash`, `type`, `expiresAt`, `usedAt`).
+  - [x] Task P3-T2: In `backend/config/jwt.js`, enforced `JWT_SECRET >= 32` characters and supported `kid` key rotation via `getKeyring()` and `getCurrentSigningKey()`.
+  - [x] Task P3-T3 (K11): In `backend/middleware/auth.js`, verified `tokenVersion` and `banned` status against user document with a 30-second in-memory cache and exported `invalidateUserAuthCache(userId)`.
+  - [x] Task P3-T4 (K15): Enforced username regex `/^[A-Za-z0-9_]{3,24}$/` with reserved word blocklist. Enforced 8–72 byte password bounds. Handled `confirmAge` / `ageConfirmed` flag.
+  - [x] Task P3-T5 (K15): Used module-level `DUMMY_HASH` to equalize login timing across valid and invalid accounts. Throttled failed logins per account (locks out for 15 minutes).
+  - [x] Task P3-T6: Implemented `POST /api/auth/refresh`, `POST /api/auth/logout`, and `POST /api/auth/logout-all`. On reuse of an already-replaced refresh token, revokes all tokens in `familyId` and increments `user.tokenVersion`.
+  - [x] Task P3-T7: Created `backend/services/mailer.js` with console/in-memory test buffer. Implemented `/verify-email/request`, `/verify-email/confirm`, `/forgot-password`, `/reset-password`.
+  - [x] Task P3-T8: Implemented `POST /api/auth/change-password` and `DELETE /api/auth/me` (anonymizes contributions to tombstone and deletes user document and active tokens).
+  - [x] Task P3-T9: Created `docs/COOKIE_AUTH_PLAN.md` detailing future httpOnly cookie migration.
+  - [x] Dedicated regression test suite: `backend/test/phase3.test.js` (21 tests).
 - [ ] **P4: Comments & Atomic Score Pipelines**
 - [ ] **P5: Meter Scoring & Regional City->Country Escalation**
 - [ ] **P6: Moderation & Automatic Content Fuzzing**

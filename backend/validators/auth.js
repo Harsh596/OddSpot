@@ -24,11 +24,8 @@ const signupSchema = z
     username: z
       .string({ required_error: 'Username is required', invalid_type_error: 'Username must be a text string' })
       .transform((val) => normalizeText(val))
-      .refine((val) => val.length >= 3 && val.length <= 24, {
-        message: 'Username must be between 3 and 24 characters',
-      })
-      .refine((val) => /^[a-zA-Z0-9_]+$/.test(val), {
-        message: 'Username can only contain letters, numbers, and underscores',
+      .refine((val) => /^[A-Za-z0-9_]{3,24}$/.test(val), {
+        message: 'Username must be 3-24 characters containing only letters, numbers, and underscores',
       })
       .refine((val) => !RESERVED_USERNAMES.has(val.toLowerCase()), {
         message: 'This username is reserved',
@@ -40,6 +37,8 @@ const signupSchema = z
         message: 'Invalid email address',
       }),
     password: passwordSchema,
+    confirmAge: z.boolean().optional(),
+    ageConfirmed: z.boolean().optional(),
   })
   .strip();
 
@@ -168,6 +167,8 @@ module.exports = {
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyEmailSchema,
+  verifyEmailConfirmSchema: verifyEmailSchema,
   resendVerificationSchema,
+  verifyEmailRequestSchema: resendVerificationSchema,
   deleteAccountSchema,
 };

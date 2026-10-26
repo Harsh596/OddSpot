@@ -3,50 +3,24 @@
 
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
-const { RefreshToken } = require('../models');
+const { RefreshToken, User } = require('../models');
+const {
+  validateJwtConfig,
+  getKeyring,
+  getCurrentSigningKey,
+  JWT_EXPIRES_IN,
+} = require('../config/jwt');
 
-// Validates JWT configuration at startup
-function validateJwtConfig() {
-  const secret = process.env.JWT_SECRET;
-  if (!secret || typeof secret !== 'string' || secret.length < 32) {
-    throw new Error('FATAL: JWT_SECRET must be configured and contain at least 32 characters');
-  }
-}
-
-// Parses optional key rotation configuration
-function getKeyring() {
-  let keyring = {};
-  if (process.env.JWT_SECRETS) {
-    try {
-      keyring = typeof process.env.JWT_SECRETS === 'string'
-        ? JSON.parse(process.env.JWT_SECRETS)
-        : process.env.JWT_SECRETS;
-    } catch {
-      keyring = {};
-    }
-  }
-  return keyring;
-}
-
-// Returns the current signing key and optional key ID
-function getCurrentSigningKey() {
-  const keyring = getKeyring();
-  const currentKid = process.env.JWT_CURRENT_KEY_ID;
-  if (currentKid && keyring[currentKid]) {
-    return { secret: keyring[currentKid], kid: currentKid };
-  }
-  return { secret: process.env.JWT_SECRET, kid: null };
-}
-
-// Generates short-lived 15m access token containing strictly { id, username }
+// Generates short-lived 15m access token containing strictly { id, username, tokenVersion }
 function generateAccessToken(user) {
   const { secret, kid } = getCurrentSigningKey();
   const payload = {
     id: user._id ? user._id.toString() : user.id,
     username: user.username,
+    tokenVersion: typeof user.tokenVersion === 'number' ? user.tokenVersion : 0,
   };
 
-  const options = { expiresIn: '15m' };
+  const options = { expiresIn: JWT_EXPIRES_IN || '15m' };
   if (kid) {
     options.header = { kid };
   }
@@ -87,6 +61,7 @@ async function issueRefreshToken(userId, familyId = null) {
     userId,
     familyId: tokenFamilyId,
     revoked: isRevoked,
+    revokedAt: isRevoked ? new Date() : null,
     expiresAt,
   });
 
@@ -108,15 +83,25 @@ async function rotateRefreshToken(rawToken) {
   // Atomically find and mark as revoked to eliminate TOCTOU race conditions
   const existing = await RefreshToken.findOneAndUpdate(
     { tokenHash, revoked: false, expiresAt: { $gt: new Date() } },
-    { $set: { revoked: true } },
+    { $set: { revoked: true, revokedAt: new Date() } },
     { new: false }
   );
 
   if (!existing) {
     const found = await RefreshToken.findOne({ tokenHash });
-    if (found && found.revoked) {
+    if (found && (found.revoked || found.replacedBy)) {
       compromisedFamilies.add(found.familyId);
-      await RefreshToken.updateMany({ familyId: found.familyId }, { $set: { revoked: true } });
+      await RefreshToken.updateMany(
+        { familyId: found.familyId },
+        { $set: { revoked: true, revokedAt: new Date() } }
+      );
+      if (found.userId) {
+        await User.findByIdAndUpdate(found.userId, { $inc: { tokenVersion: 1 } });
+        try {
+          const { invalidateUserAuthCache } = require('../middleware/auth');
+          invalidateUserAuthCache(found.userId.toString());
+        } catch {}
+      }
       return {
         status: 401,
         error: 'Refresh token reuse detected. All sessions in this family have been revoked.',
@@ -127,6 +112,13 @@ async function rotateRefreshToken(rawToken) {
   }
 
   if (compromisedFamilies.has(existing.familyId)) {
+    if (existing.userId) {
+      await User.findByIdAndUpdate(existing.userId, { $inc: { tokenVersion: 1 } });
+      try {
+        const { invalidateUserAuthCache } = require('../middleware/auth');
+        invalidateUserAuthCache(existing.userId.toString());
+      } catch {}
+    }
     return {
       status: 401,
       error: 'Refresh token reuse detected. All sessions in this family have been revoked.',

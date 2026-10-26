@@ -10,4 +10,5 @@ module.exports = {
   Notification: require('./Notification'),
   IdempotencyKey: require('./IdempotencyKey'),
   RefreshToken: require('./RefreshToken'),
+  EmailToken: require('./EmailToken'),
 };

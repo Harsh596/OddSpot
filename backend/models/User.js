@@ -10,6 +10,7 @@ const userSchema = new Schema(
     username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 24 },
     usernameLower: { type: String, required: true, unique: true, lowercase: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
+    emailLower: { type: String, lowercase: true, trim: true, index: true },
     passwordHash: { type: String, required: true, select: false },
     avatarUrl: String,
     bio: { type: String, maxlength: 300 },
@@ -18,15 +19,24 @@ const userSchema = new Schema(
 
     // Verification and Password Reset
     emailVerified: { type: Boolean, default: false },
+    emailVerifiedAt: { type: Date },
+    ageConfirmedAt: { type: Date },
     emailVerificationTokenHash: { type: String, select: false },
     emailVerificationExpires: { type: Date, select: false },
     passwordResetTokenHash: { type: String, select: false },
     passwordResetExpires: { type: Date, select: false },
 
-    // Account-level lockout and session invalidation
+    // Account-level lockout, session invalidation and trust
+    tokenVersion: { type: Number, default: 0 },
     failedLoginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date },
     passwordChangedAt: { type: Date },
+    shadowBanned: { type: Boolean, default: false },
+    trust: { type: Number, default: 0 },
+    lastPostLocation: {
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: [Number],
+    },
 
     // Customization blobs. Validate/sanitize in the API layer; cap size here.
     theme: { type: Schema.Types.Mixed, default: {} },       // colors, fonts, neon, preset name
@@ -47,10 +57,13 @@ const userSchema = new Schema(
   { timestamps: true }
 );
 
-// Keep lowercase normalized key in sync
+// Keep lowercase normalized keys in sync
 userSchema.pre('validate', function () {
   if (this.username) {
     this.usernameLower = (this.username || '').toLowerCase().trim();
+  }
+  if (this.email) {
+    this.emailLower = (this.email || '').toLowerCase().trim();
   }
 });
 

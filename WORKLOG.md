@@ -711,6 +711,76 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`npm run build` (frontend)**: Passed clean production build in 67ms.
 - **Pre-approved Schema Change**: `IdempotencyKey` schema fields (`key`, `userId`, `route`, `endpoint`, `requestHash`, `statusCode`, `responseBody`, `inProgress`, `status`, 24h TTL, compound unique index).
 
+---
+
+## [2026-10-26] - Phase P3: Accounts, Sessions, Rotating Refresh Tokens & Auth Hardening
+
+### 1. Work Completed Per Task
+- **Task P3-T1 [SCHEMA] - User, RefreshToken & EmailToken Model Updates**:
+  - Enhanced `backend/models/User.js` with `emailLower`, `tokenVersion` (default 0), `ageConfirmedAt`, `emailVerifiedAt`, `shadowBanned`, `trust`, and `lastPostLocation`.
+  - Synchronized `emailLower` alongside `usernameLower` in the `pre('validate')` hook.
+  - Updated `backend/models/RefreshToken.js` with `replacedBy` and `revokedAt` to track token rotation lineages.
+  - Created `backend/models/EmailToken.js` storing single-use SHA-256 hashed verification and password reset tokens (`userId`, `tokenHash`, `type`, `expiresAt`, `usedAt`, with TTL auto-purge index).
+  - Exported `EmailToken` from `backend/models/index.js`.
+- **Task P3-T2 - Centralized JWT Configuration & Key Rotation (`backend/config/jwt.js`)**:
+  - Implemented `backend/config/jwt.js` enforcing `JWT_SECRET >= 32` characters at startup.
+  - Supported optional `kid` key rotation via `getKeyring()` and `getCurrentSigningKey()`.
+  - Integrated `backend/services/token.js` with `backend/config/jwt.js`.
+- **Task P3-T3 (K11) - tokenVersion & In-Memory Auth Cache**:
+  - Updated `generateAccessToken(user)` to embed `tokenVersion` in the JWT payload.
+  - Updated `backend/middleware/auth.js` (`requireAuth`) to select `tokenVersion` and immediately reject any token whose version does not match the active DB version with 401 `AUTH_TOKEN_EXPIRED`.
+  - Maintained 30-second in-memory caching (`CACHE_TTL_MS = 30000`) for active user roles and ban statuses.
+  - Exported `invalidateUserAuthCache(userId)` to allow immediate cache eviction upon token revocation or privilege updates.
+- **Task P3-T4 (K15) - Username Validation, Password Bounds & Age Confirmation**:
+  - Enforced strict regex `/^[A-Za-z0-9_]{3,24}$/` on usernames in `backend/validators/auth.js`, rejecting characters outside ASCII alphanumeric and underscores.
+  - Enforced case-insensitive blocklist of reserved system usernames (`admin`, `root`, `support`, `oddspot`, etc.).
+  - Enforced 8–72 byte password bounds (`Buffer.byteLength`) and OWASP common blocklist checks.
+  - Handled `confirmAge` / `ageConfirmed` flag on registration, setting `ageConfirmedAt = new Date()`.
+- **Task P3-T5 (K15) - Timing Equalization & Lockout Throttling**:
+  - Leveraged module-level `DUMMY_HASH` in `backend/routes/auth.js` to equalize login response times across valid and invalid accounts.
+  - Throttled failed login attempts per account, locking the account for 15 minutes (`lockUntil`) upon reaching maximum failed attempts.
+- **Task P3-T6 - Rotating Refresh Tokens & Reuse Detection**:
+  - Updated `POST /api/auth/refresh` to record `replacedBy` on the rotated token and issue a fresh child token within the same `familyId`.
+  - On reuse of an already-replaced or revoked refresh token, revokes all tokens within that `familyId`, increments `user.tokenVersion`, evicts auth cache, and returns 401 with `TOKEN_REUSE_DETECTED`.
+  - Updated `POST /api/auth/logout` to revoke the specific refresh token session and record `revokedAt`.
+  - Updated `POST /api/auth/logout-all` to delete all user refresh tokens, increment `user.tokenVersion`, set `passwordChangedAt = new Date()`, and evict auth cache.
+- **Task P3-T7 - Mailer Buffer, Verification & Password Reset Flows**:
+  - Implemented `POST /api/auth/verify-email/request` (and aliased `POST /api/auth/resend-verification`) creating verification tokens in `EmailToken` and dispatching via `backend/services/mailer.js`.
+  - Implemented `POST /api/auth/verify-email/confirm` (and aliased `POST /api/auth/verify-email`) verifying tokens, setting `emailVerified: true` and `emailVerifiedAt = new Date()`.
+  - Implemented `POST /api/auth/forgot-password` and `POST /api/auth/reset-password` (sets new password, bumps `tokenVersion`, invalidates sessions).
+- **Task P3-T8 - Password Lifecycle & Secure Account Deletion**:
+  - Updated `POST /api/auth/change-password` to bump `tokenVersion`, clear reset tokens, and revoke previous refresh tokens.
+  - Updated `DELETE /api/auth/me` to require `currentPassword`, anonymize posts and comments to `TOMBSTONE_USER_ID`, delete all refresh and email tokens, delete the user document, and invalidate auth cache.
+- **Task P3-T9 - Cookie Auth Plan Documentation**:
+  - Authored `docs/COOKIE_AUTH_PLAN.md` documenting the architecture, double-submit CSRF mitigation, `__Host-` prefix cookie attributes, and phased rollout strategy for future httpOnly cookie migration.
+- **Dedicated Regression Suite (`backend/test/phase3.test.js`)**:
+  - Implemented 21 test cases covering all Phase 3 tasks, key rotation, token invalidation, timing equalization, token reuse detection, mailer flows, and account deletion.
+
+### 2. Files Touched
+- `docs/COOKIE_AUTH_PLAN.md` *(New)*
+- `backend/config/jwt.js` *(New)*
+- `backend/models/EmailToken.js` *(New)*
+- `backend/test/phase3.test.js` *(New)*
+- `backend/tests/phase3.test.js` *(New)*
+- `backend/models/User.js`
+- `backend/models/RefreshToken.js`
+- `backend/models/index.js`
+- `backend/services/token.js`
+- `backend/middleware/auth.js`
+- `backend/validators/auth.js`
+- `backend/routes/auth.js`
+- `backend/test/setup.js`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 200 / 200** tests across 52 suites (0 failures, duration ~32.8s).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 82 / 82** (0 failures, 5 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 84ms.
+- **Pre-approved Schema Changes**: `User` fields (`emailLower`, `tokenVersion`, `ageConfirmedAt`, `emailVerifiedAt`, `shadowBanned`, `trust`, `lastPostLocation`), `RefreshToken` fields (`replacedBy`, `revokedAt`), `EmailToken` model (`userId`, `tokenHash`, `type`, `expiresAt`, `usedAt`).
+
+
 
 
 

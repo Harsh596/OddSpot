@@ -88,6 +88,7 @@ async function createTestUser(overrides = {}) {
     email,
     password,
     token,
+    refreshToken: res.body.refreshToken,
   };
 }
 

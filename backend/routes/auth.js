@@ -7,8 +7,8 @@ const { Router } = require('express');
 const bcrypt = require('bcrypt');
 const { authLimiter } = require('../config/rateLimits');
 const { mongoose } = require('../db');
-const { User, Post, Comment, RefreshToken } = require('../models');
-const { requireAuth, clearUserCache } = require('../middleware/auth');
+const { User, Post, Comment, RefreshToken, EmailToken } = require('../models');
+const { requireAuth, clearUserCache, invalidateUserAuthCache } = require('../middleware/auth');
 const {
   BCRYPT_ROUNDS,
   DUMMY_HASH,
@@ -28,7 +28,7 @@ const router = Router();
 // POST /api/auth/signup - User registration
 router.post('/signup', authLimiter, validateBody(authValidators.signupSchema), async (req, res, next) => {
   try {
-    const { username, email, password } = req.body;
+    const { username, email, password, confirmAge, ageConfirmed } = req.body;
 
     // Case-insensitive duplicate check
     const existing = await User.findOne({
@@ -50,6 +50,7 @@ router.post('/signup', authLimiter, validateBody(authValidators.signupSchema), a
     const rawVerificationToken = crypto.randomBytes(32).toString('hex');
     const verificationTokenHash = crypto.createHash('sha256').update(rawVerificationToken).digest('hex');
     const verificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+    const ageConfirmedAt = (confirmAge || ageConfirmed) ? new Date() : null;
 
     // Hash password with centralized rounds and create user
     const passwordHash = await bcrypt.hash(password, BCRYPT_ROUNDS);
@@ -58,8 +59,18 @@ router.post('/signup', authLimiter, validateBody(authValidators.signupSchema), a
       email,
       passwordHash,
       emailVerified: false,
+      ageConfirmedAt,
+      tokenVersion: 0,
       emailVerificationTokenHash: verificationTokenHash,
       emailVerificationExpires: verificationExpires,
+    });
+
+    // Record verification token in EmailToken collection
+    await EmailToken.create({
+      userId: user._id,
+      tokenHash: verificationTokenHash,
+      type: 'verify_email',
+      expiresAt: verificationExpires,
     });
 
     // Send verification email asynchronously via pluggable mail transport
@@ -86,6 +97,7 @@ router.post('/signup', authLimiter, validateBody(authValidators.signupSchema), a
         homePlace: user.homePlace,
         badges: user.badges,
         emailVerified: user.emailVerified,
+        ageConfirmedAt: user.ageConfirmedAt,
       },
     });
   } catch (err) {
@@ -210,6 +222,8 @@ router.post('/refresh', validateBody(authValidators.refreshSchema), async (req, 
 
     const newAccessToken = generateAccessToken(user);
     const { refreshToken: nextRefreshToken } = await issueRefreshToken(user._id, existing.familyId);
+    const nextTokenHash = crypto.createHash('sha256').update(nextRefreshToken.trim()).digest('hex');
+    await RefreshToken.updateOne({ _id: existing._id }, { $set: { replacedBy: nextTokenHash } });
 
     res.json({
       token: newAccessToken,
@@ -226,7 +240,10 @@ router.post('/logout', validateBody(authValidators.logoutSchema), async (req, re
     const { refreshToken } = req.body;
     if (refreshToken && typeof refreshToken === 'string') {
       const tokenHash = crypto.createHash('sha256').update(refreshToken.trim()).digest('hex');
-      await RefreshToken.updateOne({ tokenHash }, { $set: { revoked: true } });
+      await RefreshToken.updateOne(
+        { tokenHash },
+        { $set: { revoked: true, revokedAt: new Date() } }
+      );
     }
     res.json({ message: 'Logged out successfully' });
   } catch (err) {
@@ -238,15 +255,18 @@ router.post('/logout', validateBody(authValidators.logoutSchema), async (req, re
 router.post('/logout-all', requireAuth, async (req, res, next) => {
   try {
     await RefreshToken.deleteMany({ userId: req.user.id });
-    await User.findByIdAndUpdate(req.user.id, { $set: { passwordChangedAt: new Date() } });
-    clearUserCache(req.user.id);
+    await User.findByIdAndUpdate(req.user.id, {
+      $inc: { tokenVersion: 1 },
+      $set: { passwordChangedAt: new Date() },
+    });
+    invalidateUserAuthCache(req.user.id);
     res.json({ message: 'All sessions logged out successfully' });
   } catch (err) {
     next(err);
   }
 });
 
-// POST /api/auth/change-password - Change password with rate limiting and lockout protection
+// POST /api/auth/change-password - Change password with rate limiting, tokenVersion bump, and lockout protection
 router.post('/change-password', requireAuth, authLimiter, validateBody(authValidators.changePasswordSchema), async (req, res, next) => {
   try {
     const { currentPassword, newPassword } = req.body;
@@ -281,7 +301,7 @@ router.post('/change-password', requireAuth, authLimiter, validateBody(authValid
 
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
-    // Atomically update password, reset lockout, and clear reset tokens
+    // Atomically update password, increment tokenVersion, reset lockout, and clear reset tokens
     await User.updateOne(
       { _id: user._id },
       {
@@ -291,6 +311,7 @@ router.post('/change-password', requireAuth, authLimiter, validateBody(authValid
           failedLoginAttempts: 0,
           lockUntil: null,
         },
+        $inc: { tokenVersion: 1 },
         $unset: {
           passwordResetTokenHash: 1,
           passwordResetExpires: 1,
@@ -300,10 +321,11 @@ router.post('/change-password', requireAuth, authLimiter, validateBody(authValid
 
     // Revoke all existing refresh tokens
     await RefreshToken.deleteMany({ userId: user._id });
-    clearUserCache(user._id.toString());
+    invalidateUserAuthCache(user._id.toString());
 
     // Issue fresh tokens for the current session
-    const token = generateAccessToken(user);
+    const updatedUser = await User.findById(user._id);
+    const token = generateAccessToken(updatedUser);
     const { refreshToken } = await issueRefreshToken(user._id);
 
     res.json({
@@ -316,8 +338,8 @@ router.post('/change-password', requireAuth, authLimiter, validateBody(authValid
   }
 });
 
-// POST /api/auth/forgot-password - Enumeration-safe, non-blocking password reset initiation
-router.post('/forgot-password', authLimiter, validateBody(authValidators.forgotPasswordSchema), async (req, res, next) => {
+// Generic password reset initiation handler
+async function handleForgotPassword(req, res, next) {
   try {
     const { email } = req.body;
     const genericResponse = {
@@ -333,9 +355,20 @@ router.post('/forgot-password', authLimiter, validateBody(authValidators.forgotP
 
     if (user && !user.banned) {
       const rawToken = crypto.randomBytes(32).toString('hex');
-      user.passwordResetTokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-      user.passwordResetExpires = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 15 * 60 * 1000); // 15 minutes
+
+      // Store in User and EmailToken collection
+      user.passwordResetTokenHash = tokenHash;
+      user.passwordResetExpires = expiresAt;
       await user.save();
+
+      await EmailToken.create({
+        userId: user._id,
+        tokenHash,
+        type: 'reset_password',
+        expiresAt,
+      });
 
       // Non-blocking detached email delivery to prevent timing enumeration
       setImmediate(() => {
@@ -351,7 +384,10 @@ router.post('/forgot-password', authLimiter, validateBody(authValidators.forgotP
   } catch (err) {
     next(err);
   }
-});
+}
+
+// POST /api/auth/forgot-password - Enumeration-safe, non-blocking password reset initiation
+router.post('/forgot-password', authLimiter, validateBody(authValidators.forgotPasswordSchema), handleForgotPassword);
 
 // POST /api/auth/reset-password - Single-use expiring password reset
 router.post('/reset-password', authLimiter, validateBody(authValidators.resetPasswordSchema), async (req, res, next) => {
@@ -359,10 +395,22 @@ router.post('/reset-password', authLimiter, validateBody(authValidators.resetPas
     const { token, newPassword } = req.body;
 
     const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
-    const user = await User.findOne({
+    let user = await User.findOne({
       passwordResetTokenHash: tokenHash,
       passwordResetExpires: { $gt: new Date() },
     }).select('+passwordResetTokenHash +passwordResetExpires +passwordHash');
+
+    if (!user) {
+      const emailToken = await EmailToken.findOne({
+        tokenHash,
+        type: 'reset_password',
+        expiresAt: { $gt: new Date() },
+        usedAt: null,
+      });
+      if (emailToken) {
+        user = await User.findById(emailToken.userId).select('+passwordHash');
+      }
+    }
 
     if (!user) {
       return res.status(400).json(
@@ -372,7 +420,7 @@ router.post('/reset-password', authLimiter, validateBody(authValidators.resetPas
 
     const passwordHash = await bcrypt.hash(newPassword, BCRYPT_ROUNDS);
 
-    // Atomically clear password reset tokens, set new password, and reset lockout
+    // Atomically clear password reset tokens, set new password, increment tokenVersion, and reset lockout
     await User.updateOne(
       { _id: user._id },
       {
@@ -382,6 +430,7 @@ router.post('/reset-password', authLimiter, validateBody(authValidators.resetPas
           failedLoginAttempts: 0,
           lockUntil: null,
         },
+        $inc: { tokenVersion: 1 },
         $unset: {
           passwordResetTokenHash: 1,
           passwordResetExpires: 1,
@@ -389,9 +438,12 @@ router.post('/reset-password', authLimiter, validateBody(authValidators.resetPas
       }
     );
 
+    // Mark EmailToken used
+    await EmailToken.updateMany({ tokenHash }, { $set: { usedAt: new Date() } });
+
     // Revoke all active sessions on password reset
     await RefreshToken.deleteMany({ userId: user._id });
-    clearUserCache(user._id.toString());
+    invalidateUserAuthCache(user._id.toString());
 
     res.json({ message: 'Password reset successfully. You may now log in.' });
   } catch (err) {
@@ -399,45 +451,10 @@ router.post('/reset-password', authLimiter, validateBody(authValidators.resetPas
   }
 });
 
-// POST /api/auth/verify-email - Single-use email verification
-router.post('/verify-email', validateBody(authValidators.verifyEmailSchema), async (req, res, next) => {
+// Verification request handler
+async function handleVerifyEmailRequest(req, res, next) {
   try {
-    const { token } = req.body;
-
-    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
-    const user = await User.findOne({
-      emailVerificationTokenHash: tokenHash,
-      emailVerificationExpires: { $gt: new Date() },
-    }).select('+emailVerificationTokenHash +emailVerificationExpires');
-
-    if (!user) {
-      return res.status(400).json(
-        formatErrorResponse(ErrorCodes.AUTH_INVALID_TOKEN, 'Invalid or expired verification token')
-      );
-    }
-
-    await User.updateOne(
-      { _id: user._id },
-      {
-        $set: { emailVerified: true },
-        $unset: {
-          emailVerificationTokenHash: 1,
-          emailVerificationExpires: 1,
-        },
-      }
-    );
-
-    clearUserCache(user._id.toString());
-    res.json({ message: 'Email verified successfully' });
-  } catch (err) {
-    next(err);
-  }
-});
-
-// POST /api/auth/resend-verification - Non-blocking verification resend
-router.post('/resend-verification', authLimiter, validateBody(authValidators.resendVerificationSchema), async (req, res, next) => {
-  try {
-    const { email } = req.body;
+    const email = req.body?.email || req.user?.email;
     const genericResponse = {
       message: 'If an account exists with that email and is unverified, a verification link has been sent.',
     };
@@ -451,9 +468,19 @@ router.post('/resend-verification', authLimiter, validateBody(authValidators.res
 
     if (user && !user.emailVerified && !user.banned) {
       const rawToken = crypto.randomBytes(32).toString('hex');
-      user.emailVerificationTokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
-      user.emailVerificationExpires = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      const tokenHash = crypto.createHash('sha256').update(rawToken).digest('hex');
+      const expiresAt = new Date(Date.now() + 24 * 60 * 60 * 1000);
+
+      user.emailVerificationTokenHash = tokenHash;
+      user.emailVerificationExpires = expiresAt;
       await user.save();
+
+      await EmailToken.create({
+        userId: user._id,
+        tokenHash,
+        type: 'verify_email',
+        expiresAt,
+      });
 
       setImmediate(() => {
         sendMail({
@@ -468,7 +495,68 @@ router.post('/resend-verification', authLimiter, validateBody(authValidators.res
   } catch (err) {
     next(err);
   }
-});
+}
+
+// Verification confirm handler
+async function handleVerifyEmailConfirm(req, res, next) {
+  try {
+    const { token } = req.body;
+
+    const tokenHash = crypto.createHash('sha256').update(token.trim()).digest('hex');
+    let user = await User.findOne({
+      emailVerificationTokenHash: tokenHash,
+      emailVerificationExpires: { $gt: new Date() },
+    }).select('+emailVerificationTokenHash +emailVerificationExpires');
+
+    if (!user) {
+      const emailToken = await EmailToken.findOne({
+        tokenHash,
+        type: 'verify_email',
+        expiresAt: { $gt: new Date() },
+        usedAt: null,
+      });
+      if (emailToken) {
+        user = await User.findById(emailToken.userId);
+      }
+    }
+
+    if (!user) {
+      return res.status(400).json(
+        formatErrorResponse(ErrorCodes.AUTH_INVALID_TOKEN, 'Invalid or expired verification token')
+      );
+    }
+
+    const now = new Date();
+    await User.updateOne(
+      { _id: user._id },
+      {
+        $set: {
+          emailVerified: true,
+          emailVerifiedAt: now,
+        },
+        $unset: {
+          emailVerificationTokenHash: 1,
+          emailVerificationExpires: 1,
+        },
+      }
+    );
+
+    await EmailToken.updateMany({ tokenHash }, { $set: { usedAt: now } });
+    invalidateUserAuthCache(user._id.toString());
+
+    res.json({ message: 'Email verified successfully' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// POST /api/auth/verify-email/request & POST /api/auth/resend-verification
+router.post('/verify-email/request', authLimiter, validateBody(authValidators.resendVerificationSchema), handleVerifyEmailRequest);
+router.post('/resend-verification', authLimiter, validateBody(authValidators.resendVerificationSchema), handleVerifyEmailRequest);
+
+// POST /api/auth/verify-email/confirm & POST /api/auth/verify-email
+router.post('/verify-email/confirm', validateBody(authValidators.verifyEmailSchema), handleVerifyEmailConfirm);
+router.post('/verify-email', validateBody(authValidators.verifyEmailSchema), handleVerifyEmailConfirm);
 
 // GET /api/auth/me - Protected user profile
 router.get('/me', requireAuth, async (req, res, next) => {
@@ -489,6 +577,9 @@ router.get('/me', requireAuth, async (req, res, next) => {
         badges: user.badges,
         stats: user.stats,
         emailVerified: user.emailVerified,
+        emailVerifiedAt: user.emailVerifiedAt,
+        ageConfirmedAt: user.ageConfirmedAt,
+        trust: user.trust,
       },
     });
   } catch (err) {
@@ -524,8 +615,9 @@ router.delete('/me', requireAuth, validateBody(authValidators.deleteAccountSchem
         await Post.updateMany({ authorId: userId }, { $set: { authorId: TOMBSTONE_USER_ID } }, { session });
         await Comment.updateMany({ authorId: userId }, { $set: { authorId: TOMBSTONE_USER_ID } }, { session });
 
-        // Revoke and delete all refresh tokens for user
+        // Revoke and delete all refresh tokens and email tokens for user
         await RefreshToken.deleteMany({ userId }, { session });
+        await EmailToken.deleteMany({ userId }, { session });
 
         // Delete user document
         await User.findByIdAndDelete(userId, { session });
@@ -536,6 +628,7 @@ router.delete('/me', requireAuth, validateBody(authValidators.deleteAccountSchem
         await Post.updateMany({ authorId: userId }, { $set: { authorId: TOMBSTONE_USER_ID } });
         await Comment.updateMany({ authorId: userId }, { $set: { authorId: TOMBSTONE_USER_ID } });
         await RefreshToken.deleteMany({ userId });
+        await EmailToken.deleteMany({ userId });
         await User.findByIdAndDelete(userId);
       } else {
         throw txErr;
@@ -544,7 +637,7 @@ router.delete('/me', requireAuth, validateBody(authValidators.deleteAccountSchem
       await session.endSession();
     }
 
-    clearUserCache(userId);
+    invalidateUserAuthCache(userId);
 
     res.json({ message: 'Account deleted and contributions anonymized successfully' });
   } catch (err) {

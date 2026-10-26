@@ -8,8 +8,10 @@ const refreshTokenSchema = new Schema(
     tokenHash: { type: String, required: true, unique: true, index: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     familyId: { type: String, required: true, index: true },
-    revoked: { type: Boolean, default: false },
     expiresAt: { type: Date, required: true },
+    replacedBy: { type: String, default: null },
+    revokedAt: { type: Date, default: null },
+    revoked: { type: Boolean, default: false },
     createdAt: { type: Date, default: Date.now },
   },
   {
