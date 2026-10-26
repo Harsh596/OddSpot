@@ -14,4 +14,5 @@ module.exports = {
   AuditLog: require('./AuditLog'),
   SchemaVersion: require('./SchemaVersion'),
   RateLimit: require('./RateLimit'),
+  JobLock: require('./JobLock'),
 };

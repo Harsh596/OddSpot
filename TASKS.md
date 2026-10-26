@@ -91,7 +91,13 @@
   - [x] Task P11-T3: Server Timeouts, `/health`, `/ready` & Graceful Shutdown (`createConfiguredServer` with 16KB maxHeaderSize, 15s requestTimeout, 10s headersTimeout, 5s keepAliveTimeout, SIGTERM/SIGINT shutdown, `/health` and `/ready` probes).
   - [x] Task P11-T4: Dockerization & Deployment Docs (`Dockerfile` multi-stage Node 20 Alpine, `.dockerignore`, `docker-compose.yml`, `docs/DEPLOY.md`).
   - [x] Dedicated regression test suite: `backend/test/phase11.test.js` (4 comprehensive tests covering user-keyed rate limits, CORS rejection of evil subdomains, health/readiness, and 431 on >16KB headers).
-- [ ] **P12: Idempotency Key Engine & Replay Cache**
+- [x] **P12: Observability (pino, prom-client/metrics) & Distributed Job Locks**
+  - [x] Task P12-T1: Install `pino` & `prom-client` in `backend/package.json`.
+  - [x] Task P12-T2: Structured pino Logger with Redaction & CRLF Sanitization (`backend/utils/logger.js`, `backend/middleware/requestLogger.js` with secret redaction and slow-request warnings > 1000ms).
+  - [x] Task P12-T3: Prometheus Metrics (`backend/services/metrics.js` with `GET /metrics` protected by constant-time `METRICS_TOKEN` verification, HTTP counters/histograms, DB duration, 5xx counter).
+  - [x] Task P12-T4: Pluggable Error-Tracking Hook (`backend/services/errorTracker.js` with `captureException` behind `ERROR_TRACKING_DSN`).
+  - [x] Task P12-T5: JobLock Model & Distributed Job Scheduler (`backend/models/JobLock.js`, `backend/services/scheduler.js` with atomic `runWithJobLock`, nightly counter reconciliation, hotScore refresh, and expired record sweep).
+  - [x] Dedicated regression test suite: `backend/test/phase12.test.js` (3 comprehensive tests covering secret redaction + CRLF stripping, authenticated Prometheus /metrics, and distributed job lock concurrency).
 - [ ] **P13: Counter Drift Reconciliation Utility**
 - [ ] **P14: Central Error Mapping & Error Codes Envelope**
 - [ ] **P15: Zod Schema Boundaries & Scalar Type Injection Guards**

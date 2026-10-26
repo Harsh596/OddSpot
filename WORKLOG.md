@@ -1462,6 +1462,55 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase P12 (Test 2): Observability (pino, prom-client/metrics) & Distributed Job Locks
+
+### 1. Architectural & Implementation Summary
+- **Task P12-T1: Install `pino` & `prom-client`**:
+  - Installed `pino` (structured JSON logging) and `prom-client` (Prometheus metrics client) in `backend/package.json`.
+- **Task P12-T2: Structured Pino Logger with Redaction & CRLF Sanitization (`backend/utils/logger.js`, `backend/middleware/requestLogger.js`)**:
+  - Configured `backend/utils/logger.js` with comprehensive redaction paths (`authorization`, `cookie`, `password`, `newPassword`, `currentPassword`, `passwordHash`, `token`, `accessToken`, `refreshToken`, `MONGODB_URI`, `jwtSecret`, `fuzzSecret`).
+  - Added recursive `sanitizeCrlf` hook stripping `\r` and `\n` characters from log messages and payload values to prevent log injection vulnerabilities.
+  - Implemented `backend/middleware/requestLogger.js` logging `requestId`, `userId`, `method`, `route`, `statusCode`, and `durationMs`, emitting warnings when request duration exceeds 1000ms.
+- **Task P12-T3: Prometheus Metrics (`backend/services/metrics.js`, `backend/app.js`)**:
+  - Created Prometheus registry with custom metrics: `oddspot_http_requests_total`, `oddspot_http_request_duration_ms`, `oddspot_db_operation_duration_ms`, `oddspot_rate_limit_hits_total`, and `oddspot_http_5xx_total`.
+  - Implemented `GET /metrics` protected by constant-time verification of `Authorization: Bearer <METRICS_TOKEN>` using `crypto.timingSafeEqual` (401 on missing token, 403 on invalid).
+  - Mounted `metricsMiddleware` and `metricsHandler` in `backend/app.js`.
+- **Task P12-T4: Pluggable Error-Tracking Hook (`backend/services/errorTracker.js`)**:
+  - Implemented `captureException(err, context)` acting as a safe no-op when `process.env.ERROR_TRACKING_DSN` is unset, and dispatching/logging structured errors when configured.
+- **Task P12-T5: JobLock Model & Distributed Job Scheduler ([SCHEMA])**:
+  - Created `JobLock` schema (`backend/models/JobLock.js`, `joblocks` collection) with `name` (unique), `lockedUntil`, `owner`, and `updatedAt`.
+  - Built `backend/services/scheduler.js`:
+    - `runWithJobLock(name, fn, options)`: provides distributed mutual exclusion across multi-process deployments.
+    - Defined automated jobs: `reconcileCountersJob` (runs `reconcileAllCounters`), `refreshHotScoresJob` (refreshes hotScore for active posts < 30 days old), and `cleanupExpiredRecordsJob` (sweeps expired tokens, rate limits, and idempotency keys).
+    - Registered process-level `unhandledRejection` and `uncaughtException` handlers in `backend/server.js`.
+
+### 2. Files Touched
+- `backend/package.json`
+- `backend/package-lock.json`
+- `backend/utils/logger.js` *(New)*
+- `backend/middleware/requestLogger.js` *(New)*
+- `backend/services/metrics.js` *(New)*
+- `backend/services/errorTracker.js` *(New)*
+- `backend/models/JobLock.js` *(New)*
+- `backend/models/index.js`
+- `backend/services/scheduler.js` *(New)*
+- `backend/app.js`
+- `backend/server.js`
+- `backend/test/phase12.test.js` *(New)*
+- `backend/tests/phase12.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 290 / 290** tests across 94 suites (0 failures).
+- **`node --test test/phase12.test.js`**: **Passed: 3 / 3** tests (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

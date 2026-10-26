@@ -22,9 +22,27 @@ function createConfiguredServer(appInstance = app, options = {}) {
   return server;
 }
 
+const { logger } = require('./utils/logger');
+const { startBackgroundScheduler, stopBackgroundScheduler } = require('./services/scheduler');
+const { captureException } = require('./services/errorTracker');
+
+process.on('unhandledRejection', (reason) => {
+  logger.error({ reason }, 'Unhandled Rejection at Promise');
+  captureException(reason, { type: 'unhandledRejection' });
+});
+
+process.on('uncaughtException', (err) => {
+  logger.fatal({ err }, 'Uncaught Exception thrown');
+  captureException(err, { type: 'uncaughtException' });
+  if (process.env.NODE_ENV === 'production') {
+    process.exit(1);
+  }
+});
+
 function setupGracefulShutdown(server) {
   const shutdown = async (signal) => {
     console.log(`\nReceived ${signal}, initiating graceful shutdown...`);
+    stopBackgroundScheduler();
     server.close(async () => {
       console.log('HTTP server closed.');
       try {

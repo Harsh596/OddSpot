@@ -13,6 +13,8 @@ const commentsRoutes = require('./routes/comments');
 const feedRoutes = require('./routes/feed');
 const modRoutes = require('./routes/mod');
 const errorHandler = require('./middleware/errorHandler');
+const requestLogger = require('./middleware/requestLogger');
+const { metricsMiddleware, metricsHandler } = require('./services/metrics');
 const { ErrorCodes, formatErrorResponse } = require('./validators');
 
 // Helper to recursively detect NUL (\0 / \u0000) characters in any string or key
@@ -142,9 +144,14 @@ function createApp() {
 
   app.get('/health', handleHealth);
   app.get('/ready', handleReady);
+  app.get('/metrics', metricsHandler);
 
   // 1. Request ID generation / preservation
   app.use(requestId);
+
+  // Observability: Metrics collection & structured request logging
+  app.use(metricsMiddleware);
+  app.use(requestLogger);
 
   // 2. Security headers with helmet
   app.use(helmet());
@@ -232,9 +239,10 @@ function createApp() {
   // 7. API Router mounted under /api/v1 and aliased to /api
   const apiRouter = express.Router();
 
-  // Health & readiness probes
+  // Health & readiness probes & metrics
   apiRouter.get('/health', handleHealth);
   apiRouter.get('/ready', handleReady);
+  apiRouter.get('/metrics', metricsHandler);
 
   // Public configuration endpoint
   apiRouter.get('/config/public', (req, res) => {
