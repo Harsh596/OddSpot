@@ -526,6 +526,69 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`npm run test:smoke`**: **Passed: 32 / 32** smoke checks (0 failures, duration ~2.1s).
 - **Working Tree**: Cleanly passing all contract, auth, comments, privacy, concurrency, and reconciliation tests.
 
+---
+
+## [2026-10-26] - Phase P0: Bootstrap, Test Safety & App Structure
+
+### 1. Work Completed Per Task
+- **Task P0-T1: Project Context & Tasks Documentation**:
+  - Created `docs/PROJECT_CONTEXT.md` documenting all 12 Pre-Approved Decisions, Pre-Approved Schema Changes, and Guardrails verbatim.
+  - Created `TASKS.md` tracking all Master Build phases across P0–P19, R1–R4, and F1–F10.
+- **Task P0-T2: DevDependencies Installation**:
+  - Installed `supertest` and `mongodb-memory-server` in `backend/package.json`.
+- **Task P0-T3: Server Architecture Split (`app.js` + `server.js`)**:
+  - Extracted Express application configuration into `backend/app.js` exporting `{ app, createApp, errorHandler }`.
+  - Retained all security middleware, request ID generator, Helmet headers, CORS restrictions, body size limiters, JSON parser error guards, and central 4xx/5xx error handlers.
+  - Slimmed `backend/server.js` to manage database connection (`connect()`), JWT config startup validation (`validateJwtConfig()`), and HTTP server binding (`app.listen(PORT)`).
+- **Task P0-T4: Hard Test Database Safety Barrier (`assertSafeTestDatabase`)**:
+  - Implemented `assertSafeTestDatabase(uri)` in `backend/db.js` and `backend/test/setup.js`.
+  - Refuses any connection with `NODE_ENV=test` pointing to production database `oddspot` (case-insensitively).
+  - Configured 1-node `MongoMemoryReplSet` in `backend/test/setup.js` for clean transactional execution.
+- **Task P0-T5: Dynamic Non-Production Rate Limits & Strict Production Enforcement**:
+  - Centralized rate limiters in `backend/config/rateLimits.js` with `getAuthRateLimitMax` and `getWriteRateLimitMax`.
+  - Strictly ignores overrides when `NODE_ENV === 'production'`, enforcing hardcoded production limits.
+  - Updated `backend/.env.example` with complete configuration docs.
+- **Task P0-T6: Integration Test Porting & Test Script Configuration**:
+  - Ported all tests into `backend/test/`: `safety.test.js`, `auth.test.js`, `posts.test.js`, `feed.test.js`, `votes.test.js`, `comments.test.js`, `reports.test.js`, `privacy.test.js`, `concurrency.test.js`, `authMatrix.test.js`, and wave verification suites.
+  - Updated `backend/package.json` test script to `"NODE_ENV=test AUTH_RATE_LIMIT_MAX=10000 WRITE_RATE_LIMIT_MAX=10000 node --test test/**/*.test.js"`.
+  - Updated Zod to `latest` (4.6.7) and upgraded error issue mapping to resolve GHSA-mrhx-c7xc-m3w5 audit advisory (0 vulnerabilities).
+- **Task P0-T7: Multi-Prefix Test Data Cleanup**:
+  - Enhanced `backend/scripts/cleanupTestData.js` targeting `test_`, `test_2_`, and `test_chk_` records and their relational children (`RefreshToken`, `IdempotencyKey`, `Post`, `Comment`, `Vote`, `Report`).
+  - Defaults to dry run; applies permanent purge with `--apply`.
+- **Task P0-T8: GitHub Actions CI Configuration**:
+  - Configured `.github/workflows/ci.yml` running backend test suite and frontend production build on Node 20.
+
+### 2. Files Touched
+- `docs/PROJECT_CONTEXT.md` *(New)*
+- `TASKS.md` *(New)*
+- `.github/workflows/ci.yml` *(New)*
+- `backend/app.js` *(New)*
+- `backend/config/rateLimits.js` *(New)*
+- `backend/test/` (All test suites + `safety.test.js` + `setup.js`) *(New)*
+- `backend/server.js`
+- `backend/db.js`
+- `backend/package.json`
+- `backend/package-lock.json`
+- `backend/.env.example`
+- `backend/routes/auth.js`
+- `backend/routes/posts.js`
+- `backend/validators/posts.js`
+- `backend/validators/index.js`
+- `backend/middleware/errorHandler.js`
+- `backend/scripts/cleanupTestData.js`
+- `backend/tests/setup.js`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`env -u MONGODB_URI npm test`**: **Passed: 128 / 128** tests across 25 suites (0 failures, 0 hangs, duration ~21.3s).
+- **`npm run test:smoke`**: **Passed: 32 / 32** smoke checks (0 failures, duration ~2.1s).
+- **`assertSafeTestDatabase`**: Verified 7/7 assertions throwing on production URIs (`oddspot`, case-insensitive, empty) and permitting safe test replica sets.
+- **`bash backend/scripts/manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`bash backend/scripts/manualChecks2.sh`**: **Passed: 78 / 78** (0 failures, 9 expected pre-launch gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 123ms.
+- **`npm audit`**: 0 vulnerabilities across both backend and frontend.
+
+
 
 
 

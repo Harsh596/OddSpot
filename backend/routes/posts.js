@@ -3,7 +3,12 @@
 
 const { Router } = require('express');
 const mongoose = require('mongoose');
-const rateLimit = require('express-rate-limit');
+const {
+  createPostLimiter,
+  voteLimiter,
+  commentLimiter,
+  reportLimiter,
+} = require('../config/rateLimits');
 const { Post, User, Comment, Report } = require('../models');
 const { requireAuth } = require('../middleware/auth');
 const { idempotency } = require('../middleware/idempotency');
@@ -22,46 +27,6 @@ const router = Router();
 
 // Allowed radius steps for maxDistance (1, 2, 5, 10, 25 km)
 const ALLOWED_RADIUS_STEPS = [1000, 2000, 5000, 10000, 25000];
-
-// Rate limiters for write actions (overrideable in non-production)
-function getWriteLimitMax(defaultVal) {
-  if (process.env.NODE_ENV !== 'production' && process.env.WRITE_RATE_LIMIT_MAX) {
-    return Number(process.env.WRITE_RATE_LIMIT_MAX);
-  }
-  return defaultVal;
-}
-
-const createPostLimiter = rateLimit({
-  windowMs: 60 * 60 * 1000, // 1 hour
-  max: () => getWriteLimitMax(30),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: formatErrorResponse(ErrorCodes.RATE_LIMITED, 'Too many posts created, please try again later'),
-});
-
-const voteLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 mins
-  max: () => getWriteLimitMax(120),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: formatErrorResponse(ErrorCodes.RATE_LIMITED, 'Too many votes submitted, please slow down'),
-});
-
-const commentLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 mins
-  max: () => getWriteLimitMax(60),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: formatErrorResponse(ErrorCodes.RATE_LIMITED, 'Too many comments submitted, please slow down'),
-});
-
-const reportLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 mins
-  max: () => getWriteLimitMax(20),
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: formatErrorResponse(ErrorCodes.RATE_LIMITED, 'Too many reports submitted, please slow down'),
-});
 
 // Fuzz coordinates to ~500 meters (~0.005 degrees)
 function fuzzCoordinates([lng, lat]) {

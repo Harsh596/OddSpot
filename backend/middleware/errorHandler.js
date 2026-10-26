@@ -71,8 +71,9 @@ const errorHandler = (err, req, res, next) => {
   else if (err.name === 'ZodError') {
     statusCode = 400;
     code = 'VALIDATION_FAILED';
-    message = err.errors[0]?.message || 'Validation failed';
-    details = err.errors.map((e) => `${e.path.join('.')}: ${e.message}`);
+    const issues = err.issues || err.errors || [];
+    message = issues[0]?.message || 'Validation failed';
+    details = issues.map((e) => `${(e.path || []).join('.')}: ${e.message}`);
   }
 
   // Dual-compatible response shape:

@@ -30,12 +30,13 @@ function validate(schema, source = 'body') {
       req[source] = parsed;
       next();
     } catch (err) {
-      if (err instanceof z.ZodError) {
-        const details = err.errors.map((e) => {
-          const path = e.path.join('.');
+      if (err instanceof z.ZodError || err.name === 'ZodError') {
+        const issues = err.issues || err.errors || [];
+        const details = issues.map((e) => {
+          const path = e.path ? e.path.join('.') : '';
           return path ? `${path}: ${e.message}` : e.message;
         });
-        const firstMessage = err.errors[0]?.message || 'Validation failed';
+        const firstMessage = issues[0]?.message || 'Validation failed';
         return res.status(400).json(
           formatErrorResponse(ErrorCodes.VALIDATION_FAILED, firstMessage, details)
         );

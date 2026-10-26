@@ -94,6 +94,7 @@ const createPostSchema = z
       })
       .optional(),
     type: z.enum(['find', 'identify'], {
+      message: "Post type must be 'find' or 'identify'",
       errorMap: () => ({ message: "Post type must be 'find' or 'identify'" }),
     }).optional().default('find'),
     images: z
@@ -251,6 +252,7 @@ const reportSchema = z
         'other',
       ],
       {
+        message: 'A valid reason is required',
         errorMap: () => ({ message: 'A valid reason is required' }),
       }
     ),

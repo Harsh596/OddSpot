@@ -5,7 +5,7 @@
 const crypto = require('crypto');
 const { Router } = require('express');
 const bcrypt = require('bcrypt');
-const rateLimit = require('express-rate-limit');
+const { authLimiter } = require('../config/rateLimits');
 const { mongoose } = require('../db');
 const { User, Post, Comment, RefreshToken } = require('../models');
 const { requireAuth, clearUserCache } = require('../middleware/auth');
@@ -24,23 +24,6 @@ const {
 } = require('../validators');
 
 const router = Router();
-
-// Rate limiting for auth routes: 20 attempts per 15 minutes per IP (overrideable in non-production)
-const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,
-  max: () => {
-    if (process.env.NODE_ENV !== 'production' && process.env.AUTH_RATE_LIMIT_MAX) {
-      return Number(process.env.AUTH_RATE_LIMIT_MAX);
-    }
-    return 20;
-  },
-  standardHeaders: true,
-  legacyHeaders: false,
-  message: formatErrorResponse(
-    ErrorCodes.RATE_LIMITED,
-    'Too many auth requests from this IP, please try again after 15 minutes'
-  ),
-});
 
 // POST /api/auth/signup - User registration
 router.post('/signup', authLimiter, validateBody(authValidators.signupSchema), async (req, res, next) => {

@@ -16,6 +16,22 @@ function extractDbName(uri) {
   }
 }
 
+function assertSafeTestDatabase(uri) {
+  if (!uri || typeof uri !== 'string') {
+    throw new Error('Safety violation: Invalid or empty database URI');
+  }
+  const dbName = extractDbName(uri).toLowerCase();
+  if (
+    dbName === 'oddspot' ||
+    (/(^|[/?&])oddspot([/?&]|$)/i.test(uri) && !/oddspot_test/i.test(uri))
+  ) {
+    throw new Error(
+      "Safety violation: Refusing to run with NODE_ENV=test against the production database 'oddspot'. " +
+        "Use mongodb-memory-server or a dedicated 'oddspot_test' / 'oddspot_test_2' database."
+    );
+  }
+}
+
 mongoose.set('strictQuery', true);
 mongoose.set('sanitizeFilter', false);
 
@@ -48,12 +64,8 @@ async function connect(customUri) {
 
   if (!uri) throw new Error('MONGODB_URI is not set');
 
-  const dbName = extractDbName(uri);
-  if (isTestEnv && dbName.toLowerCase() === 'oddspot') {
-    throw new Error(
-      "Safety violation: Refusing to run with NODE_ENV=test against the production database 'oddspot'. " +
-        "Use mongodb-memory-server or a dedicated 'oddspot_test' database."
-    );
+  if (isTestEnv) {
+    assertSafeTestDatabase(uri);
   }
 
   // If already connected with the same URI, reuse connection
@@ -75,4 +87,10 @@ async function disconnect() {
   cached = null;
 }
 
-module.exports = { connect, disconnect, extractDbName, mongoose };
+module.exports = {
+  connect,
+  disconnect,
+  extractDbName,
+  assertSafeTestDatabase,
+  mongoose,
+};
