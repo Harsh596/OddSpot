@@ -306,3 +306,76 @@ Oddspot is a location-sensitive community exploration platform enabling users to
 | **Deep JSON Nesting Attack** | Maximum nesting depth limit middleware (depth > 10 rejected with 400) | `redteam2.test.js` (Exploit 4) | **REMEDIATED** |
 | **Grid Probing Abuse** | Strict 10 reveals/day cap via `AuditLog`, 11th request returns 429 | `redteam2.test.js` (Exploit 5) | **REMEDIATED** |
 
+---
+
+## 6. Red-Team Pass 3: Rate Limiting, IPv6 Subnets, Log Injection & ReDoS
+
+### Detailed Threat Analysis & Mitigations (Pass 3)
+
+#### 1. Rate-Limit Bypass via Spoofed Proxy Headers (API4:2023)
+- **Attack Vector:** An adversary attempts to bypass IP-based rate limiting on sensitive endpoints (e.g., `POST /api/v1/auth/login`) by rotating `X-Forwarded-For` or `X-Real-IP` headers with each request.
+- **Affected Endpoints:** All rate-limited routes, especially `POST /api/v1/auth/login`.
+- **Remediation & Defense:**
+  - `TRUST_PROXY` defaults to `false` in `backend/app.js`.
+  - When `trust proxy` is disabled, Express strictly ignores all `X-Forwarded-For` and `X-Real-IP` request headers, binding `req.ip` directly to the underlying TCP socket address (`req.socket.remoteAddress`).
+  - `buildRateLimitKey` in `backend/middleware/rateLimiter.js` relies strictly on this verified socket IP, causing all spoofed requests from the same socket to accumulate in the same rate-limit bucket and trigger HTTP 429 `RATE_LIMITED`.
+- **Verification:** `backend/test/redteam3.test.js` (Exploit 1) — 5 login attempts with rotating `X-Forwarded-For` headers exhaust the 5-attempt socket IP limit; 6th attempt is blocked with 429.
+
+#### 2. Rate-Limit Subnet Evasion via IPv6 /64 Rotation
+- **Attack Vector:** In IPv6 allocations, residential and cloud ISPs routinely assign subscribers an entire `/64` subnet ($2^{64}$ addresses). An attacker can increment host bits to cycle through millions of unique IP addresses, defeating conventional `/128` IP rate limiting.
+- **Affected Endpoints:** All IP-rate-limited endpoints.
+- **Remediation & Defense:**
+  - `normalizeIp` in `backend/middleware/rateLimiter.js` expands IPv6 addresses and collapses them to their `/64` prefix (`${prefix4.join(':')}::/64`).
+  - Automatically unmaps IPv4-mapped IPv6 addresses (e.g., `::ffff:192.168.1.1` -> `192.168.1.1`).
+  - All IPv6 addresses originating from the same `/64` allocation share a single rate-limiting bucket in MongoDB `ratelimits`.
+- **Verification:** `backend/test/redteam3.test.js` (Exploit 2) — Distinct IPv6 addresses within `2001:db8:abcd:12::/64` normalize to the identical `/64` key and accumulate in the same bucket.
+
+#### 3. Moderator Privilege Escalation & Audit Log Forgery (API5:2023 / BFLA)
+- **Attack Vector:** A rogue or compromised moderator account attempts to ban an administrator (`POST /api/v1/mod/users/:adminId/ban`), ban peer moderators, or forge audit log entries to frame another user or hide misconduct.
+- **Affected Endpoints:** `POST /api/v1/mod/users/:id/ban`, `POST /api/v1/mod/users/:id/unban`, audit services.
+- **Remediation & Defense:**
+  - Strict role hierarchy enforcement in `backend/routes/mod.js`: moderators are forbidden from banning or unbanning administrators or other moderators, immediately returning HTTP 403 `AUTH_FORBIDDEN`.
+  - Zero external endpoints exist for direct `AuditLog` creation or manipulation; audit logs are write-only by internal services (`logAudit`) with immutable `actorId` bound to `req.user.id`.
+- **Verification:** `backend/test/redteam3.test.js` (Exploit 3) — Moderator banning admin or peer returns 403 `AUTH_FORBIDDEN`; direct audit manipulation returns 404.
+
+#### 4. Log Injection & Terminal Escape Sequence Exploitation (CWE-117)
+- **Attack Vector:** An attacker injects carriage returns (`\r\n`) and ANSI escape sequences (`\x1b[31;1m`, `\x1b[2K`, etc.) into `X-Request-Id`, `User-Agent`, or URL paths, aiming to forge counterfeit log entries, manipulate administrative terminal displays, or cause HTTP header splitting.
+- **Affected Endpoints:** Request ID middleware, Request Logger, Pino logging streams.
+- **Remediation & Defense:**
+  - Transport Layer: Node's HTTP parser (llhttp) strictly rejects control bytes in headers with 400 Bad Request.
+  - Middleware Layer: `backend/middleware/requestId.js` strips ANSI escape sequences (`/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g`), CRLF, and null bytes from incoming `X-Request-Id` headers.
+  - Logging Layer: `backend/utils/logger.js` and `requestLogger.js` recursively sanitize all logged payloads and message strings via `sanitizeCrlf`, replacing CRLF with spaces and stripping ANSI sequences.
+- **Verification:** `backend/test/redteam3.test.js` (Exploit 4) — CRLF and ANSI sequences in `X-Request-Id` and `User-Agent` are sanitized and stripped from emitted JSON logs.
+
+#### 5. Regular Expression Denial of Service (ReDoS) & Parser Flooding (CWE-1333)
+- **Attack Vector:** An adversary sends evil ReDoS strings (e.g., `"a".repeat(50000) + "!"`) in search parameters, usernames, or tags, attempting to cause catastrophic backtracking in regular expressions and freeze Node's single-threaded event loop.
+- **Affected Endpoints:** `POST /api/v1/auth/signup`, `POST /api/v1/posts`, `GET /api/v1/feed/city`.
+- **Remediation & Defense:**
+  - Zero unescaped user input is ever compiled into regular expressions (`new RegExp`) across the codebase.
+  - Pre-parse scalar length caps enforced via Zod schemas: `username` max 24 (pre-check max 100), `tag` max 30 (pre-check max 100), `city` max 100.
+  - Payloads exceeding bounds are rejected in < 5ms (well under the 50ms requirement) with 400 `VALIDATION_FAILED` or 431 `Request Header Fields Too Large`, keeping the event loop completely free.
+- **Verification:** `backend/test/redteam3.test.js` (Exploit 5) — 50,000-char payloads in username, tag, and city rejected in < 50ms with event loop non-blocking verification.
+
+#### 6. Constant-Time Secret Verification (`METRICS_TOKEN`)
+- **Attack Vector:** Timing attack against `GET /metrics` authorization header, measuring execution time byte-by-byte to reconstruct `METRICS_TOKEN`.
+- **Affected Endpoints:** `GET /metrics`.
+- **Remediation & Defense:**
+  - `verifyMetricsToken` in `backend/services/metrics.js` hashes both the incoming bearer token and `process.env.METRICS_TOKEN` with SHA-256 into fixed 32-byte buffers before executing `crypto.timingSafeEqual`.
+  - Constant execution time is guaranteed regardless of token length or character match count, eliminating timing and length leakage.
+- **Verification:** `backend/test/redteam3.test.js` — Timing attack immunity suite validates rejection of mismatched lengths, invalid tokens, and acceptance of valid token.
+
+---
+
+## 7. Red-Team Pass 3 Verification Summary
+
+| Threat / Exploit Vector | Defense Mechanism | Exploit Test Suite | Status |
+|---|---|---|---|
+| **Spoofed X-Forwarded-For Rate-Limit Bypass** | `TRUST_PROXY=false` default binds rate limiting strictly to verified socket IP | `redteam3.test.js` (Exploit 1) | **REMEDIATED** |
+| **IPv6 Subnet Rotation (/64 Evasion)** | `normalizeIp` collapses all IPv6 addresses to `/64` subnet bucket | `redteam3.test.js` (Exploit 2) | **REMEDIATED** |
+| **Moderator Hierarchy Escalation** | Role hierarchy blocks banning/unbanning admin or peer mod (403 `AUTH_FORBIDDEN`) | `redteam3.test.js` (Exploit 3) | **REMEDIATED** |
+| **Audit Log Tampering / Forgery** | Zero client-accessible endpoints for audit creation; write-only by internal services | `redteam3.test.js` (Exploit 3) | **REMEDIATED** |
+| **CRLF & ANSI Log Injection (CWE-117)** | Request-ID sanitization + `sanitizeCrlf` strips CRLF and ANSI escape sequences | `redteam3.test.js` (Exploit 4) | **REMEDIATED** |
+| **ReDoS & Parser Flooding (CWE-1333)** | Zero dynamic regex compilation; strict pre-transform Zod length bounds (< 50ms rejection) | `redteam3.test.js` (Exploit 5) | **REMEDIATED** |
+| **Timing Attacks on METRICS_TOKEN** | SHA-256 fixed-buffer hashing + `crypto.timingSafeEqual` constant-time verification | `redteam3.test.js` (Timing Suite) | **REMEDIATED** |
+
+

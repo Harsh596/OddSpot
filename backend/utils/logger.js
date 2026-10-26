@@ -3,14 +3,16 @@
 
 const pino = require('pino');
 
+const ANSI_REGEX = /\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g;
+
 function sanitizeCrlf(val) {
   if (typeof val === 'string') {
-    return val.replace(/[\r\n]+/g, ' ');
+    return val.replace(ANSI_REGEX, '').replace(/[\r\n]+/g, ' ');
   }
   if (val && typeof val === 'object' && !(val instanceof Error)) {
     const res = Array.isArray(val) ? [] : {};
     for (const [k, v] of Object.entries(val)) {
-      const sanitizedKey = typeof k === 'string' ? k.replace(/[\r\n]+/g, ' ') : k;
+      const sanitizedKey = typeof k === 'string' ? k.replace(ANSI_REGEX, '').replace(/[\r\n]+/g, ' ') : k;
       res[sanitizedKey] = sanitizeCrlf(v);
     }
     return res;
@@ -65,12 +67,7 @@ function createLogger(destination, options = {}) {
       },
       hooks: {
         logMethod(inputArgs, method) {
-          const sanitized = inputArgs.map((arg) => {
-            if (typeof arg === 'string') {
-              return arg.replace(/[\r\n]+/g, ' ');
-            }
-            return sanitizeCrlf(arg);
-          });
+          const sanitized = inputArgs.map((arg) => sanitizeCrlf(arg));
           return method.apply(this, sanitized);
         },
       },

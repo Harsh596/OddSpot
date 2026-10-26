@@ -66,6 +66,7 @@ const imageSchema = z
 // Tag validator: trimmed, lowercased, max 30 chars
 const tagSchema = z
   .string({ invalid_type_error: 'Tag must be a text string' })
+  .max(100, 'Each tag must not exceed 100 characters')
   .transform((t) => normalizeText(t).toLowerCase())
   .refine((t) => t.length >= 1 && t.length <= 30, {
     message: 'Each tag must be between 1 and 30 characters',

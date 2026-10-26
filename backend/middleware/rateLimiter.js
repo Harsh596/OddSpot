@@ -4,12 +4,72 @@
 const mongoose = require('mongoose');
 const RateLimit = require('../models/RateLimit');
 
+/**
+ * Normalizes an IP address:
+ * - Unmaps IPv4-mapped IPv6 addresses ("::ffff:1.2.3.4" -> "1.2.3.4")
+ * - Expands IPv6 addresses and collapses them to their /64 subnet prefix
+ * - Converts to lower case and trims
+ */
+function normalizeIp(rawIp) {
+  if (!rawIp || typeof rawIp !== 'string') return 'unknown';
+  let ip = rawIp.trim().toLowerCase();
+
+  // Strip IPv4-mapped IPv6 prefix (e.g. "::ffff:192.168.1.1")
+  if (ip.startsWith('::ffff:')) {
+    const unmapped = ip.slice(7);
+    if (unmapped.includes('.')) {
+      return unmapped;
+    }
+  }
+
+  // If standard IPv4 (contains no colons)
+  if (!ip.includes(':')) {
+    return ip;
+  }
+
+  // Handle IPv6 address expansion and extract /64 prefix (first 4 hextets)
+  // Strip optional zone index (e.g. fe80::1%eth0)
+  const zoneIndex = ip.indexOf('%');
+  if (zoneIndex !== -1) {
+    ip = ip.slice(0, zoneIndex);
+  }
+
+  // Split on "::"
+  const doubleColonParts = ip.split('::');
+  let hextets = [];
+
+  if (doubleColonParts.length === 1) {
+    hextets = ip.split(':');
+  } else if (doubleColonParts.length === 2) {
+    const left = doubleColonParts[0] ? doubleColonParts[0].split(':') : [];
+    const right = doubleColonParts[1] ? doubleColonParts[1].split(':') : [];
+    const missing = 8 - (left.length + right.length);
+    const middle = new Array(Math.max(0, missing)).fill('0');
+    hextets = [...left, ...middle, ...right];
+  } else {
+    return ip;
+  }
+
+  while (hextets.length < 8) {
+    hextets.push('0');
+  }
+
+  // First 4 hextets make up the /64 prefix
+  const prefix4 = hextets.slice(0, 4).map((h) => {
+    const val = parseInt(h || '0', 16);
+    return isNaN(val) ? '0' : val.toString(16);
+  });
+
+  return `${prefix4.join(':')}::/64`;
+}
+
 function buildRateLimitKey(req, prefix = 'rl') {
   const userId = req.user?.id || req.user?._id;
   if (userId) {
     return `${prefix}:user:${userId}`;
   }
-  const clientIp = req.ip || req.socket?.remoteAddress || 'unknown';
+  const rawIp = req.ip || req.socket?.remoteAddress || req.connection?.remoteAddress || 'unknown';
+  const clientIp = normalizeIp(rawIp);
   return `${prefix}:ip:${clientIp}`;
 }
 
@@ -137,4 +197,5 @@ function createRateLimiter(options = {}) {
 module.exports = {
   buildRateLimitKey,
   createRateLimiter,
+  normalizeIp,
 };

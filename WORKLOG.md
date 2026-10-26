@@ -1510,6 +1510,71 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase R3 (Test 2): Red-Team Pass 3 (Rate-Limit Bypass, IPv6 Subnets, Log Injection, ReDoS & Slowloris)
+
+### 1. Architectural & Implementation Summary
+- **Task R3-T1: IPv6 /64 Subnet Normalization (`backend/middleware/rateLimiter.js`)**:
+  - Implemented `normalizeIp(rawIp)`:
+    - Strips IPv4-mapped IPv6 prefix (`::ffff:x.x.x.x` -> `x.x.x.x`).
+    - Strips zone index `%...` if present.
+    - Expands zero-compressed IPv6 (`::`) into full 8-hextet structure.
+    - Collapses IPv6 host addresses to their `/64` prefix: `${prefix4.join(':')}::/64` to prevent rate-limit evasion via ISP-allocated subnet rotation.
+  - Updated `buildRateLimitKey(req, prefix)` to normalize client IP addresses before building rate-limit keys. Exported `normalizeIp`.
+- **Task R3-T2: X-Forwarded-For Spoofing Resistance (`backend/app.js`, `backend/middleware/rateLimiter.js`)**:
+  - Verified `TRUST_PROXY=false` default configuration in `backend/app.js`, instructing Express to ignore `X-Forwarded-For` and `X-Real-IP` headers and strictly anchor `req.ip` to the physical socket remote address (`req.socket.remoteAddress`).
+  - Tested that rotating `X-Forwarded-For` headers during login attempts fails to bypass rate limits and correctly blocks the client with 429 `RATE_LIMITED` once the socket IP limit is reached.
+- **Task R3-T3: Zero Unescaped Dynamic Regex Audit**:
+  - Audited all regular expression usages across the backend codebase (`grep RegExp` and `grep .regex`).
+  - Confirmed zero dynamic user input is ever compiled into `new RegExp` or `$regex`.
+  - Enforced strict pre-parse length boundaries in Zod schemas (`max(100)` on `username` in `signupSchema`, `max(100)` on `tagSchema`, and `max(100)` on `city`/`cityKey` in `feed.validators.js`).
+- **Task R3-T4: Constant-Time `METRICS_TOKEN` Verification (`backend/services/metrics.js`)**:
+  - Upgraded `verifyMetricsToken` to compute SHA-256 hashes of both the incoming token and `process.env.METRICS_TOKEN` into fixed 32-byte buffers before executing `crypto.timingSafeEqual`.
+  - Guaranteed constant execution time across varying token lengths and matching prefix counts, completely eliminating timing attacks and length leaks.
+- **Task R3-T5: Moderator Role Hierarchy & Audit Log Integrity (`backend/routes/mod.js`, `backend/validators/errorCodes.js`)**:
+  - Added `AUTH_FORBIDDEN` error code to `backend/validators/errorCodes.js`.
+  - Enforced strict role hierarchy in `POST /api/v1/mod/users/:id/ban` and `POST /api/v1/mod/users/:id/unban`: moderators attempting to ban or unban administrators or peer moderators immediately return HTTP 403 `AUTH_FORBIDDEN`.
+  - Verified audit logs cannot be forged or manipulated via external endpoints.
+- **Task R3-T6: CRLF & ANSI Escape Sequence Log Injection Hardening (`backend/middleware/requestId.js`, `backend/utils/logger.js`, `backend/middleware/requestLogger.js`)**:
+  - In `backend/middleware/requestId.js`, sanitized incoming `X-Request-Id` headers by stripping ANSI escape sequences (`/\x1B(?:[@-Z\\-_]|\[[0-?]*[ -/]*[@-~])/g`), CRLF, and null bytes, preventing HTTP response splitting and invalid header errors.
+  - Enhanced `sanitizeCrlf` in `backend/utils/logger.js` to strip ANSI escape sequences in addition to replacing CRLF with spaces, protecting terminal emulators and log parsing pipelines.
+  - Added sanitized `userAgent` to `requestLogger.js` `logPayload`.
+- **Task R3-T7: Red-Team Exploit Test Suite (`backend/test/redteam3.test.js` & `backend/tests/redteam3.test.js`)**:
+  - Exploit 1: Spoofed X-Forwarded-For headers on login when TRUST_PROXY=false -> hits rate limit on real socket IP (127.0.0.1) returning 429 `RATE_LIMITED`.
+  - Exploit 2: IPv6 /64 rotation -> normalized to identical `/64` bucket.
+  - Exploit 3: Moderator attempting to ban Admin or another Moderator -> 403 `AUTH_FORBIDDEN`.
+  - Exploit 4: CRLF & ANSI escape sequence injection in X-Request-Id and User-Agent -> sanitized and stripped in logs.
+  - Exploit 5: Evil ReDoS payloads ("a".repeat(50000) + "!") in city, tag, and username parameters -> rejected in < 50ms without blocking event loop.
+  - Additional Suite: Constant-time `METRICS_TOKEN` timing attack immunity.
+- **Task R3-T8: Threat Model Documentation (`docs/THREAT_MODEL.md`)**:
+  - Updated `docs/THREAT_MODEL.md` documenting Section 6 and Section 7 summary table covering all Red-Team Pass 3 threats, attack vectors, remediations, and verification tests.
+
+### 2. Files Touched
+- `backend/middleware/rateLimiter.js`
+- `backend/middleware/requestId.js`
+- `backend/middleware/requestLogger.js`
+- `backend/routes/mod.js`
+- `backend/services/metrics.js`
+- `backend/utils/logger.js`
+- `backend/validators/errorCodes.js`
+- `backend/validators/auth.validators.js`
+- `backend/validators/posts.validators.js`
+- `backend/validators/feed.validators.js`
+- `backend/test/redteam3.test.js` *(New)*
+- `backend/tests/redteam3.test.js` *(New)*
+- `docs/THREAT_MODEL.md`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 303 / 303** tests across 101 suites (0 failures).
+- **`node --test test/redteam3.test.js`**: **Passed: 13 / 13** tests across 7 suites (0 failures).
+- **`npm run build` (frontend)**: Clean production build in 102ms.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
 
 
 

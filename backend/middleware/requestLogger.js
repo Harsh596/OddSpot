@@ -14,11 +14,14 @@ function requestLogger(req, res, next) {
     const route = req.baseUrl ? `${req.baseUrl}${req.route?.path || req.path || ''}` : req.originalUrl || req.url;
     const statusCode = res.statusCode;
 
+    const userAgent = req.headers['user-agent'] || 'unknown';
+
     const logPayload = {
       requestId: sanitizeCrlf(String(requestId)),
       userId: sanitizeCrlf(String(userId)),
       method: sanitizeCrlf(String(method)),
       route: sanitizeCrlf(String(route)),
+      userAgent: sanitizeCrlf(String(userAgent)),
       statusCode,
       durationMs,
     };

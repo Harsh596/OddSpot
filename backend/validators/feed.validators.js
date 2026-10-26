@@ -6,10 +6,10 @@ const { z } = require('zod');
 // GET /api/v1/feed/city
 const cityFeedQuerySchema = z
   .object({
-    city: z.string().optional(),
-    cityKey: z.string().optional(),
-    country: z.string().optional(),
-    countryCode: z.string().optional(),
+    city: z.string().max(100, 'City must not exceed 100 characters').optional(),
+    cityKey: z.string().max(100, 'City key must not exceed 100 characters').optional(),
+    country: z.string().max(100, 'Country must not exceed 100 characters').optional(),
+    countryCode: z.string().max(10, 'Country code must not exceed 10 characters').optional(),
     sort: z.enum(['new', 'hot', 'top']).optional().default('new'),
     limit: z.coerce.number().optional().default(20),
     cursor: z.string().max(512).optional(),
@@ -36,8 +36,8 @@ const cityFeedQuerySchema = z
 // GET /api/v1/feed/country
 const countryFeedQuerySchema = z
   .object({
-    country: z.string().optional(),
-    countryCode: z.string().optional(),
+    country: z.string().max(100, 'Country must not exceed 100 characters').optional(),
+    countryCode: z.string().max(10, 'Country code must not exceed 10 characters').optional(),
     sort: z.enum(['new', 'hot', 'top']).optional().default('new'),
     limit: z.coerce.number().optional().default(20),
     cursor: z.string().max(512).optional(),
@@ -57,8 +57,8 @@ const countryFeedQuerySchema = z
 // GET /api/v1/feed/random
 const randomFeedQuerySchema = z
   .object({
-    country: z.string().optional(),
-    countryCode: z.string().optional(),
+    country: z.string().max(100, 'Country must not exceed 100 characters').optional(),
+    countryCode: z.string().max(10, 'Country code must not exceed 10 characters').optional(),
     limit: z.coerce.number().optional().default(10),
   })
   .strip();

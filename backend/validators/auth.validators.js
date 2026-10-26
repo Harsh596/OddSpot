@@ -23,6 +23,7 @@ const signupSchema = z
   .object({
     username: z
       .string({ required_error: 'Username is required', invalid_type_error: 'Username must be a text string' })
+      .max(100, 'Username must not exceed 100 characters')
       .transform((val) => normalizeText(val))
       .refine((val) => /^[A-Za-z0-9_]{3,24}$/.test(val), {
         message: 'Username must be 3-24 characters containing only letters, numbers, and underscores',

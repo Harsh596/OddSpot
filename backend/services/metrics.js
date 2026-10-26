@@ -56,14 +56,10 @@ function verifyMetricsToken(req) {
   }
 
   const token = authHeader.slice(7).trim();
-  const tokenBuf = Buffer.from(token, 'utf8');
-  const expectedBuf = Buffer.from(metricsToken, 'utf8');
+  const tokenHash = crypto.createHash('sha256').update(token, 'utf8').digest();
+  const expectedHash = crypto.createHash('sha256').update(metricsToken, 'utf8').digest();
 
-  if (tokenBuf.length !== expectedBuf.length) {
-    return { ok: false, status: 403, error: 'Invalid metrics token' };
-  }
-
-  if (!crypto.timingSafeEqual(tokenBuf, expectedBuf)) {
+  if (!crypto.timingSafeEqual(tokenHash, expectedHash)) {
     return { ok: false, status: 403, error: 'Invalid metrics token' };
   }
 

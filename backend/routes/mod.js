@@ -368,7 +368,7 @@ router.post(
         if (targetUser.role === 'admin' || targetUser.role === 'moderator') {
           return res.status(403).json(
             formatErrorResponse(
-              ErrorCodes.FORBIDDEN,
+              ErrorCodes.AUTH_FORBIDDEN,
               'Moderators cannot ban administrators or other moderators'
             )
           );
@@ -376,7 +376,7 @@ router.post(
       }
       if (targetUser.role === 'admin' && req.user.role !== 'admin') {
         return res.status(403).json(
-          formatErrorResponse(ErrorCodes.FORBIDDEN, 'Cannot ban administrator')
+          formatErrorResponse(ErrorCodes.AUTH_FORBIDDEN, 'Cannot ban administrator')
         );
       }
 
@@ -453,6 +453,23 @@ router.post(
       const targetUser = await User.findById(id);
       if (!targetUser) {
         return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found'));
+      }
+
+      // Hierarchy rule: Moderator cannot unban an admin or another moderator
+      if (req.user.role === 'moderator') {
+        if (targetUser.role === 'admin' || targetUser.role === 'moderator') {
+          return res.status(403).json(
+            formatErrorResponse(
+              ErrorCodes.AUTH_FORBIDDEN,
+              'Moderators cannot unban administrators or other moderators'
+            )
+          );
+        }
+      }
+      if (targetUser.role === 'admin' && req.user.role !== 'admin') {
+        return res.status(403).json(
+          formatErrorResponse(ErrorCodes.AUTH_FORBIDDEN, 'Cannot unban administrator')
+        );
       }
 
       if (shadow) {

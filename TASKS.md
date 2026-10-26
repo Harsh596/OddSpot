@@ -125,7 +125,18 @@
     - [x] Exploit 3: Downvote brigade cannot reduce country tier back to city.
     - [x] Exploit 4: Malformed cursor and 25-level deep JSON rejected with 400.
     - [x] Exploit 5: Reveal-on-arrival grid probing blocked by 10/day rate limit.
-- [ ] **R3: Database Performance & Index Optimization**
+- [x] **R3: Red-Team Pass 3 (Rate-Limit Bypass, IPv6 Subnets, Log Injection, ReDoS & Slowloris)**
+  - [x] Task R3-T1: Normalize IPv6 addresses in `buildRateLimitKey` (collapse IPv6 addresses to their `/64` prefix).
+  - [x] Task R3-T2: Ensure `X-Forwarded-For` is ignored when `TRUST_PROXY` is false (default in `app.js`).
+  - [x] Task R3-T3: Audit every `.regex` and `new RegExp` across codebase ensuring zero unescaped user input compiled into regexes.
+  - [x] Task R3-T4: Constant-time `METRICS_TOKEN` verification using SHA-256 fixed buffer hash comparison via `crypto.timingSafeEqual`.
+  - [x] Task R3-T5: Write and pass 5 exploit suites in `backend/test/redteam3.test.js` (and mirror `backend/tests/redteam3.test.js`):
+    - [x] Exploit 1: Spoofed X-Forwarded-For headers on login when TRUST_PROXY=false -> hits rate limit on real socket IP (127.0.0.1).
+    - [x] Exploit 2: IPv6 /64 rotation -> normalized to identical `/64` bucket.
+    - [x] Exploit 3: Moderator attempting to ban Admin (`POST /api/v1/mod/users/:adminId/ban`) or another Moderator -> 403 `AUTH_FORBIDDEN`.
+    - [x] Exploit 4: CRLF & ANSI escape sequence injection in X-Request-Id and User-Agent -> sanitized and stripped in logs.
+    - [x] Exploit 5: Evil ReDoS payloads ("a".repeat(50000) + "!") in city, tag, and username parameters -> rejected in < 50ms without blocking event loop.
+  - [x] Task R3-T6: Update `docs/THREAT_MODEL.md` documenting Rate Limit Bypass, IPv6 subnet evasion, log injection, and ReDoS remediations.
 - [ ] **R4: Final Pre-Release Verification & Hardening**
 
 ### Frontend & Integration Phases (F1–F10)
