@@ -1,10 +1,18 @@
-import React, { useState } from 'react';
+// frontend/src/pages/CreatePost.jsx
+// Post creation form supporting 'find' vs 'identify' types, MarkdownEditor with live preview,
+// Field Guide template shortcut, and privacy-preserving draft autosaving.
+
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { MarkdownEditor } from '../components/markdown/MarkdownEditor';
+
+const DRAFT_STORAGE_KEY = 'oddspot_draft_post';
 
 export function CreatePost({ navigate }) {
   const { user } = useAuth();
 
+  const [type, setType] = useState('find'); // 'find' | 'identify'
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [latitude, setLatitude] = useState('');
@@ -20,6 +28,103 @@ export function CreatePost({ navigate }) {
   const [geoLoading, setGeoLoading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState('');
+  const [hasDraft, setHasDraft] = useState(false);
+
+  const initialLoadedRef = useRef(false);
+
+  // 1. Load draft on mount
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(DRAFT_STORAGE_KEY);
+      if (saved) {
+        const draft = JSON.parse(saved);
+        if (draft.type) setType(draft.type);
+        if (draft.title) setTitle(draft.title);
+        if (draft.body) setBody(draft.body);
+        if (draft.city) setCity(draft.city);
+        if (draft.state) setState(draft.state);
+        if (draft.country) setCountry(draft.country);
+        if (draft.tags) setTags(draft.tags);
+        if (draft.hideExact !== undefined) setHideExact(draft.hideExact);
+        if (!draft.hideExact) {
+          if (draft.latitude) setLatitude(draft.latitude);
+          if (draft.longitude) setLongitude(draft.longitude);
+        }
+        if (draft.warnings && Array.isArray(draft.warnings)) {
+          setWarnings(draft.warnings);
+        }
+        if (draft.images && Array.isArray(draft.images) && draft.images.length > 0) {
+          setImages(draft.images);
+        }
+        setHasDraft(true);
+      }
+    } catch {
+      // Ignore corrupted localStorage data
+    } finally {
+      initialLoadedRef.current = true;
+    }
+  }, []);
+
+  // 2. Autosave draft on form changes (excluding GPS when hideExact is true)
+  useEffect(() => {
+    if (!initialLoadedRef.current) return;
+
+    const draft = {
+      type,
+      title,
+      body,
+      city,
+      state,
+      country,
+      tags,
+      hideExact,
+      warnings,
+      images,
+      // Privacy rule: Exclude GPS when hideExact is checked
+      latitude: hideExact ? '' : latitude,
+      longitude: hideExact ? '' : longitude,
+    };
+
+    try {
+      localStorage.setItem(DRAFT_STORAGE_KEY, JSON.stringify(draft));
+      setHasDraft(true);
+    } catch {
+      // Ignore quota exceeded errors
+    }
+  }, [
+    type,
+    title,
+    body,
+    latitude,
+    longitude,
+    city,
+    state,
+    country,
+    tags,
+    hideExact,
+    warnings,
+    images,
+  ]);
+
+  const handleClearDraft = () => {
+    if (window.confirm('Clear your saved draft?')) {
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+      setType('find');
+      setTitle('');
+      setBody('');
+      setLatitude('');
+      setLongitude('');
+      setCity('');
+      setState('');
+      setCountry('');
+      setImages(['']);
+      setTags('');
+      setHideExact(false);
+      setWarnings([]);
+      setHasDraft(false);
+      setError('');
+    }
+  };
 
   if (!user) {
     return (
@@ -128,7 +233,9 @@ export function CreatePost({ navigate }) {
 
     for (let i = 0; i < filteredImages.length; i++) {
       if (!filteredImages[i].startsWith('https://')) {
-        setError(`Image #${i + 1} must be an HTTPS URL (e.g. https://...). Only URLs are stored.`);
+        setError(
+          `Image #${i + 1} must be an HTTPS URL (e.g. https://...). Only URLs are stored.`
+        );
         return;
       }
     }
@@ -141,6 +248,7 @@ export function CreatePost({ navigate }) {
     setSubmitting(true);
     try {
       const res = await api.createPost({
+        type,
         title: cleanTitle,
         body: body.trim(),
         latitude: latNum,
@@ -154,6 +262,9 @@ export function CreatePost({ navigate }) {
         hideExact,
       });
 
+      // Clear draft upon successful publication
+      localStorage.removeItem(DRAFT_STORAGE_KEY);
+
       navigate(`#/post/${res._id}`);
     } catch (err) {
       setError(err.message || 'Failed to publish post.');
@@ -164,35 +275,76 @@ export function CreatePost({ navigate }) {
 
   return (
     <div className="form-page-container">
-      <h2>Post a New Find</h2>
-      <p className="subtitle">Document an oddity or weird spot you discovered.</p>
+      <div className="form-header-row">
+        <div>
+          <h2>Post a New Find</h2>
+          <p className="subtitle">
+            Document an oddity or ask the community to identify a mystery spot.
+          </p>
+        </div>
+        {hasDraft && (
+          <button
+            type="button"
+            className="btn-secondary btn-small"
+            onClick={handleClearDraft}
+            title="Discard current draft"
+          >
+            Clear Draft
+          </button>
+        )}
+      </div>
 
       {error && <div className="alert-error">{error}</div>}
 
       <form onSubmit={handleSubmit} className="form-stack">
+        {/* Post Type Selector */}
+        <div className="post-type-selector">
+          <button
+            type="button"
+            className={`type-select-btn ${type === 'find' ? 'active' : ''}`}
+            onClick={() => setType('find')}
+          >
+            📍 Odd Spot Find
+            <small>Share a weird place or curious object you located</small>
+          </button>
+          <button
+            type="button"
+            className={`type-select-btn ${type === 'identify' ? 'active' : ''}`}
+            onClick={() => setType('identify')}
+          >
+            ❓ Help Me Identify This
+            <small>Ask the community to solve what or where this is</small>
+          </button>
+        </div>
+
         <label>
           Title *
           <input
             type="text"
             value={title}
             onChange={(e) => setTitle(e.target.value)}
-            placeholder="e.g. Abandoned telephone booth engulfed in vines"
+            placeholder={
+              type === 'identify'
+                ? 'e.g. Strange stone archway deep in the woods—what is this?'
+                : 'e.g. Abandoned telephone booth engulfed in vines'
+            }
             maxLength={140}
             required
           />
           <small className="help-text">{title.length}/140 characters</small>
         </label>
 
-        <label>
-          Description / Story
-          <textarea
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            placeholder="How did you stumble upon it? What makes it bizarre?"
-            rows={4}
-            maxLength={10000}
-          />
-        </label>
+        {/* Markdown Editor with Field Guide Template & Live Preview */}
+        <MarkdownEditor
+          id="post-body-editor"
+          label="Description & Field Notes"
+          value={body}
+          onChange={setBody}
+          rows={6}
+          maxLength={10000}
+          showTemplateButton={true}
+          placeholder="How did you stumble upon it? What makes it bizarre? Use >!spoiler!< for secrets or :::details Title for collapsible sections."
+        />
 
         <div className="form-section">
           <h3>Location Coordinates *</h3>
@@ -276,7 +428,7 @@ export function CreatePost({ navigate }) {
               <strong>Hide exact location</strong>
             </label>
             <p className="field-note">
-              Use this for private homes, schools or sensitive spots.
+              Use this for private homes, sensitive ruins, or safety spots. (Coordinates are excluded from draft storage when enabled).
             </p>
           </div>
         </div>
@@ -345,7 +497,11 @@ export function CreatePost({ navigate }) {
         </div>
 
         <button type="submit" className="btn-primary" disabled={submitting}>
-          {submitting ? 'Publishing Find...' : 'Publish Find'}
+          {submitting
+            ? 'Publishing Find...'
+            : type === 'identify'
+            ? 'Post Question to Community'
+            : 'Publish Find'}
         </button>
       </form>
     </div>

@@ -510,6 +510,24 @@ const recordVisitSchema = z
   })
   .strip();
 
+// POST /api/v1/posts/:id/solve
+const solvePostSchema = z
+  .object({
+    commentId: objectIdSchema,
+  })
+  .strip();
+
+// POST /api/v1/posts/:id/updates
+const postUpdateSchema = z
+  .object({
+    body: z
+      .string({ required_error: 'Update body is required', invalid_type_error: 'Update body must be a string' })
+      .trim()
+      .min(1, 'Update body cannot be empty')
+      .max(2000, 'Update body must not exceed 2000 characters'),
+  })
+  .strip();
+
 module.exports = {
   createPostSchema,
   updatePostSchema,
@@ -523,4 +541,6 @@ module.exports = {
   reportSchema,
   revealSchema,
   recordVisitSchema,
+  solvePostSchema,
+  postUpdateSchema,
 };

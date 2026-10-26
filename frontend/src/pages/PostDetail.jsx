@@ -1,6 +1,15 @@
+// frontend/src/pages/PostDetail.jsx
+// Complete post details view featuring ImageGallery with lightbox, RichText markdown,
+// author post edits within 24h, edit history modal, author updates timeline,
+// and threaded comments with 'identify' solve flow.
+
 import React, { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { RichText } from '../components/markdown/RichText';
+import { MarkdownEditor } from '../components/markdown/MarkdownEditor';
+import { ImageGallery } from '../components/posts/ImageGallery';
+import { CommentThread } from '../components/posts/CommentThread';
 
 const REPORT_REASONS = [
   { value: 'unsafe_or_private', label: 'Unsafe or Private Property' },
@@ -10,6 +19,8 @@ const REPORT_REASONS = [
   { value: 'misinformation', label: 'Misinformation or Fake Location' },
   { value: 'other', label: 'Other Issue' },
 ];
+
+const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
 export function PostDetail({ postId, navigate }) {
   const { user } = useAuth();
@@ -33,6 +44,23 @@ export function PostDetail({ postId, navigate }) {
   const [reportDetails, setReportDetails] = useState('');
   const [submittingReport, setSubmittingReport] = useState(false);
   const [reportMessage, setReportMessage] = useState({ type: '', text: '' });
+
+  // Post Edit state (24h window)
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editTitle, setEditTitle] = useState('');
+  const [editBody, setEditBody] = useState('');
+  const [editTags, setEditTags] = useState('');
+  const [editWarnings, setEditWarnings] = useState([]);
+  const [submittingEdit, setSubmittingEdit] = useState(false);
+  const [editError, setEditError] = useState('');
+
+  // Edit History Modal
+  const [showHistoryModal, setShowHistoryModal] = useState(false);
+
+  // Post Updates state
+  const [newUpdateText, setNewUpdateText] = useState('');
+  const [submittingUpdate, setSubmittingUpdate] = useState(false);
+  const [updateError, setUpdateError] = useState('');
 
   const loadPost = useCallback(async () => {
     setLoading(true);
@@ -61,6 +89,16 @@ export function PostDetail({ postId, navigate }) {
     loadComments();
   }, [loadPost, loadComments]);
 
+  const isAuthor =
+    user &&
+    post &&
+    String(user.id || user._id) ===
+      String(post.authorId?._id || post.authorId);
+
+  const isWithinEditWindow =
+    post &&
+    Date.now() - new Date(post.createdAt).getTime() <= TWENTY_FOUR_HOURS_MS;
+
   const handleVote = async (value) => {
     if (!user) {
       navigate('#/login');
@@ -81,7 +119,7 @@ export function PostDetail({ postId, navigate }) {
     }
   };
 
-  const handleAddComment = async (e) => {
+  const handleAddTopComment = async (e) => {
     e.preventDefault();
     setCommentError('');
 
@@ -101,7 +139,6 @@ export function PostDetail({ postId, navigate }) {
       const res = await api.addComment(postId, { body: cleanBody });
       setComments((prev) => [...prev, res.comment]);
       setNewComment('');
-      // Update meter score
       if (res.meterScore !== undefined) {
         setPost((prev) => ({
           ...prev,
@@ -116,6 +153,119 @@ export function PostDetail({ postId, navigate }) {
       setCommentError(err.message || 'Failed to post comment.');
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  const handleAddReply = async (body, parentId) => {
+    const res = await api.addComment(postId, { body, parentId });
+    setComments((prev) => [...prev, res.comment]);
+    if (res.meterScore !== undefined) {
+      setPost((prev) => ({
+        ...prev,
+        meter: {
+          ...prev.meter,
+          score: res.meterScore,
+          comments: (prev.meter?.comments || 0) + 1,
+        },
+      }));
+    }
+  };
+
+  const handleEditComment = async (commentId, body) => {
+    const res = await api.updateComment(commentId, { body });
+    setComments((prev) =>
+      prev.map((c) => (c._id === commentId ? { ...c, ...res.comment, body } : c))
+    );
+  };
+
+  const handleDeleteComment = async (commentId) => {
+    await api.deleteComment(commentId);
+    setComments((prev) => prev.filter((c) => c._id !== commentId));
+    setPost((prev) => ({
+      ...prev,
+      meter: {
+        ...prev.meter,
+        comments: Math.max((prev.meter?.comments || 1) - 1, 0),
+      },
+    }));
+  };
+
+  const handleSolve = async (commentId) => {
+    if (!window.confirm('Mark this comment as the Best Answer solution?')) return;
+    try {
+      const res = await api.solvePost(postId, commentId);
+      setPost((prev) => ({
+        ...prev,
+        solved: true,
+        bestCommentId: commentId,
+      }));
+      alert('Spot marked as SOLVED!');
+    } catch (err) {
+      alert(err.message || 'Failed to mark post as solved.');
+    }
+  };
+
+  const handleOpenEditModal = () => {
+    setEditTitle(post.title || '');
+    setEditBody(post.body || '');
+    setEditTags(Array.isArray(post.tags) ? post.tags.join(', ') : '');
+    setEditWarnings(Array.isArray(post.warnings) ? post.warnings : []);
+    setEditError('');
+    setShowEditModal(true);
+  };
+
+  const handleSavePostEdit = async (e) => {
+    e.preventDefault();
+    setEditError('');
+
+    const cleanTitle = editTitle.trim();
+    if (!cleanTitle) {
+      setEditError('Title is required.');
+      return;
+    }
+
+    setSubmittingEdit(true);
+    try {
+      const tagsArray = editTags
+        .split(',')
+        .map((t) => t.trim())
+        .filter(Boolean);
+
+      const updated = await api.updatePost(postId, {
+        title: cleanTitle,
+        body: editBody.trim(),
+        tags: tagsArray,
+        warnings: editWarnings,
+      });
+
+      setPost(updated);
+      setShowEditModal(false);
+    } catch (err) {
+      setEditError(err.message || 'Failed to update spot.');
+    } finally {
+      setSubmittingEdit(false);
+    }
+  };
+
+  const handleAddPostUpdate = async (e) => {
+    e.preventDefault();
+    setUpdateError('');
+
+    const clean = newUpdateText.trim();
+    if (!clean) return;
+
+    setSubmittingUpdate(true);
+    try {
+      const res = await api.addPostUpdate(postId, clean);
+      setPost((prev) => ({
+        ...prev,
+        updates: res.updates || [...(prev.updates || []), res.update],
+      }));
+      setNewUpdateText('');
+    } catch (err) {
+      setUpdateError(err.message || 'Failed to post field update.');
+    } finally {
+      setSubmittingUpdate(false);
     }
   };
 
@@ -168,17 +318,55 @@ export function PostDetail({ postId, navigate }) {
     );
   }
 
+  const editHistory = post.editHistory || [];
+  const updates = post.updates || [];
+
   return (
     <div className="post-detail-container">
-      <button className="btn-back" onClick={() => navigate('#/feed')}>
-        ← Back to Nearby Feed
-      </button>
+      <div className="detail-top-nav">
+        <button className="btn-back" onClick={() => navigate('#/feed')}>
+          ← Back to Nearby Feed
+        </button>
+
+        <div className="detail-author-actions">
+          {isAuthor && isWithinEditWindow && (
+            <button
+              type="button"
+              className="btn-secondary btn-small"
+              onClick={handleOpenEditModal}
+              title="Edit spot title, notes, and tags within 24 hours of creation"
+            >
+              ✏️ Edit Spot
+            </button>
+          )}
+
+          {editHistory.length > 0 && (
+            <button
+              type="button"
+              className="btn-secondary btn-small"
+              onClick={() => setShowHistoryModal(true)}
+              title="View past revision history"
+            >
+              🕒 Revisions ({editHistory.length})
+            </button>
+          )}
+        </div>
+      </div>
 
       <div className="detail-header">
         <div className="post-badges">
           <span className={`tier-badge tier-${post.tier || 'city'}`}>
             {(post.tier || 'city').toUpperCase()} TIER
           </span>
+
+          {post.type === 'identify' && (
+            <span
+              className={`badge-type ${post.solved ? 'badge-solved' : 'badge-identify'}`}
+            >
+              {post.solved ? '✓ SOLVED' : '❓ HELP IDENTIFY'}
+            </span>
+          )}
+
           {post.hideExact && (
             <span className="badge-fuzzed">Approximate location</span>
           )}
@@ -198,25 +386,72 @@ export function PostDetail({ postId, navigate }) {
           </span>
           <span>Posted by: <strong>{post.authorId?.username || 'Scout'}</strong></span>
           <span>{new Date(post.createdAt).toLocaleDateString()}</span>
+          {post.editedAt && <span className="edited-indicator">(edited)</span>}
         </div>
       </div>
 
+      {/* Multi-Image Gallery with Keyboard Lightbox */}
       {post.images && post.images.length > 0 && (
-        <div className="image-gallery">
-          {post.images.map((img, idx) => (
-            <div key={idx} className="gallery-item">
-              <img src={img.url} alt={`${post.title} photo ${idx + 1}`} loading="lazy" />
+        <ImageGallery images={post.images} title={post.title} />
+      )}
+
+      {/* Post Description Rendered with Spoilers & Collapsible Markdown */}
+      {post.body && (
+        <div className="detail-body">
+          <RichText content={post.body} />
+        </div>
+      )}
+
+      {/* Author Updates Timeline */}
+      {updates.length > 0 && (
+        <div className="timeline-section">
+          <h3>Field Updates ({updates.length})</h3>
+          {updates.map((upd, idx) => (
+            <div key={idx} className="timeline-card">
+              <div className="timeline-date">
+                Update · {new Date(upd.createdAt).toLocaleString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </div>
+              <RichText content={upd.body} />
             </div>
           ))}
         </div>
       )}
 
-      {post.body && (
-        <div className="detail-body">
-          <p className="plain-text-body">{post.body}</p>
+      {/* Add Field Update Box for Author */}
+      {isAuthor && (
+        <div className="add-update-box">
+          <h4>Post a Field Update ({updates.length}/10 used)</h4>
+          {updates.length >= 10 ? (
+            <p className="field-note">Maximum of 10 field updates reached.</p>
+          ) : (
+            <form onSubmit={handleAddPostUpdate} className="form-stack">
+              {updateError && <div className="alert-error">{updateError}</div>}
+              <textarea
+                value={newUpdateText}
+                onChange={(e) => setNewUpdateText(e.target.value)}
+                placeholder="Log a change in status, demolition notice, or new discovery..."
+                rows={2}
+                maxLength={2000}
+                required
+              />
+              <button
+                type="submit"
+                className="btn-secondary btn-small"
+                disabled={submittingUpdate || !newUpdateText.trim()}
+              >
+                {submittingUpdate ? 'Posting Update...' : 'Post Update'}
+              </button>
+            </form>
+          )}
         </div>
       )}
 
+      {/* Tags & Warnings */}
       {post.tags && post.tags.length > 0 && (
         <div className="detail-tags">
           {post.tags.map((t, idx) => (
@@ -238,13 +473,14 @@ export function PostDetail({ postId, navigate }) {
         </div>
       )}
 
+      {/* Engagement & Voting Bar */}
       <div className="detail-engagement">
         <div className="meter-box">
           <span className="meter-label">Oddity Score</span>
           <span className="meter-number">{post.meter?.score ?? 0}</span>
           <small className="meter-sub">
             {post.meter?.likes ?? 0} likes · {post.meter?.dislikes ?? 0} dislikes ·{' '}
-            {post.meter?.comments ?? 0} comments
+            {post.meter?.comments ?? 0} comments · {post.meter?.visits ?? 0} verified visits
           </small>
         </div>
 
@@ -270,10 +506,117 @@ export function PostDetail({ postId, navigate }) {
         </div>
       </div>
 
+      {/* Edit Spot Modal (Within 24h) */}
+      {showEditModal && (
+        <div className="modal-backdrop" onClick={() => setShowEditModal(false)}>
+          <div className="modal-content modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h3>Edit Spot (24h Window)</h3>
+            <p className="subtitle">
+              Update title, field notes, or tags. (Coordinates and images cannot be changed).
+            </p>
+
+            {editError && <div className="alert-error">{editError}</div>}
+
+            <form onSubmit={handleSavePostEdit} className="form-stack">
+              <label>
+                Title *
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  maxLength={140}
+                  required
+                />
+              </label>
+
+              <MarkdownEditor
+                id="edit-post-body"
+                label="Description & Field Notes"
+                value={editBody}
+                onChange={setEditBody}
+                rows={6}
+                maxLength={10000}
+                showTemplateButton={false}
+              />
+
+              <label>
+                Tags (comma-separated)
+                <input
+                  type="text"
+                  value={editTags}
+                  onChange={(e) => setEditTags(e.target.value)}
+                />
+              </label>
+
+              <div className="modal-actions">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setShowEditModal(false)}
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={submittingEdit || !editTitle.trim()}
+                >
+                  {submittingEdit ? 'Saving...' : 'Save Changes'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Edit History Viewer Modal */}
+      {showHistoryModal && (
+        <div className="modal-backdrop" onClick={() => setShowHistoryModal(false)}>
+          <div className="modal-content modal-wide" onClick={(e) => e.stopPropagation()}>
+            <h3>Edit History ({editHistory.length} Revisions)</h3>
+            <p className="subtitle">
+              Prior versions of this spot before subsequent edits.
+            </p>
+
+            <div className="revisions-list">
+              {editHistory.map((rev, idx) => (
+                <div key={idx} className="revision-card">
+                  <div className="revision-header">
+                    <strong>Revision #{idx + 1}</strong> ·{' '}
+                    <span>{new Date(rev.editedAt).toLocaleString()}</span>
+                  </div>
+                  <h4>{rev.title}</h4>
+                  <RichText content={rev.body || '*No description*'} />
+                  {rev.tags && rev.tags.length > 0 && (
+                    <div className="detail-tags">
+                      {rev.tags.map((t, tIdx) => (
+                        <span key={tIdx} className="tag-pill">
+                          #{t}
+                        </span>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            <div className="modal-actions">
+              <button
+                type="button"
+                className="btn-secondary"
+                onClick={() => setShowHistoryModal(false)}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Report Modal */}
       {showReportModal && (
-        <div className="modal-backdrop">
-          <div className="modal-content">
+        <div className="modal-backdrop" onClick={() => setShowReportModal(false)}>
+          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
             <h3>Report this Spot</h3>
             <p className="subtitle">
               Help keep Oddspot safe and respectful of real-world spaces.
@@ -333,17 +676,28 @@ export function PostDetail({ postId, navigate }) {
         </div>
       )}
 
-      {/* Comments Section */}
+      {/* Threaded Discussion Section */}
       <div className="comments-section">
-        <h3>Discussion ({comments.length})</h3>
+        <h3>
+          Discussion ({comments.length})
+          {post.type === 'identify' && (
+            <small style={{ marginLeft: '0.5rem', fontWeight: 'normal', color: 'var(--text-muted)' }}>
+              — Help identify this find!
+            </small>
+          )}
+        </h3>
 
         {user ? (
-          <form onSubmit={handleAddComment} className="comment-form">
+          <form onSubmit={handleAddTopComment} className="comment-form">
             {commentError && <div className="alert-error">{commentError}</div>}
             <textarea
               value={newComment}
               onChange={(e) => setNewComment(e.target.value)}
-              placeholder="Leave a comment, verification note, or tip..."
+              placeholder={
+                post.type === 'identify'
+                  ? 'Know what this is? Leave your identification or clue...'
+                  : 'Leave a comment, verification note, or tip...'
+              }
               rows={3}
               maxLength={5000}
               required
@@ -365,23 +719,19 @@ export function PostDetail({ postId, navigate }) {
           </div>
         )}
 
-        <div className="comments-list">
-          {comments.length === 0 ? (
-            <p className="no-comments">No comments yet. Start the conversation!</p>
-          ) : (
-            comments.map((c) => (
-              <div key={c._id} className="comment-item">
-                <div className="comment-header">
-                  <strong>{c.authorId?.username || 'Scout'}</strong>
-                  <span className="comment-date">
-                    {new Date(c.createdAt).toLocaleDateString()}
-                  </span>
-                </div>
-                <p className="comment-body plain-text-body">{c.body}</p>
-              </div>
-            ))
-          )}
-        </div>
+        <CommentThread
+          comments={comments}
+          postId={postId}
+          postAuthorId={post.authorId}
+          isIdentifyPost={post.type === 'identify'}
+          isSolved={Boolean(post.solved)}
+          bestCommentId={post.bestCommentId}
+          currentUser={user}
+          onSolve={handleSolve}
+          onAddComment={handleAddReply}
+          onEditComment={handleEditComment}
+          onDeleteComment={handleDeleteComment}
+        />
       </div>
     </div>
   );

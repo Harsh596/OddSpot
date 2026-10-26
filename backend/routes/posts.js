@@ -1284,4 +1284,133 @@ router.get(
   }
 );
 
+// POST /api/v1/posts/:id/solve - Mark an 'identify' spot as solved by selecting best comment
+router.post(
+  '/:id/solve',
+  requireAuth,
+  validateParams(postsValidators.postIdParamSchema),
+  validateBody(postsValidators.solvePostSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { commentId } = req.body;
+
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      // Author only
+      if (post.authorId.toString() !== req.user.id.toString()) {
+        return res
+          .status(403)
+          .json(
+            formatErrorResponse(ErrorCodes.FORBIDDEN, 'Only the author can mark this spot as solved')
+          );
+      }
+
+      // post.type === 'identify'
+      if (post.type !== 'identify') {
+        return res
+          .status(400)
+          .json(
+            formatErrorResponse(
+              ErrorCodes.VALIDATION_FAILED,
+              "Only 'identify' posts can be marked as solved"
+            )
+          );
+      }
+
+      // Verify comment belongs to post
+      const comment = await Comment.findOne({
+        _id: commentId,
+        postId: post._id,
+        removed: { $ne: true },
+      });
+      if (!comment) {
+        return res
+          .status(400)
+          .json(
+            formatErrorResponse(
+              ErrorCodes.VALIDATION_FAILED,
+              'Comment not found on this post'
+            )
+          );
+      }
+
+      post.solved = true;
+      post.bestCommentId = comment._id;
+      await post.save();
+
+      const populatedPost = await Post.findById(post._id).populate('authorId', 'username avatarUrl badges');
+
+      return res.status(200).json({
+        ok: true,
+        post: sanitizePost(populatedPost),
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /api/v1/posts/:id/updates - Append an author field update
+router.post(
+  '/:id/updates',
+  requireAuth,
+  validateParams(postsValidators.postIdParamSchema),
+  validateBody(postsValidators.postUpdateSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { body } = req.body;
+
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      // Author only
+      if (post.authorId.toString() !== req.user.id.toString()) {
+        return res
+          .status(403)
+          .json(
+            formatErrorResponse(
+              ErrorCodes.FORBIDDEN,
+              'Only the author can add updates to this spot'
+            )
+          );
+      }
+
+      // Max 10 updates per post
+      post.updates = post.updates || [];
+      if (post.updates.length >= 10) {
+        return res
+          .status(400)
+          .json(
+            formatErrorResponse(
+              ErrorCodes.VALIDATION_FAILED,
+              'Maximum of 10 updates allowed per post'
+            )
+          );
+      }
+
+      const updateItem = {
+        body,
+        createdAt: new Date(),
+      };
+      post.updates.push(updateItem);
+      await post.save();
+
+      return res.status(201).json({
+        ok: true,
+        update: updateItem,
+        updates: post.updates,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 module.exports = router;

@@ -161,7 +161,10 @@
   - [x] Task F3-T1: Build `frontend/src/pages/HomePage.jsx` calling `GET /api/v1/feed/home` (with fallback to `/feed/country`). Include trending digest strip and Default vs Custom Feed Rules.
   - [x] Task F3-T2: Build `frontend/src/pages/RandomPage.jsx` calling `GET /api/v1/posts/feed/random` with optional country teleport filter, animated "Surprise Me!" button, and `Shift + R` keyboard shortcut.
   - [x] Routing verification: verified clean navigation across Home (`#/home`), Explore (`#/explore`), Random (`#/random`), and Create (`#/create`) tabs on both desktop and mobile layouts.
-- [ ] **F4: Nearby Feed Page & Distance Badges**
+- [x] **F4: Markdown + Spoiler Editor, Galleries, Threaded Comments & Solve Flow**
+  - [x] Task F4-T1: Backend support for Solve Best-Answer (`POST /api/v1/posts/:id/solve` author only, identify spots, sets `solved: true` and `bestCommentId`) and Author Field Updates (`POST /api/v1/posts/:id/updates` author only, 1..2000 chars, max 10 updates).
+  - [x] Task F4-T2: Markdown & Spoiler grammar parser + strict DOMPurify sanitizer (`frontend/src/utils/markdown.js` and `RichText.jsx` with `>!spoiler!<` and `:::details Title\nContent\n:::`, link hardening, and unit test `backend/test/markdown.test.js`).
+  - [x] Task F4-T3: Upgraded `CreatePost.jsx` (post type selector 'find' vs 'identify', `MarkdownEditor.jsx` with Field Guide template, and privacy-preserving draft autosaving excluding GPS when hideExact) & `PostDetail.jsx` (`ImageGallery.jsx` with keyboard lightbox, author 24h edit modal, edit history viewer, updates timeline, and `CommentThread.jsx` with depth 3 threading, inline replies, edit/delete, and Best Answer solve flow).
 - [ ] **F5: Post Creation Form & GPS Autofill**
 - [ ] **F6: Post Detail Page & Safe Plaintext Rendering**
 - [ ] **F7: Voting Controls & Realtime Score Updates**

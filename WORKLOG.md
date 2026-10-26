@@ -1699,6 +1699,84 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase F4: Markdown + Spoiler Editor, Galleries, Threaded Comments & Solve Flow
+
+### 1. Summary of Changes
+- **Task F4-T1: Backend Support for Solve Best-Answer & Author Updates** (`backend/routes/posts.js`, `backend/validators/posts.validators.js`):
+  - Added `POST /api/v1/posts/:id/solve`: Requires authentication and verifies author ownership; ensures `post.type === 'identify'` and comment belongs to post; atomically sets `post.solved = true` and `post.bestCommentId = comment._id`; returns 200 with sanitized post.
+  - Added `POST /api/v1/posts/:id/updates`: Requires authentication and verifies author ownership; accepts `body` (1..2000 chars); caps updates at 10 per post; appends `{ body, createdAt: new Date() }` and returns 201 with updated timeline.
+  - Added validation schemas `solvePostSchema` and `postUpdateSchema` in `backend/validators/posts.validators.js`.
+  - Added frontend API bindings `api.solvePost(id, commentId)` and `api.addPostUpdate(id, body)` in `frontend/src/api.js`.
+- **Task F4-T2: Markdown & Spoiler Grammar + Strict DOMPurify Sanitizer** (`frontend/src/utils/markdown.js`, `frontend/src/components/markdown/RichText.jsx`):
+  - Created `frontend/src/utils/markdown.js`:
+    - Custom spoiler syntax `>!hidden text!<` preprocessed into `<span class="odd-spoiler" role="button" tabindex="0" aria-expanded="false" data-spoiler="true">hidden text</span>`.
+    - Custom collapsible section syntax `:::details Summary\nContent\n:::` preprocessed into `<details class="odd-collapsible"><summary>Summary</summary><div class="odd-collapsible-body">\n\nContent\n\n</div></details>`.
+    - Integrated with `marked.parse(..., { breaks: true, gfm: true })`.
+    - Strict DOMPurify configuration: `ALLOWED_TAGS` (p, br, strong, em, del, code, pre, blockquote, ul, ol, li, h1-h4, a, span, details, summary, div, hr); `ALLOWED_ATTR` (href, title, target, rel, class, role, tabindex, aria-expanded, data-spoiler); `FORBID_TAGS` (script, style, iframe, object, embed, form, input, svg, math, img); `FORBID_ATTR` (onerror, onload, onclick, onmouseover, onfocus, style).
+    - Registered DOMPurify `afterSanitizeAttributes` hook: enforces `target="_blank"` and `rel="noopener noreferrer nofollow"` on all `<a>` tags and strips any `href` not starting with `https://`, `http://`, or `#` (blocking `javascript:` URLs).
+  - Created `frontend/src/components/markdown/RichText.jsx`:
+    - Renders sanitized HTML.
+    - Interactive keyboard and click event delegation: toggles `.is-revealed` and `aria-expanded` on click or Enter/Space keys on spoilers.
+  - Created unit tests in `backend/test/markdown.test.js` (and mirror `backend/tests/markdown.test.js`): 5/5 tests passing verifying removal of `<script>`, `<img onerror=alert(1)>`, `javascript:` URLs, and preservation of spoilers and collapsible details.
+  - Added devDependency `jsdom` in `frontend/package.json` to enable testing DOMPurify in headless environments.
+- **Task F4-T3: Upgrade CreatePost.jsx & PostDetail.jsx** (`frontend/src/pages/CreatePost.jsx`, `frontend/src/pages/PostDetail.jsx`, `frontend/src/components/markdown/MarkdownEditor.jsx`, `frontend/src/components/posts/ImageGallery.jsx`, `frontend/src/components/posts/CommentThread.jsx`):
+  - Created `frontend/src/components/markdown/MarkdownEditor.jsx`:
+    - Tabbed "Write" and "Preview" modes.
+    - Formatting toolbar buttons for Bold, Italic, H3, Spoiler, Collapsible Details, and "+ Field Guide Template".
+    - Live character counter.
+  - Upgraded `frontend/src/pages/CreatePost.jsx`:
+    - Post type selector toggling between "Odd Spot Find" (`'find'`) and "Help Me Identify This" (`'identify'`).
+    - Integrated `MarkdownEditor` with Field Guide template shortcut.
+    - Implemented localStorage draft autosaving under key `oddspot_draft_post`.
+    - Enforced location privacy: coordinates (`latitude` and `longitude`) are strictly omitted from draft storage when `hideExact` is checked.
+    - Clear draft button and automated draft clearance upon successful post creation.
+  - Created `frontend/src/components/posts/ImageGallery.jsx`:
+    - Displays full-bleed single image or responsive multi-image grid.
+    - Interactive Lightbox with keyboard navigation (`Escape` closes, `ArrowLeft` previous, `ArrowRight` next, navigation buttons, counter).
+  - Created `frontend/src/components/posts/CommentThread.jsx`:
+    - Builds hierarchical tree from flat comment list up to depth 3 (`.depth-1`, `.depth-2`, `.depth-3`).
+    - Inline reply forms at depths 1 and 2 (depth 3 disabled).
+    - Inline edit and soft-delete for comment authors.
+    - Best Answer solve flow: highlights `bestCommentId` with distinct green border, soft glow, and `✓ SOLVED - Best Answer` badge.
+    - Author "Mark as Solved" button for unsolved `identify` spots.
+  - Upgraded `frontend/src/pages/PostDetail.jsx`:
+    - Integrated `ImageGallery`, `RichText`, and `CommentThread`.
+    - Added author "Edit Spot" button (active within 24h of post creation) with modal editing title, body, tags, and warnings.
+    - Added "View Edit History" modal displaying past revisions.
+    - Added author "Field Updates" timeline and submission form (capped at 10 updates).
+  - Added comprehensive CSS in `frontend/src/App.css` styling markdown typography, spoilers, collapsible details, editor tabs/toolbar, gallery grid/lightbox, comment hierarchy, and best answer highlights.
+
+### 2. Files Touched
+- `backend/routes/posts.js`
+- `backend/validators/posts.validators.js`
+- `backend/test/posts.test.js`
+- `backend/tests/posts.test.js`
+- `backend/test/markdown.test.js` *(New)*
+- `backend/tests/markdown.test.js` *(New)*
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/src/api.js`
+- `frontend/src/utils/markdown.js` *(New)*
+- `frontend/src/components/markdown/RichText.jsx` *(New)*
+- `frontend/src/components/markdown/MarkdownEditor.jsx` *(New)*
+- `frontend/src/components/posts/ImageGallery.jsx` *(New)*
+- `frontend/src/components/posts/CommentThread.jsx` *(New)*
+- `frontend/src/pages/CreatePost.jsx`
+- `frontend/src/pages/PostDetail.jsx`
+- `frontend/src/App.css`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 316 / 316** tests across 104 suites (0 failures).
+- **`node --test test/markdown.test.js`**: **Passed: 5 / 5** tests (0 failures).
+- **`node --test test/posts.test.js`**: **Passed: 12 / 12** tests (0 failures).
+- **`npm run build` (frontend)**: Clean production build in 156ms.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

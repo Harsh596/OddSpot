@@ -219,4 +219,114 @@ describe('Posts Integration Tests', () => {
     assert.equal(res.status, 400);
     assert.match(res.body.error, /null/i);
   });
+
+  it('11. POST /api/v1/posts/:id/solve marks identify spot as solved by author only', async () => {
+    const otherUser = await createTestUser({ username: 'solve_helper' });
+
+    // Create an 'identify' post
+    const postRes = await request(app)
+      .post('/api/posts')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({
+        type: 'identify',
+        title: 'Mystery Archway in Forest',
+        body: 'Can anyone tell me what this is?',
+        latitude: 12.9716,
+        longitude: 77.5946,
+        city: 'Bengaluru',
+        country: 'India',
+      });
+    assert.equal(postRes.status, 201);
+    const postId = postRes.body._id;
+
+    // Helper comments with answer
+    const commentRes = await request(app)
+      .post(`/api/posts/${postId}/comments`)
+      .set('Authorization', `Bearer ${otherUser.token}`)
+      .send({ body: 'It is a 19th century aqueduct gate!' });
+    assert.equal(commentRes.status, 201);
+    const commentId = commentRes.body.comment._id;
+
+    // Non-author attempting to solve gets 403
+    const forbiddenSolve = await request(app)
+      .post(`/api/v1/posts/${postId}/solve`)
+      .set('Authorization', `Bearer ${otherUser.token}`)
+      .send({ commentId });
+    assert.equal(forbiddenSolve.status, 403);
+
+    // Author solves successfully
+    const solveRes = await request(app)
+      .post(`/api/v1/posts/${postId}/solve`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ commentId });
+    assert.equal(solveRes.status, 200);
+    assert.equal(solveRes.body.ok, true);
+    assert.equal(solveRes.body.post.solved, true);
+    assert.equal(String(solveRes.body.post.bestCommentId), String(commentId));
+
+    // Non-identify post rejected with 400
+    const normalPostRes = await request(app)
+      .post('/api/posts')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({
+        type: 'find',
+        title: 'Regular Find Post',
+        latitude: 12.9716,
+        longitude: 77.5946,
+        city: 'Bengaluru',
+        country: 'India',
+      });
+    const normalSolveRes = await request(app)
+      .post(`/api/v1/posts/${normalPostRes.body._id}/solve`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ commentId });
+    assert.equal(normalSolveRes.status, 400);
+  });
+
+  it('12. POST /api/v1/posts/:id/updates appends author updates up to 10 max', async () => {
+    const postRes = await request(app)
+      .post('/api/posts')
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({
+        title: 'Spot with Field Updates',
+        latitude: 12.9716,
+        longitude: 77.5946,
+        city: 'Bengaluru',
+        country: 'India',
+      });
+    const postId = postRes.body._id;
+
+    const otherUser = await createTestUser({ username: 'other_updater' });
+    const forbiddenUpd = await request(app)
+      .post(`/api/v1/posts/${postId}/updates`)
+      .set('Authorization', `Bearer ${otherUser.token}`)
+      .send({ body: 'Hacked update' });
+    assert.equal(forbiddenUpd.status, 403);
+
+    // Add first update
+    const updRes = await request(app)
+      .post(`/api/v1/posts/${postId}/updates`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ body: 'Field check: Gate is now painted blue.' });
+    assert.equal(updRes.status, 201);
+    assert.equal(updRes.body.updates.length, 1);
+    assert.equal(updRes.body.update.body, 'Field check: Gate is now painted blue.');
+
+    // Fast-forward to 10 updates
+    await models.Post.findByIdAndUpdate(postId, {
+      $set: {
+        updates: Array.from({ length: 10 }, (_, i) => ({
+          body: `Update ${i + 1}`,
+          createdAt: new Date(),
+        })),
+      },
+    });
+
+    const overflowUpd = await request(app)
+      .post(`/api/v1/posts/${postId}/updates`)
+      .set('Authorization', `Bearer ${user.token}`)
+      .send({ body: '11th update should be blocked' });
+    assert.equal(overflowUpd.status, 400);
+    assert.match(overflowUpd.body.error, /maximum of 10 updates/i);
+  });
 });

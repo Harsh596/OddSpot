@@ -347,6 +347,16 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(payload),
     }),
+  solvePost: (id, commentId) =>
+    apiRequest(`/posts/${encodeURIComponent(id)}/solve`, {
+      method: 'POST',
+      body: JSON.stringify({ commentId }),
+    }),
+  addPostUpdate: (id, body) =>
+    apiRequest(`/posts/${encodeURIComponent(id)}/updates`, {
+      method: 'POST',
+      body: JSON.stringify({ body }),
+    }),
 
   // Comments
   getComments: (id, options = {}) => {
