@@ -42,7 +42,12 @@
   - [x] Task P3-T8: Implemented `POST /api/auth/change-password` and `DELETE /api/auth/me` (anonymizes contributions to tombstone and deletes user document and active tokens).
   - [x] Task P3-T9: Created `docs/COOKIE_AUTH_PLAN.md` detailing future httpOnly cookie migration.
   - [x] Dedicated regression test suite: `backend/test/phase3.test.js` (21 tests).
-- [ ] **P4: Comments & Atomic Score Pipelines**
+- [x] **P4: Validation Layer (zod), Standardized Errors, /api/v1 & OpenAPI Contract**
+  - [x] Task P4-T1: Installed zod in `backend/`. Built `backend/validators/common.js`, `auth.validators.js`, and `posts.validators.js` with allowlists and scalar guards.
+  - [x] Task P4-T2: In `backend/db.js`, enabled `sanitizeFilter: true` and registered global `maxTimeMS(5000)` and query operator safety plugin.
+  - [x] Task P4-T3: Built `backend/middleware/requestId.js` (assigns or forwards `X-Request-Id`). Standardized `backend/middleware/errorHandler.js` returning dual-compatible error envelope (`error`, `code`, `message`, `details`).
+  - [x] Task P4-T4: Created `backend/middleware/bodyLimit.js` enforcing byte bounds (login: 2 KB, post: 20 KB, comment: 10 KB). Mounted routers on both `/api/v1` and `/api`. Added `GET /api/v1/config/public`.
+  - [x] Task P4-T5: Created `backend/openapi/spec.js`, generated `docs/openapi.json` via `backend/scripts/generateOpenApi.js`, and wrote `backend/test/openapiContract.test.js` (10 tests).
 - [ ] **P5: Meter Scoring & Regional City->Country Escalation**
 - [ ] **P6: Moderation & Automatic Content Fuzzing**
 - [ ] **P7: Account Security, Banning & Role Enforcement**

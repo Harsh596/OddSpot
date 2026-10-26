@@ -780,6 +780,60 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`npm run build` (frontend)**: Passed clean production build in 84ms.
 - **Pre-approved Schema Changes**: `User` fields (`emailLower`, `tokenVersion`, `ageConfirmedAt`, `emailVerifiedAt`, `shadowBanned`, `trust`, `lastPostLocation`), `RefreshToken` fields (`replacedBy`, `revokedAt`), `EmailToken` model (`userId`, `tokenHash`, `type`, `expiresAt`, `usedAt`).
 
+---
+
+## [2026-10-26] - Phase P4: Validation Layer (zod), Standardized Errors, /api/v1 & OpenAPI Contract
+
+### 1. Work Completed Per Task
+- **Task P4-T1 - Strict Validation Layer (Zod)**:
+  - Installed and verified `zod` in `backend/package.json`.
+  - Built `backend/validators/common.js` with `normalizedString`, `latitudeSchema`, `longitudeSchema`, `objectIdSchema`, and NUL-byte guards.
+  - Built `backend/validators/auth.validators.js` enforcing strict allowlists, password byte bounds (8-72), reserved username checks, and mass-assignment shielding with `.strip()`. Re-exported via `backend/validators/auth.js`.
+  - Built `backend/validators/posts.validators.js` enforcing coordinate ranges, HTTPS image URLs, tag length bounds, and sanitizing coordinates and place metadata. Re-exported via `backend/validators/posts.js`.
+- **Task P4-T2 - Query Sanitization & Execution Timeout**:
+  - Enabled `mongoose.set('sanitizeFilter', true)` in `backend/db.js`.
+  - Implemented `trustQueryOperators` in `backend/db.js` registered on the global pre-query hook alongside `maxTimeMS(5000)`, ensuring legitimate database operations (`$ne`, `$gt`, etc.) succeed while injection payloads are neutralized.
+- **Task P4-T3 - Request Tracing & Dual-Compatible Error Envelope**:
+  - Created `backend/middleware/requestId.js` generating UUIDs for missing `X-Request-Id` headers and preserving incoming client trace headers. Attached to `req.id` and response header.
+  - Standardized `backend/middleware/errorHandler.js` returning dual-compatible error envelopes with `error` (string), `code`, `message`, and `details`, covering 413, 400, 409, and 404 cleanly without leaking database internals.
+- **Task P4-T4 - Body Limits & API Routing Architecture**:
+  - Created `backend/middleware/bodyLimit.js` enforcing per-route JSON payload bounds (login: 2 KB, post: 20 KB with parser tolerance, comment: 10 KB, default: 100 KB).
+  - Mounted API routes under both `/api/v1` and `/api` alias.
+  - Added public configuration endpoint `GET /api/v1/config/public` (and `/api/config/public`) exposing safe client limits, features, and version metadata.
+- **Task P4-T5 - OpenAPI 3.1.0 Specification & Contract Tests**:
+  - Created `backend/openapi/spec.js` providing full OpenAPI 3.1.0 document.
+  - Updated `backend/scripts/generateOpenApi.js` to write specification to both `docs/openapi.json` and `backend/docs/openapi.json`.
+  - Wrote `backend/test/openapiContract.test.js` (10 tests) verifying schema structure, route availability, public config, and requestId tracking.
+
+### 2. Files Touched
+- `backend/validators/auth.validators.js` *(New)*
+- `backend/validators/posts.validators.js` *(New)*
+- `backend/middleware/requestId.js` *(New)*
+- `backend/middleware/bodyLimit.js` *(New)*
+- `backend/openapi/spec.js` *(New)*
+- `backend/test/openapiContract.test.js` *(New)*
+- `backend/tests/openapiContract.test.js` *(New)*
+- `backend/validators/auth.js`
+- `backend/validators/posts.js`
+- `backend/validators/openapi.js`
+- `backend/scripts/generateOpenApi.js`
+- `backend/db.js`
+- `backend/app.js`
+- `backend/middleware/errorHandler.js`
+- `docs/openapi.json`
+- `backend/docs/openapi.json`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 210 / 210** tests across 58 suites (0 failures, duration ~35.5s).
+- **`node backend/scripts/generateOpenApi.js`**: Successfully compiled OpenAPI 3.1.0 spec at `docs/openapi.json`.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 82 / 82** (0 failures, 5 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 71ms.
+- **Zero breaking schema changes.**
+
+
 
 
 

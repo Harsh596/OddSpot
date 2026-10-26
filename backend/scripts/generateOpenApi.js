@@ -1,7 +1,7 @@
 // backend/scripts/generateOpenApi.js
-// Generates and writes backend/docs/openapi.json from validator contracts.
+// Generates and writes docs/openapi.json from backend/openapi/spec.js contracts.
 
-const { writeOpenApiJson } = require('../validators/openapi');
+const { writeOpenApiJson } = require('../openapi/spec');
 
 try {
   const filePath = writeOpenApiJson();

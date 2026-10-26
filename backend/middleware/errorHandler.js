@@ -1,5 +1,7 @@
 // backend/middleware/errorHandler.js
 // Dual-compatible central error handler middleware.
+// Returns an error envelope with standardized code, message, and details,
+// while preserving res.body.error string compatibility for legacy assertions.
 
 const errorHandler = (err, req, res, next) => {
   // If headers already sent, delegate to default express handler
@@ -8,7 +10,7 @@ const errorHandler = (err, req, res, next) => {
   }
 
   let statusCode = err.statusCode || err.status || 500;
-  let code = err.code || 'INTERNAL_ERROR';
+  let code = err.code || (statusCode >= 500 ? 'INTERNAL_SERVER_ERROR' : 'ERROR');
   let message = err.message || 'An unexpected error occurred';
   let details = err.details || [];
 
@@ -74,6 +76,12 @@ const errorHandler = (err, req, res, next) => {
     const issues = err.issues || err.errors || [];
     message = issues[0]?.message || 'Validation failed';
     details = issues.map((e) => `${(e.path || []).join('.')}: ${e.message}`);
+  }
+
+  // In production, sanitize 500 messages so internal implementation details never leak
+  if (statusCode >= 500 && process.env.NODE_ENV === 'production') {
+    message = 'An unexpected internal server error occurred';
+    details = [];
   }
 
   // Dual-compatible response shape:

@@ -33,9 +33,29 @@ function assertSafeTestDatabase(uri) {
 }
 
 mongoose.set('strictQuery', true);
-mongoose.set('sanitizeFilter', false);
+mongoose.set('sanitizeFilter', true);
 
-// Global default maxTimeMS of 5000 on all query execution
+function trustQueryOperators(filter) {
+  if (filter == null || typeof filter !== 'object') return filter;
+  if (Array.isArray(filter)) {
+    for (const item of filter) {
+      trustQueryOperators(item);
+    }
+    return filter;
+  }
+  for (const key of Object.keys(filter)) {
+    const val = filter[key];
+    if (val && typeof val === 'object' && !Array.isArray(val)) {
+      if (Object.keys(val).some((k) => k.startsWith('$'))) {
+        mongoose.trusted(val);
+      }
+      trustQueryOperators(val);
+    }
+  }
+  return filter;
+}
+
+// Global default maxTimeMS of 5000 and query operator safety on all query execution
 mongoose.plugin((schema) => {
   schema.pre(
     [
@@ -53,6 +73,9 @@ mongoose.plugin((schema) => {
     function () {
       if (!this.options || !this.options.maxTimeMS) {
         this.maxTimeMS(5000);
+      }
+      if (this._conditions) {
+        trustQueryOperators(this._conditions);
       }
     }
   );

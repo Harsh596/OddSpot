@@ -1,9 +1,11 @@
 require('dotenv').config();
 const path = require('path');
-const crypto = require('crypto');
+const fs = require('fs');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
+const requestId = require('./middleware/requestId');
+const { bodyLimit, limits } = require('./middleware/bodyLimit');
 const authRoutes = require('./routes/auth');
 const postsRoutes = require('./routes/posts');
 const errorHandler = require('./middleware/errorHandler');
@@ -32,12 +34,7 @@ function createApp() {
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
   // 1. Request ID generation / preservation
-  app.use((req, res, next) => {
-    const reqId = req.headers['x-request-id'] || crypto.randomUUID();
-    req.id = reqId;
-    res.setHeader('X-Request-Id', reqId);
-    next();
-  });
+  app.use(requestId);
 
   // 2. Security headers with helmet
   app.use(helmet());
@@ -51,32 +48,7 @@ function createApp() {
   );
 
   // 4. Per-route JSON body limiters with multipart bypass hook
-  const jsonLogin = express.json({ limit: '2kb' });
-  const jsonPost = express.json({ limit: '50kb' });
-  const jsonComment = express.json({ limit: '10kb' });
-  const jsonDefault = express.json({ limit: '100kb' });
-
-  app.use((req, res, next) => {
-    // Pass-through bypass hook for future multipart uploads
-    if (req.is('multipart/*')) {
-      return next();
-    }
-
-    const url = req.originalUrl || req.url || '';
-    if (req.method === 'POST') {
-      if (url.includes('/auth/login')) {
-        return jsonLogin(req, res, next);
-      }
-      if (url.match(/\/posts\/[^/]+\/comments/)) {
-        return jsonComment(req, res, next);
-      }
-      if (url.match(/\/posts\/?(\?.*)?$/)) {
-        return jsonPost(req, res, next);
-      }
-    }
-
-    return jsonDefault(req, res, next);
-  });
+  app.use(bodyLimit);
 
   // 5. Handle JSON parser errors immediately, returning a generic error without parser internals
   app.use((err, req, res, next) => {
@@ -153,9 +125,36 @@ function createApp() {
     res.json({ status: 'ok', time: new Date().toISOString() });
   });
 
+  // Public configuration endpoint
+  apiRouter.get('/config/public', (req, res) => {
+    res.json({
+      name: 'OddSpot',
+      version: '1.0.0',
+      limits: {
+        postMaxImages: 6,
+        postMaxTags: 10,
+        titleMaxLength: 140,
+        bodyMaxLength: 10000,
+        commentMaxLength: 5000,
+        payloadLimits: limits,
+      },
+      features: {
+        hideExactAllowed: true,
+      },
+    });
+  });
+
   // OpenAPI spec endpoint
   apiRouter.get('/openapi.json', (req, res) => {
-    res.sendFile(path.resolve(__dirname, 'docs/openapi.json'));
+    const primaryPath = path.resolve(__dirname, '../docs/openapi.json');
+    const localPath = path.resolve(__dirname, 'docs/openapi.json');
+    if (fs.existsSync(primaryPath)) {
+      return res.sendFile(primaryPath);
+    }
+    if (fs.existsSync(localPath)) {
+      return res.sendFile(localPath);
+    }
+    res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'OpenAPI specification not found'));
   });
 
   // Mount resource routes
