@@ -98,6 +98,7 @@ router.post('/signup', authLimiter, validateBody(authValidators.signupSchema), a
         badges: user.badges,
         emailVerified: user.emailVerified,
         ageConfirmedAt: user.ageConfirmedAt,
+        onboardingDone: Boolean(user.onboardingDone),
       },
     });
   } catch (err) {
@@ -186,6 +187,7 @@ router.post('/login', authLimiter, validateBody(authValidators.loginSchema), asy
         homePlace: user.homePlace,
         badges: user.badges,
         emailVerified: user.emailVerified,
+        onboardingDone: Boolean(user.onboardingDone),
       },
     });
   } catch (err) {
@@ -580,6 +582,7 @@ router.get('/me', requireAuth, async (req, res, next) => {
         emailVerifiedAt: user.emailVerifiedAt,
         ageConfirmedAt: user.ageConfirmedAt,
         trust: user.trust,
+        onboardingDone: Boolean(user.onboardingDone),
       },
     });
   } catch (err) {

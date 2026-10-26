@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   HashRouter,
   Routes,
@@ -9,7 +9,7 @@ import {
   useLocation,
 } from 'react-router-dom';
 import { ThemeProvider } from './context/ThemeContext';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuth } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
 import { HomePage } from './pages/HomePage';
@@ -19,6 +19,9 @@ import { NearbyFeed } from './pages/NearbyFeed';
 import { CreatePost } from './pages/CreatePost';
 import { PostDetail } from './pages/PostDetail';
 import { ProfilePage } from './pages/ProfilePage';
+import GuidePage from './pages/GuidePage';
+import ScoutTourModal from './components/onboarding/ScoutTourModal';
+import HelpPopover from './components/onboarding/HelpPopover';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import './App.css';
@@ -39,15 +42,24 @@ function ProfileRouteWrapper({ navigate }) {
   return <ProfilePage username={username} navigate={navigate} />;
 }
 
-
 /**
  * Main application shell containing responsive navigation,
  * skip-to-content accessibility target, and route dispatching across
- * Home, Explore, Random, Create, Details, and Auth tabs.
+ * Home, Explore, Random, Create, Guide, Details, and Auth tabs.
  */
 function AppShell() {
   const location = useLocation();
   const reactNavigate = useNavigate();
+  const { user } = useAuth();
+  const [showTour, setShowTour] = useState(false);
+  const [sessionDismissed, setSessionDismissed] = useState(false);
+
+  // Automatically launch onboarding tour on a user's first login (!user.onboardingDone)
+  useEffect(() => {
+    if (user && !user.onboardingDone && !sessionDismissed) {
+      setShowTour(true);
+    }
+  }, [user, sessionDismissed]);
 
   // Compatible navigate handler supporting both hash-strings ('#/feed') and paths ('/feed')
   const navigate = (destination) => {
@@ -61,6 +73,17 @@ function AppShell() {
   };
 
   const currentRoute = '#' + (location.pathname === '/' ? '/home' : location.pathname);
+
+  // Derive contextual page key for HelpPopover
+  let pageKey = 'default';
+  const path = location.pathname;
+  if (path === '/' || path.startsWith('/home')) pageKey = 'home';
+  else if (path.startsWith('/explore') || path.startsWith('/feed')) pageKey = 'explore';
+  else if (path.startsWith('/random')) pageKey = 'random';
+  else if (path.startsWith('/create')) pageKey = 'create';
+  else if (path.startsWith('/post/')) pageKey = 'postDetail';
+  else if (path.startsWith('/profile') || path.startsWith('/user/')) pageKey = 'profile';
+  else if (path.startsWith('/guide')) pageKey = 'guide';
 
   return (
     <div className="app-shell">
@@ -77,12 +100,29 @@ function AppShell() {
             <Route path="/post/:id" element={<PostDetailRouteWrapper navigate={navigate} />} />
             <Route path="/profile" element={<ProfilePage navigate={navigate} />} />
             <Route path="/user/:username" element={<ProfileRouteWrapper navigate={navigate} />} />
+            <Route path="/guide" element={<GuidePage onOpenTour={() => setShowTour(true)} navigate={navigate} />} />
             <Route path="/login" element={<Login navigate={navigate} />} />
             <Route path="/signup" element={<Signup navigate={navigate} />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
         </ErrorBoundary>
       </main>
+
+      {/* Floating contextual help popover */}
+      <HelpPopover pageKey={pageKey} onOpenTour={() => setShowTour(true)} />
+
+      {/* Interactive 5-Step Scout Tour Modal */}
+      <ScoutTourModal
+        isOpen={showTour}
+        onClose={() => {
+          setShowTour(false);
+          setSessionDismissed(true);
+        }}
+        onComplete={() => {
+          setShowTour(false);
+        }}
+      />
+
       <footer className="footer">
         <p>Oddspot · A location-based log of the weird, bizarre, and overlooked.</p>
       </footer>

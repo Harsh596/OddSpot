@@ -41,6 +41,7 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
     currentRoute.startsWith('#/explore') || currentRoute.startsWith('#/feed');
   const isRandomActive = currentRoute.startsWith('#/random');
   const isCreateActive = currentRoute === '#/create';
+  const isGuideActive = currentRoute.startsWith('#/guide');
   const isLoginActive = currentRoute === '#/login';
   const isSignupActive = currentRoute === '#/signup';
 
@@ -199,6 +200,28 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
             }}
           >
             + Post a Find
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isGuideActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/guide')}
+            aria-current={isGuideActive ? 'page' : undefined}
+            style={{
+              cursor: 'pointer',
+              background: isGuideActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+              color: isGuideActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
+              border: isGuideActive
+                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
+                : '1px solid transparent',
+              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
+              fontSize: 'var(--text-sm, 0.875rem)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md, 8px)',
+              transition: 'all var(--transition-fast, 150ms ease)',
+            }}
+          >
+            📖 Guide
           </button>
         </div>
 
@@ -524,6 +547,24 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
               }}
             >
               + Post a Find
+            </button>
+            <button
+              type="button"
+              className={`nav-btn ${isGuideActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/guide')}
+              style={{
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 'var(--space-3, 12px)',
+                background: isGuideActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+                color: isGuideActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
+                border: '1px solid var(--border-subtle, #202738)',
+                borderRadius: 'var(--radius-md, 8px)',
+                fontSize: 'var(--text-sm, 0.875rem)',
+                fontWeight: 600,
+              }}
+            >
+              📖 Field Guide
             </button>
           </div>
 

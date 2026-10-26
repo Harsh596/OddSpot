@@ -50,6 +50,31 @@ router.patch(
   }
 );
 
+// POST /api/v1/users/me/onboarding-complete - Complete scout onboarding and award 'scout' badge
+router.post('/me/onboarding-complete', requireAuth, async (req, res, next) => {
+  try {
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      {
+        $set: { onboardingDone: true },
+        $addToSet: { badges: 'scout' },
+      },
+      { new: true }
+    ).lean();
+
+    if (!user) {
+      return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found'));
+    }
+
+    res.json({
+      onboardingDone: true,
+      badges: user.badges || [],
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/v1/users/me/posts - List authenticated user's posts
 router.get('/me/posts', requireAuth, async (req, res, next) => {
   try {

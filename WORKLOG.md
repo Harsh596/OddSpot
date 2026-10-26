@@ -1920,6 +1920,65 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase F7: Interactive Scout Onboarding Tour, Contextual Help & First Mission
+
+### 1. Summary of Changes
+- **Task F7-T1: Backend Onboarding Completion & 'scout' Badge Endpoint** (`backend/routes/users.js`, `backend/routes/auth.js`):
+  - Created `POST /api/v1/users/me/onboarding-complete` requiring `requireAuth`:
+    - Atomically sets `onboardingDone: true` and adds `'scout'` to `User.badges` via `$addToSet: { badges: 'scout' }`.
+    - Returns HTTP 200 `{ onboardingDone: true, badges: user.badges }`.
+    - Idempotent: repeated calls do not duplicate the `'scout'` badge.
+  - Exposed `onboardingDone` on user profiles returned by `POST /api/auth/signup`, `POST /api/auth/login`, and `GET /api/auth/me`.
+  - Added dedicated test suite `backend/test/phaseF7.test.js` (and mirror `backend/tests/phaseF7.test.js`) verifying 4/4 test cases pass with 0 failures.
+  - Added `completeOnboarding()` API helper in `frontend/src/api.js` and `updateUser()` reactive state patch helper in `frontend/src/context/AuthContext.jsx`.
+- **Task F7-T2: Scout Tutorial Modal, Contextual Help & Guide Page** (`frontend/src/components/onboarding/`, `frontend/src/pages/GuidePage.jsx`):
+  - Built `<ScoutTourModal/>` (`frontend/src/components/onboarding/ScoutTourModal.jsx`):
+    - Concrete 5-step tutorial with exact brief texts:
+      1. *Welcome, Field Scout!* — "Oddspot is a living map of real-world weirdness — strange statues, accidental art, bizarre signs, and local mysteries you can actually walk up to and visit."
+      2. *How the Oddometer Works* — "Every find starts in its own city. When locals upvote, discuss, or physically visit a spot, its Oddometer rises. Cross your city's threshold and your find goes Country-Wide!"
+      3. *Verify Spots in the Wild* — "Walk within 50 meters of any find and tap 'I Visited This' to log a verified check-in (+4 Oddometer points!), share a Then-and-Now photo, and report whether it's still there."
+      4. *Protect Sensitive Places* — "Posting near a quiet courtyard or fragile spot? Enable 'Hide Exact Location'. We fuzz the pin by 150–400m using cryptographic HMAC and only reveal the exact point to scouts who arrive within 300m."
+      5. *Mission #1: The 1 km Sweep* — "Complete this briefing to claim your Scout Badge, then head to Explore or post one weird thing within 1 km of where you stand right now!"
+    - Keyboard & Accessibility: Focus trap within modal container, `Escape` key to dismiss, `ArrowRight`/`ArrowLeft` navigation, `aria-modal="true"`, `aria-labelledby`, and `aria-describedby`.
+    - Automatically launches on user's first login (`user && !user.onboardingDone`).
+    - Awards official `'scout'` badge upon briefing completion, updates session user state, and reveals the "First Mission: Spot something weird within 1 km" completion card with direct radar sweep actions.
+  - Built `<HelpPopover/>` (`frontend/src/components/onboarding/HelpPopover.jsx`):
+    - Floating docked guide pill button supporting per-tab contextual tips (`home`, `explore`, `random`, `create`, `postDetail`, `profile`, `guide`).
+    - Quick actions to open the full Scout Field Manual or restart the interactive tour briefing.
+    - Click-outside and `Escape` dismiss handling with accessible ARIA tags.
+  - Built `<GuidePage/>` (`frontend/src/pages/GuidePage.jsx`):
+    - Comprehensive Scout Field Manual available at `#/guide` and linked from desktop and mobile navigation menus.
+    - Sections: Mission #1 1 km Sweep with live browser GPS coordinates radar, Oddometer math & Sybil-protected scoring, 50m physical verification & travel guards, HMAC location privacy & 300m arrival reveal, markdown spoiler syntax reference, and scout badge honor progression.
+  - Added comprehensive CSS in `frontend/src/App.css` for modal transitions, glowing step haloes, mission radar boxes, and responsive mobile layouts with `@media (prefers-reduced-motion: reduce)`.
+
+### 2. Files Touched
+- `backend/routes/users.js`
+- `backend/routes/auth.js`
+- `backend/test/phaseF7.test.js` *(New)*
+- `backend/tests/phaseF7.test.js` *(New)*
+- `frontend/src/api.js`
+- `frontend/src/context/AuthContext.jsx`
+- `frontend/src/components/onboarding/ScoutTourModal.jsx` *(New)*
+- `frontend/src/components/onboarding/HelpPopover.jsx` *(New)*
+- `frontend/src/pages/GuidePage.jsx` *(New)*
+- `frontend/src/components/Navbar.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/App.css`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 329 / 329** tests across 107 suites (0 failures).
+- **`node --test test/phaseF7.test.js`**: **Passed: 4 / 4** tests (0 failures).
+  - Verified 401 unauthenticated guard.
+  - Verified atomic `onboardingDone: true` and `'scout'` badge award.
+  - Verified idempotency ($addToSet prevents duplicates).
+  - Verified `GET /api/auth/me` reflects `onboardingDone` and badges.
+- **`npm run build` (frontend)**: Clean production build in 136ms (0 errors, 58 modules).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
 
 
 

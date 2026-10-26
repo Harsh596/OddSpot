@@ -437,6 +437,10 @@ export const api = {
   getUserVisits: (username) => apiRequest(`/users/${encodeURIComponent(username)}/visits`),
   getUserPosts: (username) => apiRequest(`/users/${encodeURIComponent(username)}/posts`),
   getUserCommunities: (username) => apiRequest(`/users/${encodeURIComponent(username)}/communities`),
+  completeOnboarding: () =>
+    apiRequest('/users/me/onboarding-complete', {
+      method: 'POST',
+    }),
   getMyPosts: () => apiRequest('/users/me/posts'),
   exportMyData: () => apiRequest('/users/me/export'),
 };
