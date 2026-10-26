@@ -85,7 +85,12 @@
   - [x] Task P10-T4: Storage Budget Reporter (`backend/scripts/storageReport.js` auditing collections, total MB against 512 MB Atlas M0 limit, warning on >= 400 MB, `--fail-on-warn` option).
   - [x] Task P10-T5: Backup Script (`backend/scripts/backup.sh`), Built-in EJSON Engine (`backend/scripts/jsonBackupRestore.js`), `.gitignore` updates, and `docs/RESTORE.md` step-by-step runbook.
   - [x] Dedicated regression test suite: `backend/test/phase10.test.js` (4 comprehensive tests covering collMod rejection, idempotent migrations, storage report, and backup/restore drill).
-- [ ] **P11: Soft Delete & State Consistency**
+- [x] **P11: Transport, Mongo-Backed Rate Limiting, Timeouts & Docker (K10)**
+  - [x] Task P11-T1: RateLimit Model & Mongo-Backed Store + Key Generators (`backend/models/RateLimit.js`, `backend/middleware/rateLimiter.js`, `backend/config/rateLimits.js` with userId keying for authenticated routes, IP keying for anonymous, trust score scaling).
+  - [x] Task P11-T2: TRUST_PROXY, Multi-Origin Exact CORS & JSON Compression (`backend/app.js` with `trust proxy` from env, comma-separated exact CORS, and Node `zlib` response compression for payloads > 1KB).
+  - [x] Task P11-T3: Server Timeouts, `/health`, `/ready` & Graceful Shutdown (`createConfiguredServer` with 16KB maxHeaderSize, 15s requestTimeout, 10s headersTimeout, 5s keepAliveTimeout, SIGTERM/SIGINT shutdown, `/health` and `/ready` probes).
+  - [x] Task P11-T4: Dockerization & Deployment Docs (`Dockerfile` multi-stage Node 20 Alpine, `.dockerignore`, `docker-compose.yml`, `docs/DEPLOY.md`).
+  - [x] Dedicated regression test suite: `backend/test/phase11.test.js` (4 comprehensive tests covering user-keyed rate limits, CORS rejection of evil subdomains, health/readiness, and 431 on >16KB headers).
 - [ ] **P12: Idempotency Key Engine & Replay Cache**
 - [ ] **P13: Counter Drift Reconciliation Utility**
 - [ ] **P14: Central Error Mapping & Error Codes Envelope**

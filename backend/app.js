@@ -48,23 +48,106 @@ function exceedsMaxDepth(val, maxDepth = 10, currentDepth = 1) {
   return false;
 }
 
+const zlib = require('zlib');
+const { mongoose } = require('./db');
+
+function compressionMiddleware(req, res, next) {
+  const acceptEncoding = req.headers['accept-encoding'] || '';
+  if (!acceptEncoding.includes('gzip')) {
+    return next();
+  }
+
+  const originalSend = res.send.bind(res);
+  res.send = function (body) {
+    if (
+      typeof body === 'string' &&
+      Buffer.byteLength(body) > 1024 &&
+      !res.getHeader('Content-Encoding')
+    ) {
+      const contentType = res.getHeader('Content-Type') || '';
+      if (contentType.includes('application/json') || contentType.includes('text/')) {
+        const buffer = Buffer.from(body);
+        if (buffer.length > 1024) {
+          zlib.gzip(buffer, (err, gzipped) => {
+            if (err) return originalSend(body);
+            res.setHeader('Content-Encoding', 'gzip');
+            res.removeHeader('Content-Length');
+            res.setHeader('Vary', 'Accept-Encoding');
+            return res.end(gzipped);
+          });
+          return;
+        }
+      }
+    }
+    return originalSend(body);
+  };
+
+  next();
+}
+
 function createApp() {
   const app = express();
-  const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
+
+  // Configure trust proxy from TRUST_PROXY env var
+  const trustProxyEnv = process.env.TRUST_PROXY;
+  if (!trustProxyEnv || trustProxyEnv === 'false' || trustProxyEnv === '0') {
+    app.set('trust proxy', false);
+  } else if (trustProxyEnv === 'true') {
+    app.set('trust proxy', 1);
+  } else if (/^\d+$/.test(trustProxyEnv)) {
+    app.set('trust proxy', Number(trustProxyEnv));
+  } else {
+    app.set('trust proxy', trustProxyEnv);
+  }
+
+  // Exact-match comma-separated CORS configuration
+  const rawFrontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+  const allowedOrigins = rawFrontendUrl
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  app.use(
+    cors({
+      origin(origin, cb) {
+        if (!origin) return cb(null, true);
+        if (allowedOrigins.includes(origin)) {
+          return cb(null, true);
+        }
+        return cb(null, false);
+      },
+      credentials: true,
+    })
+  );
+
+  // Response compression middleware for payloads > 1KB
+  app.use(compressionMiddleware);
+
+  // Root health and readiness probes
+  const handleHealth = (req, res) => {
+    res.status(200).json({ status: 'ok', uptime: process.uptime() });
+  };
+
+  const handleReady = async (req, res) => {
+    try {
+      if (mongoose.connection.readyState === 1 && mongoose.connection.db) {
+        await mongoose.connection.db.command({ ping: 1 });
+        return res.status(200).json({ status: 'ready', db: 'up' });
+      }
+      return res.status(503).json({ status: 'not_ready', db: 'down' });
+    } catch {
+      return res.status(503).json({ status: 'not_ready', db: 'down' });
+    }
+  };
+
+  app.get('/health', handleHealth);
+  app.get('/ready', handleReady);
 
   // 1. Request ID generation / preservation
   app.use(requestId);
 
   // 2. Security headers with helmet
   app.use(helmet());
-
-  // 3. CORS restricted to configured FRONTEND_URL (no wildcard)
-  app.use(
-    cors({
-      origin: FRONTEND_URL,
-      credentials: true,
-    })
-  );
 
   // 4. Per-route JSON body limiters with multipart bypass hook
   app.use(bodyLimit);
@@ -149,10 +232,9 @@ function createApp() {
   // 7. API Router mounted under /api/v1 and aliased to /api
   const apiRouter = express.Router();
 
-  // Basic health check
-  apiRouter.get('/health', (req, res) => {
-    res.json({ status: 'ok', time: new Date().toISOString() });
-  });
+  // Health & readiness probes
+  apiRouter.get('/health', handleHealth);
+  apiRouter.get('/ready', handleReady);
 
   // Public configuration endpoint
   apiRouter.get('/config/public', (req, res) => {

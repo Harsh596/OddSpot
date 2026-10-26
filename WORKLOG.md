@@ -1413,6 +1413,56 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase P11 (Test 2): Transport, Mongo-Backed Rate Limiting, Timeouts & Docker (K10)
+
+### 1. Architectural & Implementation Summary
+- **Task P11-T1: RateLimit Model & Mongo-Backed Store + Key Generators (K10 [SCHEMA])**:
+  - Implemented `RateLimit` schema (`backend/models/RateLimit.js`, `ratelimits` collection) with `key`, `hits`, and TTL expiration index on `resetAt`.
+  - Built `backend/middleware/rateLimiter.js`:
+    - Key generator `buildRateLimitKey(req, prefix)` keys authenticated requests by `user:${userId}` and anonymous requests by `ip:${req.ip}`.
+    - Trust score scaling: scales write limiters by user trust (`effectiveMax = Math.max(5, Math.round(baseMax * Math.min(1.5, Math.max(0.5, trustScore))))`).
+    - Atomic hit tracking via `RateLimit.findOneAndUpdate` with fallback to in-memory counters on disconnects.
+    - Sets standard headers `RateLimit-Limit`, `RateLimit-Remaining`, `RateLimit-Reset`, and `Retry-After` on 429.
+  - Updated `backend/config/rateLimits.js` integrating the persistent MongoDB rate limiter across all endpoints.
+- **Task P11-T2: TRUST_PROXY, Multi-Origin Exact CORS & JSON Compression (`backend/app.js`)**:
+  - `TRUST_PROXY`: parses `process.env.TRUST_PROXY` ('1', '2', 'true', false) and configures `app.set('trust proxy', ...)`.
+  - Multi-Origin Exact CORS: parses comma-separated `FRONTEND_URL` origins and enforces exact string matching, rejecting domain prefix and suffix spoofing attempts.
+  - Built-in Node `zlib` response compression middleware: intercepts responses > 1024 bytes and applies gzip compression when `Accept-Encoding: gzip` is present.
+- **Task P11-T3: Server Timeouts, `/health`, `/ready` & Graceful Shutdown (`backend/app.js`, `backend/server.js`)**:
+  - Exported `createConfiguredServer(app)` enforcing: `maxHeaderSize = 16384` (16 KB), `requestTimeout = 15000` (15s), `headersTimeout = 10000` (10s), `keepAliveTimeout = 5000` (5s).
+  - Implemented `GET /health` (liveness probe returning process uptime) and `GET /ready` (readiness probe pinging MongoDB via `{ ping: 1 }`).
+  - Added graceful shutdown handlers on `SIGTERM` and `SIGINT` allowing in-flight requests to complete before closing database connections.
+- **Task P11-T4: Dockerization & Deployment Docs**:
+  - Created multi-stage `Dockerfile` (Node 20 Alpine, unprivileged `USER node`, built-in `wget` healthcheck).
+  - Created `.dockerignore` and `docker-compose.yml` linking backend container with MongoDB 7.0 container.
+  - Authored `docs/DEPLOY.md` production deployment guide covering NGINX reverse proxy, SSL/TLS, and container operations.
+
+### 2. Files Touched
+- `backend/models/RateLimit.js` *(New)*
+- `backend/models/index.js`
+- `backend/middleware/rateLimiter.js` *(New)*
+- `backend/config/rateLimits.js`
+- `backend/app.js`
+- `backend/server.js`
+- `Dockerfile` *(New)*
+- `.dockerignore` *(New)*
+- `docker-compose.yml` *(New)*
+- `docs/DEPLOY.md` *(New)*
+- `backend/test/phase11.test.js` *(New)*
+- `backend/tests/phase11.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 287 / 287** tests across 93 suites (0 failures).
+- **`node --test test/phase11.test.js`**: **Passed: 4 / 4** tests (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

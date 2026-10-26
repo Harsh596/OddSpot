@@ -13,4 +13,5 @@ module.exports = {
   EmailToken: require('./EmailToken'),
   AuditLog: require('./AuditLog'),
   SchemaVersion: require('./SchemaVersion'),
+  RateLimit: require('./RateLimit'),
 };
