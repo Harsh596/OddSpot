@@ -13,6 +13,18 @@ function computeScore(m) {
   );
 }
 
+function getCountryThreshold() {
+  return process.env.METER_COUNTRY_THRESHOLD
+    ? Number(process.env.METER_COUNTRY_THRESHOLD)
+    : (cfg.thresholds?.country ?? 50);
+}
+
+function calculatePointsToNextTier(score = 0, tier = 'city') {
+  if (tier === 'country') return 0;
+  const threshold = getCountryThreshold();
+  return Math.max(0, threshold - (Number(score) || 0));
+}
+
 // Ranking-time decay. Stored score stays raw; apply this when sorting.
 function decayedScore(post, now = Date.now()) {
   const ageH = (now - new Date(post.createdAt).getTime()) / 36e5;
@@ -286,6 +298,9 @@ async function castVote(userId, postId, value, externalSession = null, options =
 }
 
 const meter = {
+  label: cfg.label || 'Oddometer',
+  getCountryThreshold,
+  calculatePointsToNextTier,
   computeScore,
   decayedScore,
   calculateHotScore,

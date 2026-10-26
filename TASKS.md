@@ -165,7 +165,9 @@
   - [x] Task F4-T1: Backend support for Solve Best-Answer (`POST /api/v1/posts/:id/solve` author only, identify spots, sets `solved: true` and `bestCommentId`) and Author Field Updates (`POST /api/v1/posts/:id/updates` author only, 1..2000 chars, max 10 updates).
   - [x] Task F4-T2: Markdown & Spoiler grammar parser + strict DOMPurify sanitizer (`frontend/src/utils/markdown.js` and `RichText.jsx` with `>!spoiler!<` and `:::details Title\nContent\n:::`, link hardening, and unit test `backend/test/markdown.test.js`).
   - [x] Task F4-T3: Upgraded `CreatePost.jsx` (post type selector 'find' vs 'identify', `MarkdownEditor.jsx` with Field Guide template, and privacy-preserving draft autosaving excluding GPS when hideExact) & `PostDetail.jsx` (`ImageGallery.jsx` with keyboard lightbox, author 24h edit modal, edit history viewer, updates timeline, and `CommentThread.jsx` with depth 3 threading, inline replies, edit/delete, and Best Answer solve flow).
-- [ ] **F5: Post Creation Form & GPS Autofill**
+- [x] **F5: Oddometer Animated SVG Gauge & Next-Tier Progress Bar**
+  - [x] Task F5-T1: Expose threshold & next-tier progress on post serializer (`backend/utils/postSerializer.js`, `backend/services/meter.js`, `backend/config/meter.js`, `backend/app.js` with `post.meter`: `label`, `score`, `likes`, `dislikes`, `comments`, `commenters`, `visits`, `reactions`, `countryThreshold`, `pointsToNextTier`).
+  - [x] Task F5-T2: Built `<OddometerGauge/>` and `<OddometerPill/>` (`frontend/src/components/meter/OddometerGauge.jsx`, `OddometerPill.jsx`) featuring animated radial SVG gauge, needle eyebrow arc, signal breakdown tooltip popover, stage indicators (Local Whisper, Neighborhood Eyebrow-Raiser, City Sensation, Country-Wide Certified Oddity!), poster encouragement banner, next-tier horizontal progress bar, and `@media (prefers-reduced-motion: reduce)` support. Integrated into `PostDetail.jsx`, `HomePage.jsx`, and `ExplorePage.jsx`.
 - [ ] **F6: Post Detail Page & Safe Plaintext Rendering**
 - [ ] **F7: Voting Controls & Realtime Score Updates**
 - [ ] **F8: Comment Threads & Meter Integration**

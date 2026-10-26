@@ -10,6 +10,7 @@ import { RichText } from '../components/markdown/RichText';
 import { MarkdownEditor } from '../components/markdown/MarkdownEditor';
 import { ImageGallery } from '../components/posts/ImageGallery';
 import { CommentThread } from '../components/posts/CommentThread';
+import OddometerGauge from '../components/meter/OddometerGauge';
 
 const REPORT_REASONS = [
   { value: 'unsafe_or_private', label: 'Unsafe or Private Property' },
@@ -473,16 +474,11 @@ export function PostDetail({ postId, navigate }) {
         </div>
       )}
 
+      {/* Signature Oddometer Radial SVG Gauge & Next-Tier Progress Bar */}
+      <OddometerGauge post={post} isAuthor={isAuthor} />
+
       {/* Engagement & Voting Bar */}
       <div className="detail-engagement">
-        <div className="meter-box">
-          <span className="meter-label">Oddity Score</span>
-          <span className="meter-number">{post.meter?.score ?? 0}</span>
-          <small className="meter-sub">
-            {post.meter?.likes ?? 0} likes · {post.meter?.dislikes ?? 0} dislikes ·{' '}
-            {post.meter?.comments ?? 0} comments · {post.meter?.visits ?? 0} verified visits
-          </small>
-        </div>
 
         <div className="action-buttons">
           <button

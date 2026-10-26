@@ -18,6 +18,8 @@ const errorHandler = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
 const { metricsMiddleware, metricsHandler } = require('./services/metrics');
 const { ErrorCodes, formatErrorResponse } = require('./validators');
+const meter = require('./services/meter');
+const meterConfig = require('./config/meter');
 
 // Helper to recursively detect NUL (\0 / \u0000) characters in any string or key
 function containsNullByte(val) {
@@ -251,6 +253,10 @@ function createApp() {
     res.json({
       name: 'OddSpot',
       version: '1.0.0',
+      meter: {
+        label: meterConfig.label || 'Oddometer',
+        countryThreshold: meter.getCountryThreshold ? meter.getCountryThreshold() : 50,
+      },
       limits: {
         postMaxImages: 6,
         postMaxTags: 10,

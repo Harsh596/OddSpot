@@ -1,5 +1,6 @@
 // All tunable numbers live here. Change after you see real engagement.
 module.exports = {
+  label: process.env.METER_LABEL || 'Oddometer',
   weights: {
     reaction: 5,   // animated reactions (later)
     visit: 4,      // verified visits

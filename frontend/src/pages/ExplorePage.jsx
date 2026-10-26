@@ -3,6 +3,7 @@ import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { OddspotMap } from '../components/map/OddspotMap';
 import { LoadingSkeleton, EmptyState, ErrorBanner } from '../components/ui/StatusViews';
+import { OddometerPill } from '../components/meter/OddometerPill';
 
 const RADIUS_OPTIONS = [
   { label: '1 km', value: 1000 },
@@ -839,12 +840,13 @@ export function ExplorePage({ navigate }) {
                           borderTop: '1px solid var(--border-subtle, #202738)',
                         }}
                       >
-                        <div
-                          className="meter-display"
-                          style={{ fontSize: 'var(--text-xs, 0.75rem)', color: 'var(--text-secondary, #94a3b8)' }}
-                        >
-                          Score: <strong style={{ color: 'var(--accent, #00f0ff)' }}>{post.meter?.score ?? 0}</strong>
-                        </div>
+                        <OddometerPill
+                          score={post.meter?.score}
+                          countryThreshold={post.meter?.countryThreshold}
+                          label={post.meter?.label}
+                          tier={post.tier}
+                          size="sm"
+                        />
 
                         <div className="vote-actions" style={{ display: 'flex', gap: '6px' }}>
                           <button

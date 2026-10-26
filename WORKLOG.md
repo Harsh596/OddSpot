@@ -1776,6 +1776,82 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase F5: Oddometer Animated SVG Gauge & Next-Tier Progress Bar
+
+### 1. Summary of Changes
+- **Task F5-T1: Expose Threshold & Next-Tier Progress on Post Serializer** (`backend/utils/postSerializer.js`, `backend/services/meter.js`, `backend/config/meter.js`, `backend/app.js`):
+  - Configured configurable meter label `process.env.METER_LABEL || 'Oddometer'` in `backend/config/meter.js`.
+  - Added helpers `getCountryThreshold()` and `calculatePointsToNextTier(score, tier)` in `backend/services/meter.js`.
+  - Updated `backend/utils/postSerializer.js` (`serializePost` / `sanitizePost`) to expose comprehensive meter telemetry on `doc.meter`:
+    - `label`: `cfg.label || 'Oddometer'`
+    - `score`: integer score
+    - `likes`: integer count
+    - `dislikes`: integer count
+    - `comments`: integer count
+    - `commenters`: integer unique commenters count
+    - `visits`: integer verified visits count
+    - `reactions`: integer reactions count
+    - `countryThreshold`: country threshold target (e.g. 50)
+    - `pointsToNextTier`: remaining points needed to break out to Country-Wide tier (`0` if already `country` tier or `score >= countryThreshold`).
+  - Updated `backend/app.js` `/api/v1/config/public` (and `/api/config/public`) endpoint to expose `meter: { label, countryThreshold }`.
+  - Created unit tests in `backend/test/phaseF5.test.js` (and mirror `backend/tests/phaseF5.test.js`) verifying serialization, threshold calculations, fallback defaults, and visual stage boundaries (5/5 tests passing).
+- **Task F5-T2: Build `<OddometerGauge/>` & `<OddometerPill/>`** (`frontend/src/components/meter/OddometerGauge.jsx`, `frontend/src/components/meter/OddometerPill.jsx`):
+  - Created `frontend/src/components/meter/OddometerGauge.jsx`:
+    - Reads `label` from `post.meter.label` (defaults to 'Oddometer').
+    - Clamps percentage: `pct = clamp(round((score / countryThreshold) * 100), 0, 100)`.
+    - Semicircular radial SVG gauge with `role="meter"`, `aria-valuenow`, `aria-valuemin=0`, `aria-valuemax`, and dynamic `aria-valuetext`.
+    - Mathematical SVG semicircle arc geometry: center `(100, 95)`, radius `75`, arc length $\pi \times 75 \approx 235.619$, smooth `strokeDashoffset` transition, glowing multi-stop gradient track, and stage ticks.
+    - Semicircular eyebrow/needle indicator pivoting at `(100, 95)` with rotation $-90^\circ$ to $+90^\circ$ and accent pin cap.
+    - Visual stage engine (`getMeterStage`):
+      - 0..14: "Local Whisper" (cyan, icon: 🤫)
+      - 15..34: "Neighborhood Eyebrow-Raiser" (amber, icon: 🤨)
+      - 35..threshold-1: "City Sensation" (electric orange, icon: 🔥)
+      - >= threshold: "Country-Wide Certified Oddity!" (emerald, icon: 🌟)
+    - Interactive Signal Breakdown Tooltip / Popover toggling detailed scoring breakdown:
+      - Likes: `+{likes * 1}`
+      - Dislikes: `{dislikes * -0.5}`
+      - Comments: `+{comments * 3}`
+      - Unique Commenters: `{commenters}` scouts
+      - Verified GPS Visits: `+{visits * 4}`
+      - Animated Reactions: `+{reactions * 5}`
+    - Encouraging next-tier progress bar with left/center/right labels.
+    - Poster callout banner:
+      - City tier: `"${pointsToNextTier} more ${label} points to spread from ${city} across ${country}!"`
+      - Country tier: Celebratory breakout banner across the country.
+      - Under review: Community scout review notice.
+    - Accessibility and Motion Safety: Detects `prefers-reduced-motion: reduce` dynamically via `matchMedia`, rendering static `stroke-dashoffset` and transform without animation, paired with comprehensive CSS `@media (prefers-reduced-motion: reduce)` rules.
+  - Created `<OddometerPill/>` (`frontend/src/components/meter/OddometerPill.jsx` and re-exported):
+    - Compact feed card badge featuring stage icon, score counter, and mini progress bar.
+    - Integrated into `HomePage.jsx` and `ExplorePage.jsx` feed cards.
+  - Upgraded `frontend/src/pages/PostDetail.jsx`:
+    - Integrated `<OddometerGauge/>` above interactive vote actions.
+  - Added comprehensive modern CSS in `frontend/src/App.css` styling radial SVG gauge, glowing gradients, needle animations, tooltip popover, callout banners, stage badges, and feed pills.
+
+### 2. Files Touched
+- `backend/config/meter.js`
+- `backend/services/meter.js`
+- `backend/utils/postSerializer.js`
+- `backend/app.js`
+- `backend/test/phaseF5.test.js` *(New)*
+- `backend/tests/phaseF5.test.js` *(New)*
+- `frontend/src/components/meter/OddometerGauge.jsx` *(New)*
+- `frontend/src/components/meter/OddometerPill.jsx` *(New)*
+- `frontend/src/pages/PostDetail.jsx`
+- `frontend/src/pages/HomePage.jsx`
+- `frontend/src/pages/ExplorePage.jsx`
+- `frontend/src/App.css`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 320 / 320** tests across 105 suites (0 failures).
+- **`node --test test/phaseF5.test.js`**: **Passed: 5 / 5** tests (0 failures).
+- **`npm run build` (frontend)**: Clean production build in 168ms (0 errors).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures). Verified serialized `post.meter`:
+  `"meter":{"score":31,"likes":1,"dislikes":0,"comments":10,"visits":0,"reactions":0,"label":"Oddometer","commenters":10,"countryThreshold":50,"pointsToNextTier":19}`.
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
 
 
 
