@@ -61,7 +61,7 @@ function idempotency(endpoint) {
         }
 
         // Cached replay if previously completed
-        if (existing.status === 'completed') {
+        if (existing.status === 'completed' || existing.inProgress === false) {
           return res.status(existing.statusCode).json(existing.responseBody);
         }
 
@@ -78,8 +78,8 @@ function idempotency(endpoint) {
 
         // Lock timed out (> 60s): re-acquire the lock
         const reacquired = await IdempotencyKey.findOneAndUpdate(
-          { _id: existing._id, status: 'pending', lockedAt: existing.lockedAt },
-          { $set: { lockedAt: now, endpoint, requestHash } },
+          { _id: existing._id, $or: [{ status: 'pending' }, { inProgress: true }], lockedAt: existing.lockedAt },
+          { $set: { lockedAt: now, route: endpoint, endpoint, requestHash, inProgress: true, status: 'pending' } },
           { new: true }
         );
 
@@ -98,8 +98,10 @@ function idempotency(endpoint) {
           await IdempotencyKey.create({
             key,
             userId,
+            route: endpoint,
             endpoint,
             requestHash,
+            inProgress: true,
             status: 'pending',
             lockedAt: now,
           });
@@ -116,7 +118,7 @@ function idempotency(endpoint) {
                   )
                 );
               }
-              if (raced.status === 'completed') {
+              if (raced.status === 'completed' || raced.inProgress === false) {
                 return res.status(raced.statusCode).json(raced.responseBody);
               }
               return res.status(409).json(
@@ -143,6 +145,7 @@ function idempotency(endpoint) {
               { userId, key },
               {
                 $set: {
+                  inProgress: false,
                   status: 'completed',
                   statusCode: res.statusCode,
                   responseBody: body,
@@ -157,7 +160,7 @@ function idempotency(endpoint) {
             return res;
           } else {
             // Non-2xx response: purge pending lock so user can correct input and retry
-            IdempotencyKey.deleteOne({ userId, key, status: 'pending' })
+            IdempotencyKey.deleteOne({ userId, key, $or: [{ status: 'pending' }, { inProgress: true }] })
               .catch(() => {})
               .finally(() => originalJson(body));
             return res;
@@ -168,14 +171,14 @@ function idempotency(endpoint) {
 
       res.on('finish', () => {
         if (!finalized && res.statusCode >= 400) {
-          IdempotencyKey.deleteOne({ userId, key, status: 'pending' }).catch(() => {});
+          IdempotencyKey.deleteOne({ userId, key, $or: [{ status: 'pending' }, { inProgress: true }] }).catch(() => {});
         }
       });
 
       next();
     } catch (err) {
       // On internal failure, remove pending lock
-      IdempotencyKey.deleteOne({ userId, key, status: 'pending' }).catch(() => {});
+      IdempotencyKey.deleteOne({ userId, key, $or: [{ status: 'pending' }, { inProgress: true }] }).catch(() => {});
       next(err);
     }
   };

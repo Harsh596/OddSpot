@@ -655,6 +655,63 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`npm run build` (frontend)**: Passed clean production build in 77ms.
 - **Zero schema changes made.**
 
+---
+
+## [2026-10-26] - Phase P2: Write Integrity (Transactions, Reconcile, Idempotency & Soft Delete)
+
+### 1. Work Completed Per Task
+- **Task P2-T1 (K7) - Multi-Document Transactions & Test Injection Hooks**:
+  - Implemented `backend/utils/withTransaction.js` to execute transactional MongoDB operations with automatic session management and rollback.
+  - Wrapped `meterService.castVote` inside `withTransaction`, ensuring atomic updates to `Vote` documents and post meter counters.
+  - Wrapped comment creation in `POST /api/posts/:id/comments` inside `withTransaction`, ensuring atomic persistence of `Comment` documents and comment meter counter updates.
+  - Implemented `_failBeforeApplyDelta` test injection hook when `NODE_ENV === 'test'` in both `castVote` and comment creation to verify transactional rollback and prevent counter drift.
+- **Task P2-T2 - Counter & Visit Reconciliation Script (`backend/scripts/reconcileCounters.js`)**:
+  - Exported `reconcileAllCounters({ apply })` (and `reconcileCounters` for backwards compatibility).
+  - Recounts ground-truth likes, dislikes, active non-removed comments, and visits (`Visit.countDocuments({ postId: post._id })`).
+  - Reconciles counter drift against `post.meter`, recalculates total score based on configured weights, and ratchets tier when crossing thresholds.
+- **Task P2-T3 [SCHEMA] - IdempotencyKey Model & Middleware**:
+  - Configured `backend/models/IdempotencyKey.js` with `key`, `userId`, `route`, `endpoint`, `requestHash`, `statusCode`, `responseBody`, `inProgress`, `status`, 24-hour TTL index (`expireAfterSeconds: 86400`), and compound unique index `{ userId: 1, key: 1 }`.
+  - Implemented `backend/middleware/idempotency.js` supporting `Idempotency-Key` header:
+    - Cached replays return original HTTP status code and body without re-executing writes.
+    - Parameter mismatch on identical key returns HTTP 422 with `IDEMPOTENCY_KEY_MISMATCH`.
+    - In-flight operations within 60-second window return HTTP 409 with `IDEMPOTENCY_IN_FLIGHT`.
+    - Expired locks (>60s) are safely re-acquired.
+    - Locks are released immediately upon 4xx client errors to allow corrected retries.
+  - Mounted idempotency middleware on `POST /api/posts` and `POST /api/posts/:id/comments`.
+- **Task P2-T4 - Universal Soft-Delete Filtering (`removed: { $ne: true }`)**:
+  - Enforced `{ removed: { $ne: true } }` across all post and comment routes:
+    - Single post retrieval (`GET /api/posts/:id`), voting (`POST /api/posts/:id/vote`), commenting (`POST /api/posts/:id/comments`), and reporting (`POST /api/posts/:id/report`) return 404 for removed posts.
+    - Feed queries (`GET /api/posts/nearby`) exclude removed posts in the `$geoNear` aggregation stage.
+    - Comment listing (`GET /api/posts/:id/comments`) excludes soft-deleted comments.
+    - Comment parent hierarchy walks exclude soft-deleted parent comments.
+- **Task P2-T5 - Central Error Handler Mapping (`backend/middleware/errorHandler.js`)**:
+  - Mapped MongoDB duplicate key errors (code 11000) to HTTP 409 `DUPLICATE_KEY` with field identification, without leaking collection names or internal stack traces.
+  - Mapped Mongoose `ValidationError` to HTTP 400 `VALIDATION_ERROR` with structured field issues, without leaking stack traces.
+  - Mapped Mongoose `CastError` to HTTP 400 `INVALID_ID` for ID fields, without leaking stack traces.
+- **Dedicated Regression Suite (`backend/test/phase2.test.js`)**:
+  - Implemented 16 test cases covering transaction atomicity, `_failBeforeApplyDelta` hooks, dry run vs apply reconciliation with visits, idempotency replays/mismatches/locks, soft-delete filtering, and error handler mapping.
+
+### 2. Files Touched
+- `backend/utils/withTransaction.js` *(New)*
+- `backend/test/phase2.test.js` *(New)*
+- `backend/tests/phase2.test.js` *(New)*
+- `backend/models/IdempotencyKey.js`
+- `backend/middleware/idempotency.js`
+- `backend/services/meter.js`
+- `backend/routes/posts.js`
+- `backend/scripts/reconcileCounters.js`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 179 / 179** tests across 42 suites (0 failures, duration ~26.7s).
+- **`node backend/scripts/reconcileCounters.js`**: Reconciled cleanly with exit code 0.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 82 / 82** (0 failures, 5 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 67ms.
+- **Pre-approved Schema Change**: `IdempotencyKey` schema fields (`key`, `userId`, `route`, `endpoint`, `requestHash`, `statusCode`, `responseBody`, `inProgress`, `status`, 24h TTL, compound unique index).
+
+
 
 
 

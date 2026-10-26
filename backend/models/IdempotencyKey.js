@@ -4,8 +4,15 @@ const idempotencyKeySchema = new Schema(
   {
     key: { type: String, required: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    endpoint: { type: String, required: true },
+    route: { type: String },
+    endpoint: {
+      type: String,
+      default: function () {
+        return this.route || '';
+      },
+    },
     requestHash: { type: String, required: true },
+    inProgress: { type: Boolean, default: true },
     status: {
       type: String,
       enum: ['pending', 'completed'],
@@ -20,6 +27,15 @@ const idempotencyKeySchema = new Schema(
     versionKey: false,
   }
 );
+
+idempotencyKeySchema.pre('validate', function (next) {
+  if (this.route && !this.endpoint) {
+    this.endpoint = this.route;
+  } else if (this.endpoint && !this.route) {
+    this.route = this.endpoint;
+  }
+  next();
+});
 
 // Unique compound index: prevents duplicate concurrent processing per user per key
 idempotencyKeySchema.index({ userId: 1, key: 1 }, { unique: true });

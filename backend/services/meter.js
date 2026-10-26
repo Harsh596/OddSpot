@@ -95,10 +95,24 @@ async function applyDelta(postId, delta, session = null) {
   };
 }
 
+const { withTransaction } = require('../utils/withTransaction');
+
 // Atomic vote casting via MongoDB Transactions.
 // Guarantees vote record and post meter counters remain strictly consistent even under failure.
-async function castVote(userId, postId, value, externalSession = null) {
-  const executeVote = async (session) => {
+async function castVote(userId, postId, value, externalSession = null, options = {}) {
+  let actualSession = externalSession;
+  let opts = options;
+  if (
+    externalSession &&
+    typeof externalSession === 'object' &&
+    !externalSession.withTransaction &&
+    externalSession._failBeforeApplyDelta !== undefined
+  ) {
+    opts = externalSession;
+    actualSession = null;
+  }
+
+  return await withTransaction(async (session) => {
     // 1. Verify target post exists and is not removed
     let postQuery = Post.findOne({ _id: postId, removed: { $ne: true } }).select('_id authorId');
     if (session) postQuery = postQuery.session(session);
@@ -127,8 +141,17 @@ async function castVote(userId, postId, value, externalSession = null) {
         return null; // Idempotent: already voted this value
       }
 
-      const updateOpts = session ? { session } : {};
-      await Vote.updateOne({ _id: existing._id }, { $set: { value } }, updateOpts);
+      await Vote.updateOne({ _id: existing._id }, { $set: { value } }, { session });
+
+      // Task P2-T1: Support _failBeforeApplyDelta test injection hook in NODE_ENV=test
+      if (
+        process.env.NODE_ENV === 'test' &&
+        (opts._failBeforeApplyDelta || (actualSession && actualSession._failBeforeApplyDelta))
+      ) {
+        const err = new Error('SIMULATED_TRANSACTION_FAILURE_BEFORE_APPLY_DELTA');
+        err.code = 'SIMULATED_FAILURE';
+        throw err;
+      }
 
       const delta = {};
       delta[value === 1 ? 'likes' : 'dislikes'] = 1;
@@ -137,28 +160,22 @@ async function castVote(userId, postId, value, externalSession = null) {
     }
 
     // 3. Not existing: create vote
-    const createOpts = session ? { session } : {};
-    await Vote.create([{ userId, postId, value }], createOpts);
+    await Vote.create([{ userId, postId, value }], { session });
+
+    // Task P2-T1: Support _failBeforeApplyDelta test injection hook in NODE_ENV=test
+    if (
+      process.env.NODE_ENV === 'test' &&
+      (opts._failBeforeApplyDelta || (actualSession && actualSession._failBeforeApplyDelta))
+    ) {
+      const err = new Error('SIMULATED_TRANSACTION_FAILURE_BEFORE_APPLY_DELTA');
+      err.code = 'SIMULATED_FAILURE';
+      throw err;
+    }
 
     const delta = {};
     delta[value === 1 ? 'likes' : 'dislikes'] = 1;
     return await meter.applyDelta(postId, delta, session);
-  };
-
-  if (externalSession) {
-    return await executeVote(externalSession);
-  }
-
-  const session = await mongoose.startSession();
-  try {
-    let result = null;
-    await session.withTransaction(async () => {
-      result = await executeVote(session);
-    });
-    return result;
-  } finally {
-    await session.endSession();
-  }
+  }, actualSession);
 }
 
 const meter = { computeScore, decayedScore, applyDelta, castVote };

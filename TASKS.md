@@ -24,7 +24,13 @@
   - [x] Task P1-T9 (K12): Add middleware in `backend/app.js` adding `Cache-Control: no-store, no-cache, must-revalidate` and `Pragma: no-cache` on `/api/auth/*` and requests with `Authorization` headers.
   - [x] Task P1-T10 (K16): Correct inaccuracies in `WORKLOG.md` regarding bcrypt (Blowfish-derived/Eksblowfish cipher, not SHA-512) and smoke test migration count evolution (23 -> 32).
   - [x] Dedicated regression test suite: `backend/test/phase1.test.js` covering all backlog fixes.
-- [ ] **P2: Posts CRUD & EXIF Sanitization**
+- [x] **P2: Write Integrity (Transactions, Reconcile, Idempotency & Soft Delete)**
+  - [x] Task P2-T1 (K7): Implement `backend/utils/withTransaction.js` wrapping operations in MongoDB transactions. Wrapped `castVote` and comment creation in `withTransaction`. Supported `_failBeforeApplyDelta` test injection hook in `NODE_ENV=test` to ensure zero counter drift on transaction aborts.
+  - [x] Task P2-T2: Updated `backend/scripts/reconcileCounters.js` exporting `reconcileAllCounters({ apply })` (and `reconcileCounters`). Reconciled vote, comment, and visit counts against `post.meter`, recalculating score and preserving tier ratcheting.
+  - [x] Task P2-T3 [SCHEMA]: Created and configured `backend/models/IdempotencyKey.js` (`key`, `userId`, `route`, `endpoint`, `requestHash`, `statusCode`, `responseBody`, `inProgress`, `status`, 24h TTL index, and `{ userId: 1, key: 1 }` unique index). Implemented `backend/middleware/idempotency.js` handling `Idempotency-Key` header, concurrent locks (409), payload mismatches (422), and cached replays. Mounted on `POST /posts` and `POST /posts/:id/comments`.
+  - [x] Task P2-T4: Enforced soft-delete filtering (`removed: { $ne: true }`) across all post and comment read and mutation routes (`GET /posts/:id`, `GET /posts/nearby`, `POST /posts/:id/vote`, `POST /posts/:id/comments`, `GET /posts/:id/comments`, `POST /posts/:id/report`).
+  - [x] Task P2-T5: Created and verified `backend/middleware/errorHandler.js` mapping Mongo 11000 duplicate keys to 409 `DUPLICATE_KEY`/`CONFLICT`, and Mongoose `ValidationError` and `CastError` to 400 `VALIDATION_FAILED`/`VALIDATION_ERROR` without leaking collection names or stack traces.
+  - [x] Dedicated regression test suite: `backend/test/phase2.test.js` (16 tests verifying transactions, injection hooks, reconciliation, idempotency, soft deletes, and error mapping).
 - [ ] **P3: Voting, Like/Dislike Frequencies & Anti-Brigading**
 - [ ] **P4: Comments & Atomic Score Pipelines**
 - [ ] **P5: Meter Scoring & Regional City->Country Escalation**

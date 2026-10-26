@@ -24,6 +24,7 @@ const {
 } = require('../validators');
 const { normalizeText } = require('../utils/normalize');
 const { parseLngLat, parseStrictCoordinate } = require('../utils/coordinates');
+const { withTransaction } = require('../utils/withTransaction');
 
 const router = Router();
 
@@ -385,82 +386,83 @@ router.post(
       const { id } = req.params;
       const { body, parentId = null } = req.body;
 
-      const session = await mongoose.startSession();
-      let commentDoc;
-      let deltaResult;
-      try {
-        await session.withTransaction(async () => {
-          const post = await Post.findOne({ _id: id, removed: { $ne: true } }).session(session);
-          if (!post) {
-            const err = new Error('Post not found');
-            err.statusCode = 404;
-            err.code = ErrorCodes.NOT_FOUND;
+      const { commentDoc, deltaResult } = await withTransaction(async (session) => {
+        const post = await Post.findOne({ _id: id, removed: { $ne: true } }).session(session);
+        if (!post) {
+          const err = new Error('Post not found');
+          err.statusCode = 404;
+          err.code = ErrorCodes.NOT_FOUND;
+          throw err;
+        }
+
+        // K4: Validate parentId (valid ObjectId, belongs to same post, not removed, depth <= 3)
+        if (parentId) {
+          if (!mongoose.Types.ObjectId.isValid(parentId)) {
+            const err = new Error('Invalid parent comment ID');
+            err.statusCode = 400;
+            err.code = ErrorCodes.VALIDATION_FAILED;
             throw err;
           }
 
-          // K4: Validate parentId (valid ObjectId, belongs to same post, not removed, depth <= 3)
-          if (parentId) {
-            if (!mongoose.Types.ObjectId.isValid(parentId)) {
-              const err = new Error('Invalid parent comment ID');
+          const parentComment = await Comment.findOne({
+            _id: parentId,
+            postId: post._id,
+            removed: { $ne: true },
+          }).session(session);
+
+          if (!parentComment) {
+            const err = new Error('Parent comment not found on this post');
+            err.statusCode = 400;
+            err.code = ErrorCodes.VALIDATION_FAILED;
+            throw err;
+          }
+
+          let depth = 1;
+          let curr = parentComment;
+          const visited = new Set([curr._id.toString()]);
+          while (curr && curr.parentId) {
+            depth++;
+            if (depth >= 3) {
+              const err = new Error('Maximum comment nesting depth of 3 exceeded');
               err.statusCode = 400;
               err.code = ErrorCodes.VALIDATION_FAILED;
               throw err;
             }
-
-            const parentComment = await Comment.findOne({
-              _id: parentId,
+            curr = await Comment.findOne({
+              _id: curr.parentId,
               postId: post._id,
               removed: { $ne: true },
             }).session(session);
-
-            if (!parentComment) {
-              const err = new Error('Parent comment not found on this post');
-              err.statusCode = 400;
-              err.code = ErrorCodes.VALIDATION_FAILED;
-              throw err;
-            }
-
-            let depth = 1;
-            let curr = parentComment;
-            const visited = new Set([curr._id.toString()]);
-            while (curr && curr.parentId) {
-              depth++;
-              if (depth >= 3) {
-                const err = new Error('Maximum comment nesting depth of 3 exceeded');
-                err.statusCode = 400;
-                err.code = ErrorCodes.VALIDATION_FAILED;
-                throw err;
-              }
-              curr = await Comment.findOne({
-                _id: curr.parentId,
-                postId: post._id,
-                removed: { $ne: true },
-              }).session(session);
-              if (curr) {
-                if (visited.has(curr._id.toString())) break;
-                visited.add(curr._id.toString());
-              }
+            if (curr) {
+              if (visited.has(curr._id.toString())) break;
+              visited.add(curr._id.toString());
             }
           }
+        }
 
-          const createdComments = await Comment.create(
-            [
-              {
-                postId: post._id,
-                authorId: req.user.id,
-                parentId: parentId || null,
-                body,
-              },
-            ],
-            { session }
-          );
-          commentDoc = createdComments[0];
+        const createdComments = await Comment.create(
+          [
+            {
+              postId: post._id,
+              authorId: req.user.id,
+              parentId: parentId || null,
+              body,
+            },
+          ],
+          { session }
+        );
+        const createdDoc = createdComments[0];
 
-          deltaResult = await meterService.applyDelta(post._id, { comments: 1 }, session);
-        });
-      } finally {
-        await session.endSession();
-      }
+        // Task P2-T1: Support _failBeforeApplyDelta test injection hook in NODE_ENV=test
+        if (process.env.NODE_ENV === 'test' && req.body._failBeforeApplyDelta) {
+          const err = new Error('SIMULATED_TRANSACTION_FAILURE_BEFORE_APPLY_DELTA');
+          err.statusCode = 500;
+          throw err;
+        }
+
+        const delta = await meterService.applyDelta(post._id, { comments: 1 }, session);
+        return { commentDoc: createdDoc, deltaResult: delta };
+      });
 
       const populated = await Comment.findById(commentDoc._id)
         .populate('authorId', 'username avatarUrl badges');
