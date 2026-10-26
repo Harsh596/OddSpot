@@ -107,7 +107,11 @@
 - [ ] **R4: Final Pre-Release Verification & Hardening**
 
 ### Frontend & Integration Phases (F1–F10)
-- [ ] **F1: React + Vite Setup & Environment Configuration**
+- [x] **F1: React + Vite Setup & Environment Configuration**
+  - [x] Task F1-T1: Install `react-router-dom`, `leaflet`, `marked`, and `dompurify` in `frontend/`. Log new dependencies in `WORKLOG.md`.
+  - [x] Task F1-T2: Implement CSS custom-property design tokens in `frontend/src/styles/tokens.css` with 4 theme presets (`neon-night`, `paper-zine`, `terminal`, `vaporwave`) and `@media (prefers-reduced-motion: reduce)`. Create `frontend/src/context/ThemeContext.jsx` with persistence.
+  - [x] Task F1-T3: In `frontend/src/api.js`, support 401 refresh token rotation with single-flight queued retries, localStorage tokens (`oddspot_token`, `oddspot_refresh_token`), Idempotency-Key support, and public config loader.
+  - [x] Task F1-T4: Create `ErrorBoundary.jsx`, `StatusViews.jsx` (`LoadingSkeleton`, `EmptyState`, `ErrorBanner`), update `Navbar.jsx` with responsive mobile drawer and skip-to-content accessibility anchor, and configure `HashRouter` shell navigation in `App.jsx`.
 - [ ] **F2: Auth Context, JWT Storage & 401 Interceptors**
 - [ ] **F3: Navigation Shell & Modular Layout**
 - [ ] **F4: Nearby Feed Page & Distance Badges**

@@ -1,5 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
+import {
+  HashRouter,
+  Routes,
+  Route,
+  Navigate,
+  useNavigate,
+  useParams,
+  useLocation,
+} from 'react-router-dom';
+import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
+import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
 import { NearbyFeed } from './pages/NearbyFeed';
 import { CreatePost } from './pages/CreatePost';
@@ -8,54 +19,68 @@ import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import './App.css';
 
-export default function App() {
-  const [route, setRoute] = useState(() => window.location.hash || '#/feed');
+/**
+ * Route wrapper extracting post ID param for PostDetail
+ */
+function PostDetailRouteWrapper({ navigate }) {
+  const { id } = useParams();
+  return <PostDetail postId={id} navigate={navigate} />;
+}
 
-  useEffect(() => {
-    const handleHashChange = () => {
-      setRoute(window.location.hash || '#/feed');
+/**
+ * Main application shell containing responsive navigation,
+ * skip-to-content accessibility target, and route dispatching.
+ */
+function AppShell() {
+  const location = useLocation();
+  const reactNavigate = useNavigate();
+
+  // Compatible navigate handler supporting both hash-strings ('#/feed') and paths ('/feed')
+  const navigate = (destination) => {
+    if (typeof destination === 'string') {
+      const path = destination.startsWith('#') ? destination.slice(1) : destination;
+      reactNavigate(path);
       window.scrollTo(0, 0);
-    };
-
-    window.addEventListener('hashchange', handleHashChange);
-    if (!window.location.hash) {
-      window.location.hash = '#/feed';
-    }
-    return () => window.removeEventListener('hashchange', handleHashChange);
-  }, []);
-
-  const navigate = (newHash) => {
-    window.location.hash = newHash;
-  };
-
-  const renderContent = () => {
-    if (route.startsWith('#/post/')) {
-      const postId = route.replace('#/post/', '').split('?')[0];
-      return <PostDetail postId={postId} navigate={navigate} />;
-    }
-
-    switch (route) {
-      case '#/create':
-        return <CreatePost navigate={navigate} />;
-      case '#/login':
-        return <Login navigate={navigate} />;
-      case '#/signup':
-        return <Signup navigate={navigate} />;
-      case '#/feed':
-      default:
-        return <NearbyFeed navigate={navigate} />;
+    } else {
+      reactNavigate(destination);
     }
   };
+
+  const currentRoute = '#' + (location.pathname === '/' ? '/feed' : location.pathname);
 
   return (
-    <AuthProvider>
-      <div className="app-shell">
-        <Navbar currentRoute={route} navigate={navigate} />
-        <main className="main-content">{renderContent()}</main>
-        <footer className="footer">
-          <p>Oddspot · A location-based log of the weird, bizarre, and overlooked.</p>
-        </footer>
-      </div>
-    </AuthProvider>
+    <div className="app-shell">
+      <Navbar currentRoute={currentRoute} navigate={navigate} />
+      <main id="main-content" className="main-content" tabIndex="-1">
+        <ErrorBoundary>
+          <Routes>
+            <Route path="/" element={<Navigate to="/feed" replace />} />
+            <Route path="/feed" element={<NearbyFeed navigate={navigate} />} />
+            <Route path="/create" element={<CreatePost navigate={navigate} />} />
+            <Route path="/post/:id" element={<PostDetailRouteWrapper navigate={navigate} />} />
+            <Route path="/login" element={<Login navigate={navigate} />} />
+            <Route path="/signup" element={<Signup navigate={navigate} />} />
+            <Route path="*" element={<Navigate to="/feed" replace />} />
+          </Routes>
+        </ErrorBoundary>
+      </main>
+      <footer className="footer">
+        <p>Oddspot · A location-based log of the weird, bizarre, and overlooked.</p>
+      </footer>
+    </div>
+  );
+}
+
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <ThemeProvider>
+        <AuthProvider>
+          <HashRouter>
+            <AppShell />
+          </HashRouter>
+        </AuthProvider>
+      </ThemeProvider>
+    </ErrorBoundary>
   );
 }

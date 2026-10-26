@@ -1,19 +1,19 @@
 /* Oddspot Minimal Clean Styling */
 
 :root {
-  --bg: #f8fafc;
-  --surface: #ffffff;
-  --text: #0f172a;
-  --text-muted: #64748b;
-  --border: #e2e8f0;
-  --primary: #2563eb;
-  --primary-hover: #1d4ed8;
-  --danger: #dc2626;
-  --danger-bg: #fef2f2;
-  --warning-bg: #fffbeb;
-  --warning-border: #fef3c7;
-  --success: #16a34a;
-  --radius: 8px;
+  --bg: var(--bg-primary, #0b0e14);
+  --surface: var(--bg-surface, #121722);
+  --text: var(--text-primary, #f0f4fc);
+  --text-muted: var(--text-muted, #64748b);
+  --border: var(--border-subtle, #202738);
+  --primary: var(--accent, #00f0ff);
+  --primary-hover: var(--accent-hover, #33f3ff);
+  --danger: var(--color-danger, #ef4444);
+  --danger-bg: var(--color-danger-bg, rgba(239, 68, 68, 0.12));
+  --warning-bg: var(--color-warning-bg, rgba(245, 158, 11, 0.12));
+  --warning-border: var(--border-subtle, #202738);
+  --success: var(--color-success, #10b981);
+  --radius: var(--radius-md, 8px);
 }
 
 * {

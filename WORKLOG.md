@@ -1162,6 +1162,63 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **Pre-approved Schema Changes**:
   - `Post`: added `velocityFrozen` (Boolean, default: false, index: true).
 
+---
+
+## [2026-10-27] - Phase F1: Frontend Slice 1 — Foundation, Token Refresh Client, Router & Design Tokens
+
+### 1. Work Completed Per Task
+- **Task F1-T1 - Frontend Core Dependencies Installed**:
+  - Installed packages in `frontend/package.json`:
+    - `react-router-dom` (^7.18.4): Client-side declarative hash routing (`HashRouter`, `Routes`, `Route`, `useNavigate`, `useLocation`, `useParams`).
+    - `leaflet` (^1.9.4): Geospatial interactive spot mapping without proprietary keys.
+    - `marked` (^18.1.2): Fast markdown parsing for spot descriptions.
+    - `dompurify` (^3.4.17): DOM sanitization for markdown rendering preventing XSS vulnerabilities.
+- **Task F1-T2 - Design System Tokens & Theme Context**:
+  - Created `frontend/src/styles/tokens.css` establishing CSS custom properties across spacing, typography scale, radii, elevations, and 4 theme presets:
+    - `neon-night` (default cyberpunk dark theme with cyan/magenta neon accents).
+    - `paper-zine` (tactile DIY print zine aesthetic with newsprint cream and bold ink borders).
+    - `terminal` (phosphor green CRT terminal with monospaced geometry).
+    - `vaporwave` (pastel magenta and dusky indigo 80s retro-futuristic nostalgic aesthetic).
+  - Added `@media (prefers-reduced-motion: reduce)` disabling animations, eliminating transit delays, and ensuring accessibility compliance.
+  - Created `frontend/src/context/ThemeContext.jsx` handling persistent theme selection via `oddspot_theme`, cycling, and automatic `data-theme` attribute synchronization on `document.documentElement`.
+  - Updated `frontend/src/index.css` and `frontend/src/App.css` to bridge legacy styling variables directly to active design tokens.
+- **Task F1-T3 - Token Refresh Client & API Layer**:
+  - Upgraded `frontend/src/api.js` to manage `oddspot_token` (JWT) and `oddspot_refresh_token` in `localStorage`.
+  - Implemented single-flight token refresh queue on HTTP 401: when an authenticated request receives 401, concurrent callers are queued, a single request to `POST /auth/refresh` rotates the session, and all pending callers are automatically retried with the new token.
+  - Added support for `Idempotency-Key` request headers via `generateIdempotencyKey()`.
+  - Added `getPublicConfig()` caching and exposing public system limits and metadata.
+  - Updated `frontend/src/context/AuthContext.jsx` to interface with `api.js` storage and refresh handlers.
+- **Task F1-T4 - Error Boundaries, Status Views & Navigation Shell**:
+  - Created `frontend/src/components/ErrorBoundary.jsx` providing resilient component-level error catching with accessible alert roles and recovery options.
+  - Created `frontend/src/components/ui/StatusViews.jsx` exporting `LoadingSkeleton` (animated pulse placeholders), `EmptyState` (call-to-action cards), and `ErrorBanner` (accessible dismissible alert bars).
+  - Updated `frontend/src/components/Navbar.jsx` with mobile hamburger drawer, desktop cluster, theme selector dropdown, and `a.skip-to-content` accessibility link.
+  - Updated `frontend/src/App.jsx` to integrate `HashRouter` shell navigation, `ThemeProvider`, and top-level `ErrorBoundary`.
+
+### 2. Files Touched
+- `frontend/package.json`
+- `frontend/package-lock.json`
+- `frontend/src/styles/tokens.css` *(New)*
+- `frontend/src/context/ThemeContext.jsx` *(New)*
+- `frontend/src/components/ErrorBoundary.jsx` *(New)*
+- `frontend/src/components/ui/StatusViews.jsx` *(New)*
+- `frontend/src/api.js`
+- `frontend/src/context/AuthContext.jsx`
+- `frontend/src/components/Navbar.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/index.css`
+- `frontend/src/App.css`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm run build` (frontend)**: Clean production build in 347ms (`dist/assets/index-*.js`, `dist/assets/index-*.css`).
+- **`npm test` (backend)**: **Passed: 269 / 269** tests across 89 suites (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Dependencies Installed**: `react-router-dom`, `leaflet`, `marked`, `dompurify` (justified above).
+- **Zero breaking schema changes.**
+
+
 
 
 
