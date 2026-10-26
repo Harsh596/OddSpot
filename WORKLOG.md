@@ -1852,6 +1852,73 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase F6: Visit Loop UI, GPS Check-In, Reveal-on-Arrival & Visit Map
+
+### 1. Summary of Changes
+- **Task F6-T1: `<VisitActionPanel/>` & Reveal-on-Arrival Flow** (`frontend/src/components/visits/VisitActionPanel.jsx`):
+  - Built real-world visit loop action panel with live geolocation watch (`navigator.geolocation.watchPosition`):
+    - Computes live distance using Haversine formula and compass bearing (`N`, `NE`, `E`, `SE`, `S`, `SW`, `W`, `NW`).
+    - Privacy-aware distance display: for hidden posts (`post.hideExact === true`), formats as `~${rounded500m}m away (approximate area)`.
+    - Deep links "Open in Maps" to OpenStreetMap (`https://www.openstreetmap.org/?mlat=...&mlon=...#map=16/...`) in a new tab with `target="_blank"` and `rel="noopener noreferrer"`.
+  - Implemented "Reveal Exact Spot on Arrival" flow for hidden spots:
+    - Button: `"🎯 I'm Here — Reveal Exact Coordinates (within 300m)"`.
+    - Requests high-accuracy browser geolocation and calls `POST /api/v1/posts/:id/reveal`.
+    - On 200: updates component state with revealed coordinates strictly in React state (never cached in `localStorage` or browser storage to prevent location leaks), displays `"✓ Exact GPS Unlocked (Session)"` badge, and triggers `onSpotRevealed(coords)` for parent components.
+    - On 403: displays friendly guidance banner explaining the user is outside the 300m discovery radius with current distance.
+  - Implemented "I Visited This!" Check-In Modal:
+    - Requests live high-accuracy GPS coordinates (`coords.latitude`, `coords.longitude`).
+    - Provides spot status selector: `still_there` ("Still There"), `changed` ("Changed / Moved"), `gone` ("Gone / Removed").
+    - Optional photo proof URL input and field notes textarea.
+    - Calls `POST /api/v1/posts/:id/visit` with GPS payload.
+    - On 201: triggers celebratory toast notification banner, updates post meter score and visits counter, invokes `onVisitRecorded(visit)`, and reloads visitor gallery.
+- **Task F6-T2: Then-and-Now Visit Gallery & Profile Visit Map** (`frontend/src/components/visits/ThenAndNowGallery.jsx`, `frontend/src/pages/ProfilePage.jsx`):
+  - Built `<ThenAndNowGallery/>`:
+    - Compares original spot photo ("Then") side-by-side with verified visitor field photos ("Now").
+    - Renders condition badge (`still_there` in green, `changed` in yellow, `gone` in red), visitor attribution, check-in timestamp, and scout notes.
+    - Supports carousel navigation when multiple check-ins have proof photos, and click-to-expand lightbox.
+  - Added Backend Sub-Endpoints in `backend/routes/users.js`:
+    - `GET /api/v1/users/:username/visits`: Returns user's verified visits with populated sanitized post summaries (using `feedLocation` for hidden posts so exact coordinates are never leaked).
+    - `GET /api/v1/users/:username/posts`: Returns public posts created by user serialized via `serializePost` including `post.meter`.
+    - `GET /api/v1/users/:username/communities`: Returns communities joined by user along with their role (`owner`, `moderator`, `member`).
+  - Built `<ProfilePage/>` (`frontend/src/pages/ProfilePage.jsx`):
+    - Displays scout header with avatar, username, bio, member since date, earned badges (`scout`, `first_visit`, `10_visits` with descriptions), and stats counters (Spots Found, Spots Visited, Communities).
+    - Interactive Tab Navigation:
+      - Tab 1: **Visited Spots Map** (`visits.length`): Interactive Leaflet map via `OddspotMap` rendering markers for all visited spots, paired with a timeline of verified check-in history cards.
+      - Tab 2: **Finds Posted** (`posts.length`): Grid of user's spots featuring `<OddometerPill/>` and tier tags.
+      - Tab 3: **Joined Communities** (`communities.length`): Grid of community cards with badges and role tags.
+  - Extended API client (`frontend/src/api.js`):
+    - `recordVisit`, `getSpotVisits`, `getUserProfile`, `getUserVisits`, `getUserPosts`, `getUserCommunities`.
+  - Upgraded Navigation & Layout:
+    - Added `/profile` and `/user/:username` routes in `frontend/src/App.jsx`.
+    - Added profile button linking to current user's scout profile in `frontend/src/components/Navbar.jsx`.
+    - Added comprehensive styling in `frontend/src/App.css` for visit panels, modals, celebration toasts, comparison cards, badges, and profile tabs.
+
+### 2. Files Touched
+- `backend/routes/users.js`
+- `backend/test/phaseF6.test.js` *(New)*
+- `backend/tests/phaseF6.test.js` *(New)*
+- `frontend/src/api.js`
+- `frontend/src/components/visits/VisitActionPanel.jsx` *(New)*
+- `frontend/src/components/visits/ThenAndNowGallery.jsx` *(New)*
+- `frontend/src/pages/ProfilePage.jsx` *(New)*
+- `frontend/src/pages/PostDetail.jsx`
+- `frontend/src/components/Navbar.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/App.css`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 325 / 325** tests across 106 suites (0 failures).
+- **`node --test test/phaseF6.test.js`**: **Passed: 4 / 4** tests (0 failures).
+  - Verified `GET /api/v1/users/:username/visits` sanitizes hidden post locations to `feedLocation` (fuzzed) with zero coordinate leakage.
+  - Verified `GET /api/v1/users/:username/posts` returns public posts serialized with `post.meter`.
+  - Verified `GET /api/v1/users/:username/communities` returns joined communities with membership roles.
+  - Verified non-existent usernames return 404.
+- **`npm run build` (frontend)**: Clean production build in 205ms (0 errors, 55 modules).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
 
 
 

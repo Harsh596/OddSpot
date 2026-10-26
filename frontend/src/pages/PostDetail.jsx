@@ -11,6 +11,8 @@ import { MarkdownEditor } from '../components/markdown/MarkdownEditor';
 import { ImageGallery } from '../components/posts/ImageGallery';
 import { CommentThread } from '../components/posts/CommentThread';
 import OddometerGauge from '../components/meter/OddometerGauge';
+import { VisitActionPanel } from '../components/visits/VisitActionPanel';
+import { ThenAndNowGallery } from '../components/visits/ThenAndNowGallery';
 
 const REPORT_REASONS = [
   { value: 'unsafe_or_private', label: 'Unsafe or Private Property' },
@@ -76,6 +78,9 @@ export function PostDetail({ postId, navigate }) {
     }
   }, [postId]);
 
+  // Verified visits state
+  const [visits, setVisits] = useState([]);
+
   const loadComments = useCallback(async () => {
     try {
       const res = await api.getComments(postId);
@@ -85,10 +90,46 @@ export function PostDetail({ postId, navigate }) {
     }
   }, [postId]);
 
+  const loadVisits = useCallback(async () => {
+    try {
+      const res = await api.getSpotVisits(postId);
+      setVisits(res.visits || []);
+    } catch {
+      // Non-critical if visits fail to load
+    }
+  }, [postId]);
+
   useEffect(() => {
     loadPost();
     loadComments();
-  }, [loadPost, loadComments]);
+    loadVisits();
+  }, [loadPost, loadComments, loadVisits]);
+
+  const handleVisitRecorded = (newVisit, newMeterScore) => {
+    setVisits((prev) => [newVisit, ...prev]);
+    if (newMeterScore !== undefined) {
+      setPost((prev) => ({
+        ...prev,
+        meter: {
+          ...prev.meter,
+          score: newMeterScore,
+          visits: (prev.meter?.visits || 0) + 1,
+        },
+      }));
+    }
+  };
+
+  const handleSpotRevealed = (coordinates) => {
+    setPost((prev) => ({
+      ...prev,
+      location: {
+        ...prev.location,
+        coordinates,
+        fuzzed: false,
+        revealed: true,
+      },
+    }));
+  };
 
   const isAuthor =
     user &&
@@ -391,10 +432,21 @@ export function PostDetail({ postId, navigate }) {
         </div>
       </div>
 
+      {/* Signature Visit Action Panel: Distance, Bearing, Open in Maps & GPS Check-In */}
+      <VisitActionPanel
+        post={post}
+        user={user}
+        onVisitRecorded={handleVisitRecorded}
+        onSpotRevealed={handleSpotRevealed}
+      />
+
       {/* Multi-Image Gallery with Keyboard Lightbox */}
       {post.images && post.images.length > 0 && (
         <ImageGallery images={post.images} title={post.title} />
       )}
+
+      {/* Then-and-Now Visitor Comparison Gallery */}
+      <ThenAndNowGallery post={post} visits={visits} />
 
       {/* Post Description Rendered with Spoilers & Collapsible Markdown */}
       {post.body && (

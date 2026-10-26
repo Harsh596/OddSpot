@@ -316,15 +316,29 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
                   gap: 'var(--space-3, 12px)',
                 }}
               >
-                <div
-                  className="user-greeting"
+                <button
+                  type="button"
+                  className="nav-profile-btn"
+                  onClick={() => handleNav('#/profile')}
+                  title="View your Scout Profile, Verified Visits Map & Badges"
                   style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    background: 'var(--bg-elevated, #1a2030)',
+                    color: 'var(--text-primary, #f0f4fc)',
+                    border: '1px solid var(--border-subtle, #202738)',
+                    borderRadius: 'var(--radius-md, 8px)',
+                    padding: '6px 10px',
                     fontSize: 'var(--text-xs, 0.75rem)',
-                    color: 'var(--text-secondary, #94a3b8)',
+                    fontWeight: 600,
                   }}
                 >
-                  Scout: <strong style={{ color: 'var(--text-primary, #f0f4fc)' }}>{user.username}</strong>
-                </div>
+                  <span>🧭</span>
+                  <span>{user.username}</span>
+                </button>
+
                 <button
                   type="button"
                   className="btn-secondary"

@@ -423,8 +423,21 @@ export const api = {
     return apiRequest(`/feed/random${query}`);
   },
 
+  // Visits & Check-Ins
+  recordVisit: (id, payload) =>
+    apiRequest(`/posts/${encodeURIComponent(id)}/visit`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  getSpotVisits: (id) =>
+    apiRequest(`/posts/${encodeURIComponent(id)}/visits`),
+
   // Users
   getUserProfile: (username) => apiRequest(`/users/${encodeURIComponent(username)}`),
+  getUserVisits: (username) => apiRequest(`/users/${encodeURIComponent(username)}/visits`),
+  getUserPosts: (username) => apiRequest(`/users/${encodeURIComponent(username)}/posts`),
+  getUserCommunities: (username) => apiRequest(`/users/${encodeURIComponent(username)}/communities`),
   getMyPosts: () => apiRequest('/users/me/posts'),
   exportMyData: () => apiRequest('/users/me/export'),
 };
+

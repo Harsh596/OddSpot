@@ -3,7 +3,8 @@
 
 const express = require('express');
 const router = express.Router();
-const { User, Post, Comment, Vote, Report } = require('../models');
+const { User, Post, Comment, Vote, Report, Visit, Membership } = require('../models');
+const { serializePost } = require('../utils/postSerializer');
 const { requireAuth } = require('../middleware/auth');
 const {
   validateBody,
@@ -139,4 +140,135 @@ router.get('/:username', async (req, res, next) => {
   }
 });
 
+// GET /api/v1/users/:username/visits - Verified visits for a user
+router.get('/:username/visits', async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json(formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Username parameter is required'));
+    }
+
+    const usernameLower = username.toLowerCase().trim();
+    const user = await User.findOne({ usernameLower }).lean();
+
+    if (!user || user.banned) {
+      return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found'));
+    }
+
+    const visits = await Visit.find({ userId: user._id, verified: true })
+      .sort({ createdAt: -1 })
+      .populate({
+        path: 'postId',
+        select: '-__v',
+      })
+      .lean();
+
+    // Sanitize visits and their populated post summaries
+    const sanitizedVisits = visits
+      .filter((v) => v.postId && v.postId.removed !== true)
+      .map((v) => {
+        const serializedPost = serializePost(v.postId);
+        // Never leak exact coordinates for hidden posts
+        const visitCoords =
+          v.postId.hideExact && serializedPost.location?.coordinates
+            ? serializedPost.location.coordinates
+            : v.location?.coordinates;
+
+        return {
+          id: v._id.toString(),
+          postId: serializedPost._id?.toString() || v.postId._id?.toString(),
+          post: serializedPost,
+          spotStatus: v.spotStatus || 'still_there',
+          photoUrl: v.photoUrl || null,
+          note: v.note || null,
+          location: {
+            type: 'Point',
+            coordinates: visitCoords,
+            fuzzed: Boolean(v.postId.hideExact),
+          },
+          verified: true,
+          createdAt: v.createdAt,
+        };
+      });
+
+    res.json({
+      count: sanitizedVisits.length,
+      visits: sanitizedVisits,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/v1/users/:username/posts - Public posts created by a user
+router.get('/:username/posts', async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json(formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Username parameter is required'));
+    }
+
+    const usernameLower = username.toLowerCase().trim();
+    const user = await User.findOne({ usernameLower }).lean();
+
+    if (!user || user.banned) {
+      return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found'));
+    }
+
+    const rawPosts = await Post.find({
+      authorId: user._id,
+      removed: { $ne: true },
+    })
+      .sort({ createdAt: -1 })
+      .lean();
+
+    const posts = rawPosts.map((p) => serializePost(p));
+
+    res.json({
+      count: posts.length,
+      posts,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// GET /api/v1/users/:username/communities - Joined communities for a user
+router.get('/:username/communities', async (req, res, next) => {
+  try {
+    const { username } = req.params;
+    if (!username || typeof username !== 'string') {
+      return res.status(400).json(formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Username parameter is required'));
+    }
+
+    const usernameLower = username.toLowerCase().trim();
+    const user = await User.findOne({ usernameLower }).lean();
+
+    if (!user || user.banned) {
+      return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found'));
+    }
+
+    const memberships = await Membership.find({ userId: user._id })
+      .populate('communityId')
+      .lean();
+
+    const communities = memberships
+      .filter((m) => m.communityId)
+      .map((m) => ({
+        ...m.communityId,
+        id: m.communityId._id.toString(),
+        role: m.role,
+        joinedAt: m.createdAt,
+      }));
+
+    res.json({
+      count: communities.length,
+      communities,
+    });
+  } catch (err) {
+    next(err);
+  }
+});
+
 module.exports = router;
+

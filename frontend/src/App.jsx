@@ -18,6 +18,7 @@ import { RandomPage } from './pages/RandomPage';
 import { NearbyFeed } from './pages/NearbyFeed';
 import { CreatePost } from './pages/CreatePost';
 import { PostDetail } from './pages/PostDetail';
+import { ProfilePage } from './pages/ProfilePage';
 import { Login } from './pages/Login';
 import { Signup } from './pages/Signup';
 import './App.css';
@@ -29,6 +30,15 @@ function PostDetailRouteWrapper({ navigate }) {
   const { id } = useParams();
   return <PostDetail postId={id} navigate={navigate} />;
 }
+
+/**
+ * Route wrapper extracting username param for ProfilePage
+ */
+function ProfileRouteWrapper({ navigate }) {
+  const { username } = useParams();
+  return <ProfilePage username={username} navigate={navigate} />;
+}
+
 
 /**
  * Main application shell containing responsive navigation,
@@ -65,6 +75,8 @@ function AppShell() {
             <Route path="/random" element={<RandomPage navigate={navigate} />} />
             <Route path="/create" element={<CreatePost navigate={navigate} />} />
             <Route path="/post/:id" element={<PostDetailRouteWrapper navigate={navigate} />} />
+            <Route path="/profile" element={<ProfilePage navigate={navigate} />} />
+            <Route path="/user/:username" element={<ProfileRouteWrapper navigate={navigate} />} />
             <Route path="/login" element={<Login navigate={navigate} />} />
             <Route path="/signup" element={<Signup navigate={navigate} />} />
             <Route path="*" element={<Navigate to="/home" replace />} />
