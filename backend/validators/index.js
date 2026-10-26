@@ -53,6 +53,7 @@ module.exports = {
   validateParams: (schema) => validate(schema, 'params'),
   auth: authValidators,
   posts: postsValidators,
+  feed: require('./feed.validators'),
   common: commonValidators,
   ErrorCodes,
   formatErrorResponse,

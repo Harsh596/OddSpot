@@ -1026,6 +1026,90 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
   - `Post`: added `feedLocation` (Point with 2dsphere index), `place.cityKey` (String, indexed), `place.countryCode` (String, indexed), compound indexes for feed sorting.
   - `User`: updated `lastPostLocation` (Point) and `lastPostAt` (Date) for impossible travel tracking.
 
+---
+
+## [2026-10-27] - Phase P8: Regional Feeds (city, country, random), Caching, 50k Seed & Load Test
+
+### 1. Work Completed Per Task
+- **Task P8-T1 - Autocannon Benchmark DevDependency**:
+  - Installed `autocannon` as a `devDependency` in `backend/package.json`.
+- **Task P8-T2 - Regional Feed Endpoints & HTTP Caching Headers**:
+  - Created `backend/routes/feed.js` and mounted at `/api/v1/feed`, `/api/feed`, `/api/v1/posts/feed`, and `/api/posts/feed`.
+  - Implemented `GET /feed/city`:
+    - Validates query params (`cityKey` or `city`, `countryCode` or `country`, `sort=new|hot|top`, `limit`, `cursor`, `page`).
+    - Resolves canonical `cityKey` via `toCityKey()` and canonical `countryCode` via `resolveCountry()`.
+    - Supports cursor-based keyset pagination with tie-breaking on `_id`.
+  - Implemented `GET /feed/country`:
+    - Queries posts filtered by `tier: 'country'` and canonical `countryCode`.
+    - Supports sorting (`new`, `hot`, `top`) with cursor pagination.
+  - Implemented `GET /feed/random`:
+    - Returns a randomized sample of country-tier spots via MongoDB `$sample` aggregation (`{ tier: 'country', removed: { $ne: true } }`).
+    - Supports optional country teleportation parameter (`country` or `countryCode`).
+  - Added weak ETag generation (`W/"<md5>"`) and `Cache-Control: public, max-age=15, stale-while-revalidate=30` for anonymous callers; returns 304 `Not Modified` with empty body when `If-None-Match` matches.
+  - Authenticated callers retain `Cache-Control: no-store` and receive 200 responses.
+  - Optimized queries using `.lean()`, `FEED_PROJECTION` (excluding heavy edit histories), and `serializePost`.
+- **Task P8-T3 - Schema Updates & Compound Feed Indexes [SCHEMA]**:
+  - Added `hotScore: { type: Number, default: 0, index: true }` to `Post` schema in `backend/models/Post.js`.
+  - Implemented `calculateHotScore(score, createdAt)` in `backend/services/meter.js` using logarithmic score dampening and time decay (`log10(max(score, 1)) * 3600 + (epoch - 1704067200) / 45000`).
+  - Integrated `hotScore` calculation into `Post.pre('save')`, `applyDelta()`, and `backend/scripts/reconcileCounters.js`.
+  - Added compound indexes in `backend/models/Post.js`:
+    - City feed:
+      - `{ 'place.cityKey': 1, 'place.countryCode': 1, createdAt: -1, _id: -1 }`
+      - `{ 'place.cityKey': 1, 'place.countryCode': 1, 'meter.score': -1, _id: -1 }`
+      - `{ 'place.cityKey': 1, 'place.countryCode': 1, hotScore: -1, _id: -1 }`
+    - Country feed:
+      - `{ tier: 1, 'place.countryCode': 1, createdAt: -1, _id: -1 }`
+      - `{ tier: 1, 'place.countryCode': 1, 'meter.score': -1, _id: -1 }`
+      - `{ tier: 1, 'place.countryCode': 1, hotScore: -1, _id: -1 }`
+  - Enhanced `trustQueryOperators` in `backend/db.js` to recursively traverse array operator conditions (`$or`, `$and`), resolving Mongoose `sanitizeFilter` casting exceptions during cursor pagination.
+  - Removed deprecated `process.env.JWT_SECRET` fallback in `backend/utils/fuzzLocation.js`.
+- **Task P8-T4 - Synthetic Seed Script & ExecutionStats IXSCAN Verification (`backend/scripts/seedLoadData.js`)**:
+  - Implemented `seedLoadData({ totalPosts, verifyExplain })` distributing posts across 20 global cities with synthetic coordinates, staggered timestamps, scores, and fuzzed `feedLocation` values.
+  - Ensured compliance with test record isolation: all synthetic documents use `test_2_` naming and author conventions.
+  - Inspected `explain('executionStats')` across all feed queries, verifying 100% `IXSCAN` / `GEO_NEAR_2DSPHERE` execution stages with 0 `COLLSCAN`.
+- **Task P8-T5 - Autocannon Load Test Benchmark (`backend/scripts/loadTest.js`)**:
+  - Created automated benchmark running 50 concurrent connections over 10 seconds against the `/feed/city?sort=hot` endpoint.
+  - Benchmarked throughput: ~1,915 requests/sec and 30 MB/s.
+  - Validated SLA: p95 latency reached 47 ms (far below 300ms SLA threshold), with 0 connection errors and 0 non-2xx responses.
+- **Dedicated Regression Suite (`backend/test/phase8.test.js`)**:
+  - Implemented 10 integration tests validating city feed filtering, sorting, cursor pagination, country tier filtering, random sample teleportation, weak ETag 304 caching, and IXSCAN explain execution plans.
+  - Synchronized `backend/tests/phase8.test.js`.
+  - Updated `backend/openapi/spec.js` and regenerated OpenAPI documentation in `backend/docs/openapi.json` and `docs/openapi.json`.
+
+### 2. Files Touched
+- `backend/routes/feed.js` *(New)*
+- `backend/validators/feed.validators.js` *(New)*
+- `backend/scripts/seedLoadData.js` *(New)*
+- `backend/scripts/loadTest.js` *(New)*
+- `backend/test/phase8.test.js` *(New)*
+- `backend/tests/phase8.test.js` *(New)*
+- `backend/models/Post.js`
+- `backend/services/meter.js`
+- `backend/scripts/reconcileCounters.js`
+- `backend/validators/index.js`
+- `backend/app.js`
+- `backend/db.js`
+- `backend/utils/fuzzLocation.js`
+- `backend/package.json`
+- `backend/package-lock.json`
+- `backend/openapi/spec.js`
+- `backend/docs/openapi.json`
+- `docs/openapi.json`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 263 / 263** tests across 83 suites (0 failures, duration ~41.5s).
+- **`node --test backend/test/phase8.test.js`**: **Passed: 10 / 10** tests (0 failures).
+- **`node backend/scripts/loadTest.js`**: Passed SLA: 50 connections, 10s duration, 19,144 requests (1,914.7 req/s), p95 latency 47 ms (< 300 ms SLA), 0 errors, 0 non-2xx.
+- **`seedLoadData` explain check**: 100% IXSCAN / GEO_NEAR_2DSPHERE verified across all feed queries; 0 COLLSCAN.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 84 / 84** (0 failures, 3 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 77ms.
+- **Pre-approved Schema Changes**:
+  - `Post`: added `hotScore` (Number, indexed), compound indexes for city and country feeds across `createdAt`, `meter.score`, and `hotScore` with `_id` pagination tie-breaker.
+
+
 
 
 

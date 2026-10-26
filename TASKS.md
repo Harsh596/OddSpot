@@ -65,7 +65,13 @@
   - [x] Task P6-T7: Build `backend/utils/impossibleTravel.js` (flags speeds > 1000 km/h with `underReview: true`) and `backend/services/geocoder.js` interface (stub default, optional Nominatim).
   - [x] Dedicated regression test suite: `backend/test/phase6.test.js` (16 tests including 3-point trilateration and boundary bisection).
 - [ ] **P7: Account Security, Banning & Role Enforcement**
-- [ ] **P8: Refresh Token Rotation & Session Hardening**
+- [x] **P8: Regional Feeds (city, country, random), Caching, 50k Seed & Load Test**
+  - [x] Task P8-T1: Installed `autocannon` as devDependency in `backend/package.json`.
+  - [x] Task P8-T2: Implemented `/feed/city` (canonical cityKey & countryCode filters), `/feed/country` (tier='country' & countryCode), and `/feed/random` ($sample on country tier with optional country teleport). Added weak ETag and `Cache-Control: public, max-age=15, stale-while-revalidate=30` for anonymous callers, returning 304 on `If-None-Match` match.
+  - [x] Task P8-T3 [SCHEMA]: Added `hotScore` to `Post` schema and compound indexes covering `hotScore`, `meter.score`, and `createdAt` with cursor `_id` pagination across city and country feeds.
+  - [x] Task P8-T4: Built `backend/scripts/seedLoadData.js` inserting synthetic posts into test DB and verified `explain('executionStats')` achieves 100% IXSCAN / GEO_NEAR_2DSPHERE coverage with 0 COLLSCAN.
+  - [x] Task P8-T5: Built `backend/scripts/loadTest.js` using `autocannon` (50 connections, 10s duration) asserting p95 < 300ms (achieved 47ms at 1,914 req/s) and 0 errors.
+  - [x] Dedicated regression test suite: `backend/test/phase8.test.js` (10 tests covering feeds, sorting, cursor pagination, 304 caching, and IXSCAN index verification).
 - [ ] **P9: Password Lifecycle, Email Tokens & Tombstoning**
 - [ ] **P10: Concurrency, Atomic Transitions & Race Eliminator**
 - [ ] **P11: Soft Delete & State Consistency**

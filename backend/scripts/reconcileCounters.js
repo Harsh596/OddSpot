@@ -10,6 +10,7 @@ require('dotenv').config();
 const { connect, disconnect } = require('../db');
 const { Post, Vote, Comment, Visit } = require('../models');
 const cfg = require('../config/meter');
+const { calculateHotScore } = require('../services/meter');
 
 async function reconcileCounters({ apply = false, quiet = false } = {}) {
   const log = (...args) => {
@@ -105,6 +106,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
               'meter.visits': actualVisits,
               'meter.score': expectedScore,
               tier: expectedTier,
+              hotScore: calculateHotScore(expectedScore, post.createdAt),
             },
           }
         );

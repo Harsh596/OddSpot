@@ -19,6 +19,17 @@ function decayedScore(post, now = Date.now()) {
   return post.meter.score * Math.pow(0.5, ageH / cfg.decayHalfLifeHours);
 }
 
+// Calculate hot score: combines logarithmic engagement score with creation timestamp
+function calculateHotScore(score = 0, createdAt = new Date()) {
+  const s = Number(score) || 0;
+  const order = Math.log10(Math.max(Math.abs(s), 1));
+  const sign = s > 0 ? 1 : s < 0 ? -1 : 0;
+  const t = new Date(createdAt).getTime() / 1000;
+  // Epoch: 1700000000 (Nov 2023), 45000 seconds (12.5 hours) per decade
+  const seconds = t - 1700000000;
+  return Number((sign * order + seconds / 45000).toFixed(7));
+}
+
 // Atomically bump counters, recalculate score, and update tier in a single update pipeline.
 // Supports passing an active Mongoose session for multi-document transaction atomicity.
 async function applyDelta(postId, delta, session = null) {
@@ -87,11 +98,19 @@ async function applyDelta(postId, delta, session = null) {
   const newTier = isCountry ? 'country' : 'city';
   const tieredUp = wasCity && newScore >= countryThreshold;
 
+  const newHotScore = calculateHotScore(newScore, postBefore.createdAt);
+  await Post.updateOne(
+    { _id: postId },
+    { $set: { hotScore: newHotScore } },
+    updateOpts.session ? { session: updateOpts.session } : {}
+  );
+
   return {
     score: newScore,
     tieredUp,
     meter: newMeter,
     tier: newTier,
+    hotScore: newHotScore,
   };
 }
 
@@ -178,6 +197,6 @@ async function castVote(userId, postId, value, externalSession = null, options =
   }, actualSession);
 }
 
-const meter = { computeScore, decayedScore, applyDelta, castVote };
+const meter = { computeScore, decayedScore, calculateHotScore, applyDelta, castVote };
 module.exports = meter;
 

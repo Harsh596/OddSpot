@@ -1397,6 +1397,215 @@
           }
         }
       }
+    },
+    "/feed/city": {
+      "get": {
+        "summary": "Retrieve city feed with sort (new, hot, top) and cursor pagination",
+        "tags": [
+          "Feeds"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "cityKey",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Canonical city slug"
+          },
+          {
+            "in": "query",
+            "name": "city",
+            "schema": {
+              "type": "string"
+            },
+            "description": "City name"
+          },
+          {
+            "in": "query",
+            "name": "countryCode",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO 3166-1 alpha-2 country code"
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Country name"
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "hot",
+                "top"
+              ],
+              "default": "new"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Page number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated city feed"
+          },
+          "304": {
+            "description": "Not Modified (ETag match)"
+          },
+          "400": {
+            "description": "Validation failed"
+          }
+        }
+      }
+    },
+    "/feed/country": {
+      "get": {
+        "summary": "Retrieve country tier feed with sort (new, hot, top) and cursor pagination",
+        "tags": [
+          "Feeds"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "countryCode",
+            "schema": {
+              "type": "string"
+            },
+            "description": "ISO 3166-1 alpha-2 country code"
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Country name"
+          },
+          {
+            "in": "query",
+            "name": "sort",
+            "schema": {
+              "type": "string",
+              "enum": [
+                "new",
+                "hot",
+                "top"
+              ],
+              "default": "new"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 20,
+              "maximum": 50
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Pagination cursor"
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Page number"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Paginated country feed"
+          },
+          "304": {
+            "description": "Not Modified (ETag match)"
+          },
+          "400": {
+            "description": "Validation failed"
+          }
+        }
+      }
+    },
+    "/feed/random": {
+      "get": {
+        "summary": "Retrieve random sample of country-tier spots with optional country teleport",
+        "tags": [
+          "Feeds"
+        ],
+        "parameters": [
+          {
+            "in": "query",
+            "name": "countryCode",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional country code"
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "schema": {
+              "type": "string"
+            },
+            "description": "Optional country name"
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "schema": {
+              "type": "integer",
+              "default": 10,
+              "maximum": 20
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Random sample of spots"
+          },
+          "304": {
+            "description": "Not Modified (ETag match)"
+          }
+        }
+      }
     }
   },
   "components": {

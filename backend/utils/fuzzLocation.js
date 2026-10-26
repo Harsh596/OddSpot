@@ -28,7 +28,6 @@ function fuzzLocation(coordinates, seed = '') {
 
   const salt =
     process.env.LOCATION_FUZZ_SALT ||
-    process.env.JWT_SECRET ||
     'oddspot-default-location-fuzz-salt-2026';
 
   const message = `${seed || ''}:${lng.toFixed(6)}:${lat.toFixed(6)}`;

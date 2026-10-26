@@ -45,11 +45,17 @@ function trustQueryOperators(filter) {
   }
   for (const key of Object.keys(filter)) {
     const val = filter[key];
-    if (val && typeof val === 'object' && !Array.isArray(val)) {
-      if (Object.keys(val).some((k) => k.startsWith('$'))) {
-        mongoose.trusted(val);
+    if (val && typeof val === 'object') {
+      if (Array.isArray(val)) {
+        for (const item of val) {
+          trustQueryOperators(item);
+        }
+      } else {
+        if (Object.keys(val).some((k) => k.startsWith('$'))) {
+          mongoose.trusted(val);
+        }
+        trustQueryOperators(val);
       }
-      trustQueryOperators(val);
     }
   }
   return filter;

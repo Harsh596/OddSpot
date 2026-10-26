@@ -73,6 +73,7 @@ const postSchema = new Schema(
       },
     ],
 
+    hotScore: { type: Number, default: 0, index: true },
     underReview: { type: Boolean, default: false },
     removed: { type: Boolean, default: false },
   },
@@ -82,13 +83,22 @@ const postSchema = new Schema(
 // Geo indices
 postSchema.index({ location: '2dsphere' });
 postSchema.index({ feedLocation: '2dsphere' });
-// City feed, newest and hottest
+
+// City feed compound indexes (new, top, hot with cursor _id pagination)
+postSchema.index({ 'place.cityKey': 1, 'place.countryCode': 1, createdAt: -1, _id: -1 });
+postSchema.index({ 'place.cityKey': 1, 'place.countryCode': 1, 'meter.score': -1, _id: -1 });
+postSchema.index({ 'place.cityKey': 1, 'place.countryCode': 1, hotScore: -1, _id: -1 });
+
+// Country feed compound indexes (new, top, hot with cursor _id pagination)
+postSchema.index({ tier: 1, 'place.countryCode': 1, createdAt: -1, _id: -1 });
+postSchema.index({ tier: 1, 'place.countryCode': 1, 'meter.score': -1, _id: -1 });
+postSchema.index({ tier: 1, 'place.countryCode': 1, hotScore: -1, _id: -1 });
+
+// Legacy city/country indexes for backward compatibility
 postSchema.index({ 'place.city': 1, 'place.country': 1, createdAt: -1 });
 postSchema.index({ 'place.city': 1, 'place.country': 1, 'meter.score': -1 });
-postSchema.index({ 'place.cityKey': 1, 'place.countryCode': 1, createdAt: -1 });
-postSchema.index({ 'place.cityKey': 1, 'place.countryCode': 1, 'meter.score': -1 });
-// Country feed + Random tab
 postSchema.index({ tier: 1, 'place.country': 1, 'meter.score': -1 });
+
 // Community page
 postSchema.index({ communityId: 1, createdAt: -1 });
 // Profile page
@@ -128,6 +138,15 @@ postSchema.pre('save', function (next) {
       const resolved = resolveCountry(this.place.country);
       this.place.countryCode = resolved ? resolved.code : 'XX';
     }
+  }
+
+  if (this.hotScore === undefined || this.isModified('meter.score')) {
+    const s = this.meter?.score || 0;
+    const order = Math.log10(Math.max(Math.abs(s), 1));
+    const sign = s > 0 ? 1 : s < 0 ? -1 : 0;
+    const t = new Date(this.createdAt || Date.now()).getTime() / 1000;
+    const seconds = t - 1700000000;
+    this.hotScore = Number((sign * order + seconds / 45000).toFixed(7));
   }
 
   if (typeof next === 'function') next();
