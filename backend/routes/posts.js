@@ -25,6 +25,7 @@ const {
 const { normalizeText } = require('../utils/normalize');
 const { parseLngLat, parseStrictCoordinate } = require('../utils/coordinates');
 const { withTransaction } = require('../utils/withTransaction');
+const { logAudit } = require('../services/audit');
 
 const router = Router();
 
@@ -322,6 +323,116 @@ router.get('/:id', validateParams(postsValidators.postIdParamSchema), async (req
   }
 });
 
+// PATCH /api/posts/:id - Edit post (author only, within 24 hours, immutable location/hideExact)
+router.patch(
+  '/:id',
+  requireAuth,
+  validateParams(postsValidators.postIdParamSchema),
+  validateBody(postsValidators.updatePostSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      if (post.authorId.toString() !== req.user.id.toString()) {
+        return res.status(403).json(
+          formatErrorResponse(ErrorCodes.FORBIDDEN, 'Only the author can edit this post')
+        );
+      }
+
+      const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
+      if (Date.now() - new Date(post.createdAt).getTime() > TWENTY_FOUR_HOURS_MS) {
+        return res.status(400).json(
+          formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Posts can only be edited within 24 hours of creation')
+        );
+      }
+
+      // Record editHistory before updating (capped at 5)
+      post.editHistory = post.editHistory || [];
+      post.editHistory.push({
+        title: post.title,
+        body: post.body,
+        tags: post.tags,
+        editedAt: new Date(),
+      });
+      if (post.editHistory.length > 5) {
+        post.editHistory = post.editHistory.slice(-5);
+      }
+
+      // Apply updates
+      if (req.body.title !== undefined) post.title = req.body.title;
+      if (req.body.body !== undefined) post.body = req.body.body;
+      if (req.body.tags !== undefined) post.tags = req.body.tags;
+      if (req.body.warnings !== undefined) post.warnings = req.body.warnings;
+      if (req.body.type !== undefined) post.type = req.body.type;
+      post.editedAt = new Date();
+
+      await post.save();
+      const updated = await Post.findById(post._id).populate('authorId', 'username avatarUrl badges');
+      res.json(sanitizePost(updated));
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/v1/posts/:id - Soft-delete post (author or moderator/admin)
+router.delete(
+  '/:id',
+  requireAuth,
+  validateParams(postsValidators.postIdParamSchema),
+  async (req, res, next) => {
+    try {
+      if (!req.baseUrl.includes('v1') && !req.originalUrl.includes('/v1')) {
+        return res.status(405).json(
+          formatErrorResponse(ErrorCodes.NOT_FOUND, 'DELETE is only supported on /api/v1/posts/:id')
+        );
+      }
+
+      const { id } = req.params;
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      const isAuthor = post.authorId.toString() === req.user.id.toString();
+      const isStaff = ['moderator', 'admin'].includes(req.user.role);
+
+      if (!isAuthor && !isStaff) {
+        return res.status(403).json(
+          formatErrorResponse(ErrorCodes.FORBIDDEN, 'Only the author or a moderator can delete this post')
+        );
+      }
+
+      post.removed = true;
+      await post.save();
+
+      // Decrement author's stats.posts if present
+      if (post.authorId) {
+        await User.findByIdAndUpdate(post.authorId, { $inc: { 'stats.posts': -1 } });
+      }
+
+      // If deleted by moderator or admin who is not the author, log audit
+      if (!isAuthor && isStaff) {
+        await logAudit({
+          actorId: req.user.id,
+          action: 'post_deleted',
+          targetType: 'post',
+          targetId: post._id,
+          reason: req.body?.reason || 'moderator action',
+        });
+      }
+
+      res.json({ message: 'Post deleted successfully', removed: true });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
 // POST /api/posts/:id/vote - Like or dislike
 router.post(
   '/:id/vote',
@@ -483,7 +594,7 @@ router.post(
   }
 );
 
-// GET /api/posts/:id/comments - List comments for a post
+// GET /api/posts/:id/comments - List comments for a post (with cursor or page pagination)
 router.get(
   '/:id/comments',
   validateParams(postsValidators.postIdParamSchema),
@@ -491,27 +602,130 @@ router.get(
   async (req, res, next) => {
     try {
       const { id } = req.params;
-      const { limit = 50, page = 1 } = req.query;
+      const { limit = 20, page, cursor } = req.query;
 
       const post = await Post.findOne({ _id: id, removed: { $ne: true } });
       if (!post) {
         return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
       }
 
-      const limitNum = Math.min(Math.max(Number(limit) || 50, 1), 100);
-      const pageNum = Math.min(Math.max(Number(page) || 1, 1), 100);
-      const skipNum = (pageNum - 1) * limitNum;
+      const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 50);
+      let filter = { postId: id, removed: { $ne: true } };
 
-      const comments = await Comment.find({ postId: id, removed: { $ne: true } })
-        .sort({ createdAt: 1 })
-        .skip(skipNum)
-        .limit(limitNum)
+      if (cursor) {
+        if (mongoose.Types.ObjectId.isValid(cursor)) {
+          filter._id = { $gt: new mongoose.Types.ObjectId(cursor) };
+        } else if (!Number.isNaN(new Date(cursor).getTime())) {
+          filter.createdAt = { $gt: new Date(cursor) };
+        }
+      }
+
+      let query = Comment.find(filter).sort({ _id: 1 });
+      if (!cursor && page) {
+        const pageNum = Math.max(Number(page) || 1, 1);
+        query = query.skip((pageNum - 1) * limitNum);
+      }
+
+      const rawComments = await query
+        .limit(limitNum + 1)
         .populate('authorId', 'username avatarUrl badges');
+
+      const hasMore = rawComments.length > limitNum;
+      const comments = hasMore ? rawComments.slice(0, limitNum) : rawComments;
+      const nextCursor = hasMore && comments.length > 0 ? comments[comments.length - 1]._id.toString() : null;
 
       res.json({
         count: comments.length,
+        hasMore,
+        nextCursor,
         comments,
       });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// PATCH /api/posts/:id/comments/:commentId - Edit comment (author only)
+router.patch(
+  '/:id/comments/:commentId',
+  requireAuth,
+  validateBody(postsValidators.updateCommentSchema),
+  async (req, res, next) => {
+    try {
+      const { id, commentId } = req.params;
+      const comment = await Comment.findOne({
+        _id: commentId,
+        postId: id,
+        removed: { $ne: true },
+      });
+      if (!comment) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Comment not found'));
+      }
+
+      if (comment.authorId.toString() !== req.user.id.toString()) {
+        return res.status(403).json(
+          formatErrorResponse(ErrorCodes.FORBIDDEN, 'Only the author can edit this comment')
+        );
+      }
+
+      comment.body = req.body.body;
+      comment.edited = true;
+      comment.editedAt = new Date();
+      await comment.save();
+
+      const populated = await Comment.findById(comment._id).populate('authorId', 'username avatarUrl badges');
+      res.json({ message: 'Comment updated successfully', comment: populated });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// DELETE /api/posts/:id/comments/:commentId - Soft delete comment with counter decrement inside transaction
+router.delete(
+  '/:id/comments/:commentId',
+  requireAuth,
+  async (req, res, next) => {
+    try {
+      const { id, commentId } = req.params;
+      const comment = await Comment.findOne({
+        _id: commentId,
+        postId: id,
+        removed: { $ne: true },
+      });
+      if (!comment) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Comment not found'));
+      }
+
+      const isAuthor = comment.authorId.toString() === req.user.id.toString();
+      const isStaff = ['moderator', 'admin'].includes(req.user.role);
+
+      if (!isAuthor && !isStaff) {
+        return res.status(403).json(
+          formatErrorResponse(ErrorCodes.FORBIDDEN, 'Only the author or a moderator can delete this comment')
+        );
+      }
+
+      await withTransaction(async (session) => {
+        comment.removed = true;
+        await comment.save({ session });
+
+        await meterService.applyDelta(id, { comments: -1 }, session);
+
+        if (!isAuthor && isStaff) {
+          await logAudit({
+            actorId: req.user.id,
+            action: 'comment_deleted',
+            targetType: 'comment',
+            targetId: comment._id,
+            reason: req.body?.reason || 'moderator action',
+            session,
+          });
+        }
+      });
+
+      res.json({ message: 'Comment deleted successfully', removed: true });
     } catch (err) {
       next(err);
     }

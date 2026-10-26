@@ -96,6 +96,25 @@ async function requireAuth(req, res, next) {
   }
 }
 
+function requireRole(...allowedRoles) {
+  return (req, res, next) => {
+    if (!req.user) {
+      return res.status(401).json(
+        formatErrorResponse(ErrorCodes.AUTH_INVALID_TOKEN, 'Authentication required')
+      );
+    }
+    if (!allowedRoles.includes(req.user.role)) {
+      return res.status(403).json(
+        formatErrorResponse(
+          ErrorCodes.FORBIDDEN,
+          `Forbidden: insufficient permissions, required role in [${allowedRoles.join(', ')}]`
+        )
+      );
+    }
+    next();
+  };
+}
+
 function invalidateUserAuthCache(userId = null) {
   if (userId) {
     userCache.delete(userId);
@@ -106,6 +125,7 @@ function invalidateUserAuthCache(userId = null) {
 
 module.exports = {
   requireAuth,
+  requireRole,
   invalidateUserAuthCache,
   clearUserCache: invalidateUserAuthCache,
 };

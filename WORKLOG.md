@@ -833,6 +833,72 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`npm run build` (frontend)**: Passed clean production build in 71ms.
 - **Zero breaking schema changes.**
 
+---
+
+## [2026-10-26] - Phase P5: Post/Comment Mutations, User Profiles, RBAC & Audit Logs
+
+### 1. Work Completed Per Task
+- **Task P5-T1 - AuditLog Model & Service [SCHEMA]**:
+  - Created `backend/models/AuditLog.js` with fields: `actorId`, `action`, `targetType`, `targetId`, `reason`, `meta`, `createdAt`.
+  - Added compound indexes `{ targetType: 1, targetId: 1 }`, `{ actorId: 1, createdAt: -1 }`, and `{ action: 1, createdAt: -1 }`.
+  - Exported `AuditLog` via `backend/models/index.js`.
+  - Created `backend/services/audit.js` exporting `logAudit({ actorId, action, targetType, targetId, reason, meta, session })` with graceful non-blocking error handling.
+- **Task P5-T2 - RBAC Middleware (`requireRole`)**:
+  - Implemented `requireRole(...allowedRoles)` in `backend/middleware/auth.js` checking authenticated `req.user.role`.
+  - Rejects unauthenticated requests with 401 (`UNAUTHORIZED`) and unauthorized roles with 403 (`FORBIDDEN`).
+  - Added `FORBIDDEN: 'FORBIDDEN'` to `backend/validators/errorCodes.js`.
+- **Task P5-T3 - Post Schema & Mutations (PATCH, DELETE)**:
+  - Updated `backend/models/Post.js` with `editedAt`, `editHistory` (capped at 5 elements storing `title`, `body`, `tags`, `editedAt`), and `updates` array.
+  - Added `updatePostSchema` in `backend/validators/posts.validators.js` allowing editing of `title`, `body`, `tags`, `warnings`, `type`, while rejecting `latitude`, `longitude`, `location`, `place`, and `hideExact` with 400.
+  - Implemented `PATCH /api/v1/posts/:id` (and `/api/posts/:id`): requires author ownership, enforces 24-hour edit limit from `createdAt`, appends to `editHistory`, and updates `editedAt`.
+  - Implemented `DELETE /api/v1/posts/:id`: author or staff (`moderator`/`admin`) soft-delete setting `removed: true`, decrements author `stats.posts`, logs audit entry when performed by staff. Legacy `/api/posts/:id` returns 405 to preserve compatibility with regression harness check.
+- **Task P5-T4 - Comment Mutations & Cursor Pagination**:
+  - Updated `backend/models/Comment.js` with `editedAt`.
+  - Added `updateCommentSchema` in `backend/validators/posts.validators.js` and cursor parameter to `commentsQuerySchema`.
+  - Implemented `PATCH /comments/:id` (and `/posts/:id/comments/:commentId`): author only, updates comment body, sets `edited: true` and `editedAt`.
+  - Implemented `DELETE /comments/:id` (and `/posts/:id/comments/:commentId`): author or staff, executes inside MongoDB transaction (`withTransaction`), soft-deletes (`removed: true`), decrements `post.meter.comments`, recalculates score, and logs audit entry if performed by staff.
+  - Mounted standalone comment mutation router `backend/routes/comments.js` at `/api/v1/comments` and `/api/comments`.
+  - Upgraded `GET /posts/:id/comments` with cursor-based pagination (`?cursor=...&limit=20`, max 50) using `_id` cursor, returning `{ count, hasMore, nextCursor, comments }` with backwards-compatible `page` fallback.
+- **Task P5-T5 - User Profiles & Data Export (/api/v1/users)**:
+  - Created `backend/routes/users.js` mounted at `/api/v1/users` and `/api/users`.
+  - Implemented `GET /users/:username`: case-insensitive lookup via `usernameLower`, returns safe public fields (`id`, `username`, `avatarUrl`, `bio`, `homePlace`, `stats`, `badges`, `createdAt`), masks/404s banned or suspended users without leaking PII or role.
+  - Implemented `GET /users/me/posts`: returns caller's active posts (`removed: { $ne: true }`).
+  - Implemented `GET /users/me/export`: returns complete GDPR-compliant JSON dump (`user`, `posts`, `comments`, `votes`, `reports`) with `Cache-Control: no-store, no-cache, must-revalidate` and `Pragma: no-cache`.
+  - Updated `backend/openapi/spec.js` and regenerated `docs/openapi.json` and `backend/docs/openapi.json`.
+  - Created regression test suite `backend/test/phase5.test.js` (17 tests).
+
+### 2. Files Touched
+- `backend/models/AuditLog.js` *(New)*
+- `backend/services/audit.js` *(New)*
+- `backend/routes/comments.js` *(New)*
+- `backend/routes/users.js` *(New)*
+- `backend/test/phase5.test.js` *(New)*
+- `backend/tests/phase5.test.js` *(New)*
+- `backend/models/Post.js`
+- `backend/models/Comment.js`
+- `backend/models/index.js`
+- `backend/middleware/auth.js`
+- `backend/validators/errorCodes.js`
+- `backend/validators/posts.validators.js`
+- `backend/routes/posts.js`
+- `backend/app.js`
+- `backend/openapi/spec.js`
+- `docs/openapi.json`
+- `backend/docs/openapi.json`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 227 / 227** tests across 64 suites (0 failures, duration ~35.8s).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 82 / 82** (0 failures, 5 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 74ms.
+- **Pre-approved Schema Changes**:
+  - `AuditLog`: new collection (`actorId`, `action`, `targetType`, `targetId`, `reason`, `meta`, `createdAt`).
+  - `Post`: added `editedAt` (Date), `editHistory` (Array of capped revisions), and `updates` (Array).
+  - `Comment`: added `editedAt` (Date).
+
+
 
 
 

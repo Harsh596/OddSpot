@@ -48,7 +48,13 @@
   - [x] Task P4-T3: Built `backend/middleware/requestId.js` (assigns or forwards `X-Request-Id`). Standardized `backend/middleware/errorHandler.js` returning dual-compatible error envelope (`error`, `code`, `message`, `details`).
   - [x] Task P4-T4: Created `backend/middleware/bodyLimit.js` enforcing byte bounds (login: 2 KB, post: 20 KB, comment: 10 KB). Mounted routers on both `/api/v1` and `/api`. Added `GET /api/v1/config/public`.
   - [x] Task P4-T5: Created `backend/openapi/spec.js`, generated `docs/openapi.json` via `backend/scripts/generateOpenApi.js`, and wrote `backend/test/openapiContract.test.js` (10 tests).
-- [ ] **P5: Meter Scoring & Regional City->Country Escalation**
+- [x] **P5: Post/Comment Mutations, User Profiles, RBAC & Audit Logs**
+  - [x] Task P5-T1 [SCHEMA]: Create `backend/models/AuditLog.js` (`actorId`, `action`, `targetType`, `targetId`, `reason`, `meta`, `createdAt`) and `backend/services/audit.js`.
+  - [x] Task P5-T2: In `backend/middleware/auth.js`, implement `requireRole(...allowedRoles)` checking `req.user.role`.
+  - [x] Task P5-T3: Add `editedAt`, `editHistory` (capped at 5), and `updates` fields to Post schema. Implement `PATCH /posts/:id` enforcing 24h window and rejecting coordinate/hideExact changes. Implement `DELETE /api/v1/posts/:id` (author or mod/admin soft-delete, auditing mod deletions).
+  - [x] Task P5-T4: Implement `PATCH /comments/:id` and `DELETE /comments/:id` with counter decrement inside transaction. Upgrade `GET /posts/:id/comments` with cursor pagination (`?cursor=...&limit=20`, max 50).
+  - [x] Task P5-T5: Create `backend/routes/users.js` mounted at `/api/v1/users` and `/api/users`. Implement `GET /users/:username` returning only public fields. Implement `GET /users/me/posts` and `GET /users/me/export` (JSON dump of caller's data with `Cache-Control: no-store`).
+  - [x] Dedicated regression test suite: `backend/test/phase5.test.js` (17 tests covering mutations, RBAC, audit logging, profiles, and export).
 - [ ] **P6: Moderation & Automatic Content Fuzzing**
 - [ ] **P7: Account Security, Banning & Role Enforcement**
 - [ ] **P8: Refresh Token Rotation & Session Hardening**

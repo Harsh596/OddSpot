@@ -356,6 +356,7 @@ const reportSchema = z
 // GET /api/v1/posts/:id/comments query validation
 const commentsQuerySchema = z
   .object({
+    cursor: z.string().optional(),
     page: z.coerce
       .number({ invalid_type_error: 'page must be a number' })
       .int('page must be an integer')
@@ -367,18 +368,84 @@ const commentsQuerySchema = z
       .number({ invalid_type_error: 'limit must be a number' })
       .int('limit must be an integer')
       .min(1, 'limit must be between 1 and 100')
-      .max(100, 'limit must be between 1 and 100')
+      .max(50, 'limit must be between 1 and 50')
       .optional()
-      .default(50),
+      .default(20),
   })
   .passthrough();
 
+// PATCH /api/v1/posts/:id
+const updatePostSchema = z
+  .object({
+    title: normalizedString({ min: 1, max: 140, fieldName: 'Title' }).optional(),
+    body: z
+      .string({ invalid_type_error: 'Body must be a text string' })
+      .transform((val) => normalizeText(val, { multiLine: true }))
+      .refine((val) => val.length <= 10000, {
+        message: 'Body must not exceed 10000 characters',
+      })
+      .optional(),
+    tags: z
+      .array(tagSchema, {
+        invalid_type_error: 'Tags must be an array of strings',
+      })
+      .max(10, 'A post can have a maximum of 10 tags')
+      .optional(),
+    warnings: z
+      .array(
+        z.enum(['private_property', 'walking_required', 'unsafe_night', 'other'], {
+          message: 'Invalid warning type',
+        }),
+        { invalid_type_error: 'Warnings must be an array of warning types' }
+      )
+      .optional(),
+    type: z.enum(['find', 'identify']).optional(),
+    // Reject immutable fields
+    latitude: z.any().optional(),
+    longitude: z.any().optional(),
+    coordinates: z.any().optional(),
+    location: z.any().optional(),
+    hideExact: z.any().optional(),
+    place: z.any().optional(),
+    city: z.any().optional(),
+    country: z.any().optional(),
+    state: z.any().optional(),
+  })
+  .superRefine((data, ctx) => {
+    if (
+      data.latitude !== undefined ||
+      data.longitude !== undefined ||
+      data.coordinates !== undefined ||
+      data.location !== undefined ||
+      data.hideExact !== undefined ||
+      data.place !== undefined ||
+      data.city !== undefined ||
+      data.country !== undefined ||
+      data.state !== undefined
+    ) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['location'],
+        message: 'Location and privacy settings cannot be modified after post creation',
+      });
+    }
+  });
+
+// PATCH /api/v1/comments/:id
+const updateCommentSchema = z
+  .object({
+    body: normalizedString({ min: 1, max: 5000, multiLine: true, fieldName: 'Comment body' }),
+  })
+  .strip();
+
 module.exports = {
   createPostSchema,
+  updatePostSchema,
   nearbyQuerySchema,
   postIdParamSchema,
   voteSchema,
   commentSchema,
+  updateCommentSchema,
   commentsQuerySchema,
   reportSchema,
 };

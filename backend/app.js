@@ -8,6 +8,8 @@ const requestId = require('./middleware/requestId');
 const { bodyLimit, limits } = require('./middleware/bodyLimit');
 const authRoutes = require('./routes/auth');
 const postsRoutes = require('./routes/posts');
+const usersRoutes = require('./routes/users');
+const commentsRoutes = require('./routes/comments');
 const errorHandler = require('./middleware/errorHandler');
 const { ErrorCodes, formatErrorResponse } = require('./validators');
 
@@ -160,6 +162,8 @@ function createApp() {
   // Mount resource routes
   apiRouter.use('/auth', authRoutes);
   apiRouter.use('/posts', postsRoutes);
+  apiRouter.use('/users', usersRoutes);
+  apiRouter.use('/comments', commentsRoutes);
 
   // 404 handler for unmatched /api routes
   apiRouter.use((req, res) => {

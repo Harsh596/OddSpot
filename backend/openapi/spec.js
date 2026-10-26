@@ -431,6 +431,47 @@ function buildOpenApiSpec() {
             404: { description: 'Post not found' },
           },
         },
+        patch: {
+          summary: 'Edit post within 24h window (author only, immutable location)',
+          tags: ['Posts'],
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: {
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  properties: {
+                    title: { type: 'string', minLength: 1, maxLength: 140 },
+                    body: { type: 'string', maxLength: 10000 },
+                    tags: { type: 'array', maxItems: 10, items: { type: 'string', maxLength: 30 } },
+                    warnings: { type: 'array', items: { type: 'string' } },
+                    type: { type: 'string', enum: ['find', 'identify'] },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Post updated successfully' },
+            400: { description: 'Validation error, edit window expired, or attempted location edit' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden: only author can edit post' },
+            404: { description: 'Post not found' },
+          },
+        },
+        delete: {
+          summary: 'Soft-delete post (author or moderator/admin)',
+          tags: ['Posts'],
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: {
+            200: { description: 'Post deleted successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Post not found' },
+          },
+        },
       },
       '/posts/{id}/vote': {
         post: {
@@ -529,6 +570,77 @@ function buildOpenApiSpec() {
             401: { description: 'Unauthorized' },
             404: { description: 'Post not found' },
             409: { description: 'Duplicate report' },
+          },
+        },
+      },
+      '/comments/{id}': {
+        patch: {
+          summary: 'Edit comment (author only)',
+          tags: ['Comments'],
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['body'],
+                  properties: { body: { type: 'string', minLength: 1, maxLength: 5000 } },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Comment updated successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Comment not found' },
+          },
+        },
+        delete: {
+          summary: 'Soft-delete comment (author or moderator/admin)',
+          tags: ['Comments'],
+          security: [{ BearerAuth: [] }],
+          parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: {
+            200: { description: 'Comment deleted successfully' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Comment not found' },
+          },
+        },
+      },
+      '/users/{username}': {
+        get: {
+          summary: 'Get public user profile (PII safe)',
+          tags: ['Users'],
+          parameters: [{ name: 'username', in: 'path', required: true, schema: { type: 'string' } }],
+          responses: {
+            200: { description: 'Public user profile' },
+            404: { description: 'User not found' },
+          },
+        },
+      },
+      '/users/me/posts': {
+        get: {
+          summary: "List authenticated user's posts",
+          tags: ['Users'],
+          security: [{ BearerAuth: [] }],
+          responses: {
+            200: { description: "List of caller's active posts" },
+            401: { description: 'Unauthorized' },
+          },
+        },
+      },
+      '/users/me/export': {
+        get: {
+          summary: "Complete data export for caller (GDPR compliance)",
+          tags: ['Users'],
+          security: [{ BearerAuth: [] }],
+          responses: {
+            200: { description: 'JSON dump of user profile, posts, comments, votes, and reports' },
+            401: { description: 'Unauthorized' },
           },
         },
       },

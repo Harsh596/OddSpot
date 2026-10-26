@@ -7,6 +7,7 @@ const commentSchema = new Schema(
     parentId: { type: Schema.Types.ObjectId, ref: 'Comment', default: null }, // threading
     body: { type: String, required: true, maxlength: 5000 }, // markdown
     edited: { type: Boolean, default: false },
+    editedAt: { type: Date },
     removed: { type: Boolean, default: false },
   },
   { timestamps: true }

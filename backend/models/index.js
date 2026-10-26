@@ -11,4 +11,5 @@ module.exports = {
   IdempotencyKey: require('./IdempotencyKey'),
   RefreshToken: require('./RefreshToken'),
   EmailToken: require('./EmailToken'),
+  AuditLog: require('./AuditLog'),
 };

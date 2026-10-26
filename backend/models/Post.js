@@ -50,6 +50,22 @@ const postSchema = new Schema(
     solved: { type: Boolean, default: false }, // for 'identify' posts
     bestCommentId: { type: Schema.Types.ObjectId, ref: 'Comment' },
 
+    editedAt: { type: Date },
+    editHistory: [
+      {
+        title: String,
+        body: String,
+        tags: [String],
+        editedAt: { type: Date, default: Date.now },
+      },
+    ],
+    updates: [
+      {
+        body: { type: String, required: true },
+        createdAt: { type: Date, default: Date.now },
+      },
+    ],
+
     removed: { type: Boolean, default: false },
   },
   { timestamps: true }
