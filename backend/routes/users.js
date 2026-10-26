@@ -5,7 +5,49 @@ const express = require('express');
 const router = express.Router();
 const { User, Post, Comment, Vote, Report } = require('../models');
 const { requireAuth } = require('../middleware/auth');
-const { ErrorCodes, formatErrorResponse } = require('../validators');
+const {
+  validateBody,
+  feed: feedValidators,
+  ErrorCodes,
+  formatErrorResponse,
+} = require('../validators');
+
+// PATCH /api/v1/users/me/preferences - Save user preferences (feedConfig, theme, profileLayout)
+router.patch(
+  '/me/preferences',
+  requireAuth,
+  validateBody(feedValidators.updatePreferencesSchema),
+  async (req, res, next) => {
+    try {
+      const { feedConfig, theme, profileLayout } = req.body;
+      const update = {};
+      if (feedConfig !== undefined) update.feedConfig = feedConfig;
+      if (theme !== undefined) update.theme = theme;
+      if (profileLayout !== undefined) update.profileLayout = profileLayout;
+
+      const user = await User.findByIdAndUpdate(
+        req.user.id,
+        { $set: update },
+        { new: true }
+      ).lean();
+
+      if (!user) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found'));
+      }
+
+      res.json({
+        ok: true,
+        preferences: {
+          feedConfig: user.feedConfig,
+          theme: user.theme,
+          profileLayout: user.profileLayout,
+        },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
 
 // GET /api/v1/users/me/posts - List authenticated user's posts
 router.get('/me/posts', requireAuth, async (req, res, next) => {

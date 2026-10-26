@@ -1644,6 +1644,61 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase P14: Communities, Whitelisted Home Feed Rule Interpreter & Verified GPS Visits
+
+### 1. Summary of Changes
+- **Task P14-T1: Communities Endpoints** (`backend/routes/communities.js`):
+  - Created `backend/routes/communities.js` mounted at `/api/v1/communities` and `/api/communities`.
+  - Membership roles: `['member', 'moderator', 'owner']`.
+  - Endpoints:
+    1. `POST /api/v1/communities` (requires auth): Validates `name`, `slug`, `description`, `scope`, `place`, `coordinates`, `rules`, `flairs`. Inside `withTransaction`, creates `Community` (`memberCount: 1`, `createdBy: req.user.id`) and `Membership` (`role: 'owner'`).
+    2. `GET /api/v1/communities/nearby`: Geospatial discovery using `$nearSphere`/`$geoNear` on `center` or text search on name/description.
+    3. `GET /api/v1/communities/:slug`: Returns community details plus `isMember` and `memberRole` for authenticated caller.
+    4. `POST /api/v1/communities/:slug/join` (requires auth): Inside `withTransaction`, creates `Membership` and atomically increments `memberCount` by 1 (idempotent if already a member).
+    5. `POST /api/v1/communities/:slug/leave` (requires auth): Inside `withTransaction`, prevents community owner from leaving without transferring ownership (400), deletes `Membership`, and decrements `memberCount` by 1.
+    6. `GET /api/v1/communities/:slug/posts`: Cursor-paginated feed of non-removed, non-shadow-banned community posts with `sort=hot|new|top`.
+- **Task P14-T2: Feed Rule JSON Schema & Whitelisted Interpreter** (`backend/services/feedRuleInterpreter.js`, `backend/routes/feed.js`, `backend/routes/users.js`):
+  - Created `backend/services/feedRuleInterpreter.js`:
+    - Strict Zod validation: `version` (1), `maxDistanceKm` (1..50), `includeTags` (max 10), `excludeTags` (max 20), `excludeWarnings` (max 4), `onlyTypes` (find, identify), `onlyVerifiedVisited` (boolean), `minScore` (-50..500), `sortBy` ('hot', 'new', 'top', 'distance'), `boostTags` (max 5 items: tag, multiplier 0.5..3.0).
+    - Strict security controls: `.strict()` rejects unknown properties, rejects any payload containing forbidden tokens (`eval`, `Function`, `vm`, `$where`, `$function`). Zero dynamic code execution.
+    - Safe MongoDB query translation: filters by `removed: { $ne: true }`, `shadowBannedAuthor`, joined community IDs, tags, warnings, visits, and score; applies post-query tag boosting and custom sorting.
+  - Updated `GET /api/v1/feed/home`: Serves posts from joined communities using default hot/decay algorithm or user's `feedConfig.rules` evaluated via the interpreter.
+  - Added `PATCH /api/v1/users/me/preferences` in `backend/routes/users.js`: Saves `feedConfig: { mode: 'default' | 'rules', rules }`, `theme`, and `profileLayout`.
+- **Task P14-T3: Verified GPS Visits** (`backend/routes/posts.js`):
+  - `POST /api/v1/posts/:id/visit`:
+    - Validates strictly parsed coordinates, optional HTTPS `photoUrl` (<= 500 chars), `note` (<= 500 chars), and `spotStatus` (`'still_there'`, `'gone'`, `'changed'`).
+    - Author cannot visit their own post (403).
+    - Haversine distance verification: if caller distance > `cfg.visitRadiusMeters` (50m) from true coordinates, returns 403 without leaking distance or true coordinates in error response.
+    - Anti-GPS-spoofing: compares distance and elapsed time against visitor's previous visit on a different post within 2 hours; if implied speed > 500 km/h, returns 403 and writes an `AuditLog` entry (`action: 'impossible_speed_visit_blocked'`).
+    - Duplicate visit guard: returns 409 if visitor has already logged a visit for this spot.
+    - Inside `withTransaction`: creates `Visit` (storing fuzzed `feedLocation` coordinates for `hideExact: true` posts to protect privacy), calls `applyDelta(postId, { visits: 1 })` with weight 4, updates `spotStatus`, increments `User.stats.visits` and awards badges (`first_visit`, `10_visits`), and triggers `recomputeUserTrust`.
+    - Dispatches author notification (`notifyVisit`).
+  - `GET /api/v1/posts/:id/visits`: Lists verified visits populated with visitor username, avatarUrl, and badges, explicitly excluding visit coordinates (`-location`).
+
+### 2. Files Touched
+- `backend/routes/communities.js` *(New)*
+- `backend/services/feedRuleInterpreter.js` *(New)*
+- `backend/validators/communities.validators.js` *(New)*
+- `backend/validators/feed.validators.js`
+- `backend/validators/posts.validators.js`
+- `backend/validators/index.js`
+- `backend/routes/feed.js`
+- `backend/routes/posts.js`
+- `backend/routes/users.js`
+- `backend/app.js`
+- `backend/test/phase14.test.js` *(New)*
+- `backend/tests/phase14.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 309 / 309** tests across 103 suites (0 failures).
+- **`node --test test/phase14.test.js`**: **Passed: 3 / 3** test suites (0 failures).
+- **`npm run build` (frontend)**: Clean production build in 126ms.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
 
 
 

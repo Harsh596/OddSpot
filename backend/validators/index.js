@@ -56,6 +56,7 @@ module.exports = {
   feed: require('./feed.validators'),
   mod: require('./mod.validators'),
   notifications: require('./notifications.validators'),
+  communities: require('./communities.validators'),
   common: commonValidators,
   ErrorCodes,
   formatErrorResponse,

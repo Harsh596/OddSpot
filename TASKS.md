@@ -103,7 +103,11 @@
   - [x] Task P13-T2: Notification Dispatcher & 1-Hour Bucket Deduplication (`backend/services/notifications.js` with `createNotification`, 1-hour time-bucket deduplication, duplicate key collision recovery, self-action suppression, shadow-ban suppression, and mention extractor up to 5 unique `@mentions`).
   - [x] Task P13-T3: Wire Triggers & Endpoints (`backend/routes/notifications.js` mounted at `/api/v1/notifications` and `/api/notifications` with `GET /` cursor-paginated with `unreadCount` & `POST /read` marking items or `{ all: true }` strictly scoped to caller; wired triggers in `posts.js` and `meter.js`).
   - [x] Dedicated regression test suite: `backend/test/phase13.test.js` (and mirror `backend/tests/phase13.test.js` passing 3 comprehensive test suites covering comment/reply/mention/tier_up triggers, no self-notifications, 1-hour bucket deduplication, cursor pagination, and scoped read marks).
-- [ ] **P14: Central Error Mapping & Error Codes Envelope**
+- [x] **P14: Communities, Whitelisted Home Feed Rule Interpreter & Verified GPS Visits**
+  - [x] Task P14-T1: Communities Endpoints (`backend/routes/communities.js` mounted at `/api/v1/communities` and `/api/communities`, `POST /` with transactional community + owner membership creation, `GET /nearby` with `$geoNear` / `$nearSphere` on center, `GET /:slug` with `isMember` and `memberRole`, `POST /:slug/join` with atomic `memberCount` increment, `POST /:slug/leave` with owner guard and decrement, `GET /:slug/posts` cursor-paginated community feed).
+  - [x] Task P14-T2: Feed Rule JSON Schema & Whitelisted Interpreter (`backend/services/feedRuleInterpreter.js`, `backend/routes/feed.js`, strict eval-free Zod validation, `GET /api/v1/feed/home` serving joined community spots with default or whitelisted rules, `PATCH /api/v1/users/me/preferences`).
+  - [x] Task P14-T3: Verified GPS Visits (`POST /api/v1/posts/:id/visit` with <=50m radius check, anti-GPS-spoofing impossible travel check > 500 km/h with AuditLog, duplicate rejection (409), transactional Visit creation + `applyDelta(visits: 1)` + `spotStatus` update + stats/badge awards + author notification, and `GET /api/v1/posts/:id/visits` omitting coordinates).
+  - [x] Dedicated regression test suite: `backend/test/phase14.test.js` (and mirror `backend/tests/phase14.test.js` passing 3 comprehensive test suites).
 - [ ] **P15: Zod Schema Boundaries & Scalar Type Injection Guards**
 - [ ] **P16: Input Normalization & Payload Size Caps**
 - [ ] **P17: OpenAPI Specification & API Routing**

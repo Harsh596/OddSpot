@@ -5,7 +5,7 @@
 const { Router } = require('express');
 const crypto = require('crypto');
 const mongoose = require('mongoose');
-const { Post } = require('../models');
+const { Post, User, Membership } = require('../models');
 const { toCityKey, resolveCountry } = require('../utils/place');
 const { serializePost } = require('../utils/postSerializer');
 const {
@@ -14,7 +14,8 @@ const {
   ErrorCodes,
   formatErrorResponse,
 } = require('../validators');
-const { optionalAuth } = require('../middleware/auth');
+const { optionalAuth, requireAuth } = require('../middleware/auth');
+const { interpretFeedRules } = require('../services/feedRuleInterpreter');
 
 const router = Router();
 router.use(optionalAuth);
@@ -207,48 +208,103 @@ async function buildFeedFilter({ baseFilter, sort, cursorStr, pageNum, limitNum,
   return { filter, sortObj };
 }
 
-// GET /api/v1/feed/home - Home feed (country-tier highlights and trending community spots)
-router.get('/home', async (req, res, next) => {
-  try {
-    const limitNum = Math.floor(Math.min(Math.max(Number(req.query.limit) || 20, 1), 50));
-    const sort = req.query.sort || 'hot';
+// GET /api/v1/feed/home - Home feed from joined communities (default hot/decay or user feed rules)
+router.get(
+  '/home',
+  validateQuery(feedValidators.homeFeedQuerySchema),
+  async (req, res, next) => {
+    try {
+      const { cursor, limit = 20, sort = 'hot' } = req.query;
+      const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 50);
 
-    let sortObj = { hotScore: -1, _id: -1 };
-    if (sort === 'top') sortObj = { 'meter.score': -1, _id: -1 };
-    if (sort === 'new') sortObj = { createdAt: -1, _id: -1 };
+      let user = null;
+      let joinedCommunityIds = [];
 
-    // Fetch country-tier spots for home digest, applying shadow-ban privacy
-    const homeFilter = applyShadowBanFilter({ removed: { $ne: true }, tier: 'country' }, req.user);
-    let docs = await Post.find(homeFilter, FEED_PROJECTION)
-      .sort(sortObj)
-      .limit(limitNum)
-      .populate('authorId', 'username avatarUrl badges')
-      .lean();
+      if (req.user?.id) {
+        user = await User.findById(req.user.id).lean();
+        if (user) {
+          const memberships = await Membership.find({ userId: req.user.id })
+            .select('communityId')
+            .lean();
+          joinedCommunityIds = memberships.map((m) => m.communityId);
+        }
+      }
 
-    // Fallback to top overall spots if few country tier spots exist
-    if (docs.length < 5) {
-      const fallbackFilter = applyShadowBanFilter({ removed: { $ne: true } }, req.user);
-      docs = await Post.find(fallbackFilter, FEED_PROJECTION)
+      // If user has enabled custom rules mode with valid rules, evaluate via interpreter
+      if (
+        user &&
+        user.feedConfig?.mode === 'rules' &&
+        user.feedConfig?.rules &&
+        typeof user.feedConfig.rules === 'object'
+      ) {
+        const result = await interpretFeedRules({
+          user,
+          rules: user.feedConfig.rules,
+          joinedCommunityIds,
+          query: req.query,
+        });
+
+        return res.status(200).json({
+          mode: 'rules',
+          posts: result.posts.map(serializePost),
+          nextCursor: result.nextCursor,
+          hasMore: result.hasMore,
+        });
+      }
+
+      // Default Home Feed Mode: posts from joined communities sorted by hotScore
+      const filter = {
+        removed: { $ne: true },
+      };
+
+      if (joinedCommunityIds.length > 0) {
+        filter.communityId = { $in: joinedCommunityIds };
+      }
+
+      applyShadowBanFilter(filter, req.user);
+
+      if (cursor) {
+        try {
+          const decodedId = /^[0-9a-fA-F]{24}$/.test(cursor)
+            ? cursor
+            : JSON.parse(Buffer.from(cursor, 'base64url').toString('utf8')).id;
+          if (decodedId && mongoose.Types.ObjectId.isValid(decodedId)) {
+            filter._id = { $lt: new mongoose.Types.ObjectId(decodedId) };
+          }
+        } catch {
+          // Ignore invalid cursor
+        }
+      }
+
+      let sortObj = { hotScore: -1, _id: -1 };
+      if (sort === 'new') {
+        sortObj = { createdAt: -1, _id: -1 };
+      } else if (sort === 'top') {
+        sortObj = { 'meter.score': -1, _id: -1 };
+      }
+
+      const rawPosts = await Post.find(filter)
         .sort(sortObj)
-        .limit(limitNum)
+        .limit(limitNum + 1)
         .populate('authorId', 'username avatarUrl badges')
         .lean();
+
+      const hasMore = rawPosts.length > limitNum;
+      const posts = hasMore ? rawPosts.slice(0, limitNum) : rawPosts;
+      const nextCursor =
+        hasMore && posts.length > 0 ? posts[posts.length - 1]._id.toString() : null;
+
+      return res.status(200).json({
+        mode: 'default',
+        posts: posts.map(serializePost),
+        nextCursor,
+        hasMore,
+      });
+    } catch (err) {
+      next(err);
     }
-
-    const posts = docs.map((doc) => serializePost(doc));
-
-    const responseBody = {
-      feedType: 'home',
-      sort,
-      count: posts.length,
-      posts,
-    };
-
-    return sendCachedFeedResponse(req, res, responseBody);
-  } catch (err) {
-    next(err);
   }
-});
+);
 
 // GET /api/v1/feed/city - Filtered city feed with sort=new|hot|top
 router.get(
@@ -488,5 +544,4 @@ router.get(
     }
   }
 );
-
 module.exports = router;

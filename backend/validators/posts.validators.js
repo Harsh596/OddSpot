@@ -155,6 +155,7 @@ const createPostSchema = z
       .optional()
       .default([]),
     hideExact: z.boolean({ invalid_type_error: 'hideExact must be a boolean' }).optional().default(false),
+    communityId: objectIdSchema.optional(),
     // Mass-assignment guarded fields: allowed in payload for test compatibility but safely stripped
     tier: z.unknown().optional(),
     meter: z.unknown().optional(),
@@ -249,6 +250,7 @@ const createPostSchema = z
       tags: data.tags,
       warnings: data.warnings,
       hideExact: data.hideExact,
+      communityId: data.communityId,
     };
   });
 
@@ -479,6 +481,35 @@ const revealSchema = z
   })
   .strip();
 
+// POST /api/v1/posts/:id/visit
+const recordVisitSchema = z
+  .object({
+    latitude: z.coerce
+      .number({ required_error: 'Latitude is required', invalid_type_error: 'Latitude must be a number' })
+      .refine((v) => Number.isFinite(v) && v >= -90 && v <= 90, {
+        message: 'Latitude must be between -90 and 90',
+      }),
+    longitude: z.coerce
+      .number({ required_error: 'Longitude is required', invalid_type_error: 'Longitude must be a number' })
+      .refine((v) => Number.isFinite(v) && v >= -180 && v <= 180, {
+        message: 'Longitude must be between -180 and 180',
+      }),
+    photoUrl: z
+      .string()
+      .max(500, 'Photo URL must not exceed 500 characters')
+      .refine(
+        (url) => !url || url.startsWith('https://'),
+        'Photo URL must use HTTPS'
+      )
+      .optional(),
+    note: z
+      .string()
+      .max(500, 'Note must not exceed 500 characters')
+      .optional(),
+    spotStatus: z.enum(['still_there', 'gone', 'changed']).optional().default('still_there'),
+  })
+  .strip();
+
 module.exports = {
   createPostSchema,
   updatePostSchema,
@@ -491,4 +522,5 @@ module.exports = {
   commentsQuerySchema,
   reportSchema,
   revealSchema,
+  recordVisitSchema,
 };

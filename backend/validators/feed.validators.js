@@ -63,8 +63,35 @@ const randomFeedQuerySchema = z
   })
   .strip();
 
+// GET /api/v1/feed/home
+const homeFeedQuerySchema = z
+  .object({
+    cursor: z.string().max(512).optional(),
+    limit: z.coerce.number().int().min(1).max(50).optional().default(20),
+    sort: z.enum(['hot', 'new', 'top', 'distance']).optional(),
+  })
+  .strip();
+
+// PATCH /api/v1/users/me/preferences
+const { feedRuleSchema } = require('../services/feedRuleInterpreter');
+const updatePreferencesSchema = z
+  .object({
+    feedConfig: z
+      .object({
+        mode: z.enum(['default', 'rules']).default('default'),
+        rules: feedRuleSchema.optional(),
+      })
+      .strict()
+      .optional(),
+    theme: z.record(z.any()).optional(),
+    profileLayout: z.record(z.any()).optional(),
+  })
+  .strict();
+
 module.exports = {
   cityFeedQuerySchema,
   countryFeedQuerySchema,
   randomFeedQuerySchema,
+  homeFeedQuerySchema,
+  updatePreferencesSchema,
 };

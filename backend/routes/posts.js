@@ -9,9 +9,9 @@ const {
   commentLimiter,
   reportLimiter,
 } = require('../config/rateLimits');
-const { Post, User, Comment, Report, AuditLog } = require('../models');
+const { Post, User, Comment, Report, AuditLog, Visit } = require('../models');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
-const { getReporterWeight } = require('../services/trust');
+const { getReporterWeight, recomputeUserTrust } = require('../services/trust');
 const { idempotency } = require('../middleware/idempotency');
 const meterService = require('../services/meter');
 const cfg = require('../config/meter');
@@ -76,6 +76,7 @@ router.post(
         hideExact = false,
         type = 'find',
         place,
+        communityId,
       } = req.body;
 
       // K5: Strict boolean type check for hideExact
@@ -206,6 +207,7 @@ router.post(
         tags,
         warnings,
         type,
+        communityId: communityId ? new mongoose.Types.ObjectId(communityId) : undefined,
         underReview,
         shadowBannedAuthor: Boolean(req.user.shadowBanned),
       });
@@ -1030,6 +1032,251 @@ router.post(
           coordinates: post.location.coordinates,
           exact: true,
         },
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /api/v1/posts/:id/visit - Record a verified GPS visit
+router.post(
+  '/:id/visit',
+  requireAuth,
+  validateParams(postsValidators.postIdParamSchema),
+  validateBody(postsValidators.recordVisitSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { latitude, longitude, photoUrl, note, spotStatus } = req.body;
+
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      // Author cannot visit their own post
+      if (post.authorId && post.authorId.toString() === req.user.id.toString()) {
+        return res
+          .status(403)
+          .json(
+            formatErrorResponse(
+              ErrorCodes.FORBIDDEN,
+              'Authors cannot log visits on their own spots'
+            )
+          );
+      }
+
+      const callerCoords = [longitude, latitude];
+      const distanceMeters = getHaversineDistance(callerCoords, post.location.coordinates);
+
+      // Must be within visitRadiusMeters (50m) of true post location
+      // IMPORTANT: Never leak true coordinates or distance in error response!
+      const allowedRadius = cfg.visitRadiusMeters || 50;
+      if (distanceMeters > allowedRadius) {
+        return res
+          .status(403)
+          .json(
+            formatErrorResponse(
+              ErrorCodes.FORBIDDEN,
+              `You must be within ${allowedRadius} meters of the spot to record a verified visit`
+            )
+          );
+      }
+
+      // Check duplicate visit first
+      const existingVisit = await Visit.findOne({ postId: post._id, userId: req.user.id });
+      if (existingVisit) {
+        return res
+          .status(409)
+          .json(
+            formatErrorResponse(
+              ErrorCodes.CONFLICT,
+              'You have already recorded a verified visit for this spot'
+            )
+          );
+      }
+
+      // Anti-GPS-spoof: impossible speed (> 500 km/h) compared to prior visit on a different post
+      const priorVisit = await Visit.findOne({
+        userId: req.user.id,
+        postId: { $ne: post._id },
+      }).sort({ createdAt: -1 });
+      if (priorVisit && priorVisit.location?.coordinates) {
+        const deltaMs = Date.now() - new Date(priorVisit.createdAt).getTime();
+        const deltaHours = deltaMs / 3600000;
+        const distanceKm =
+          getHaversineDistance(callerCoords, priorVisit.location.coordinates) / 1000;
+        if (deltaHours > 0 && deltaHours < 2) {
+          const speedKmH = distanceKm / deltaHours;
+          if (speedKmH > 500) {
+            await logAudit({
+              actorId: req.user.id,
+              action: 'impossible_speed_visit_blocked',
+              targetType: 'post',
+              targetId: post._id,
+              reason: `Speed ${Math.round(speedKmH)} km/h exceeds 500 km/h limit`,
+              meta: {
+                priorVisitId: priorVisit._id,
+                speedKmH: Math.round(speedKmH),
+                distanceKm: Math.round(distanceKm),
+              },
+            });
+            return res
+              .status(403)
+              .json(
+                formatErrorResponse(
+                  ErrorCodes.FORBIDDEN,
+                  'Visit rejected: impossible travel speed detected'
+                )
+              );
+          }
+        }
+      }
+
+      // Execute visit recording and counter increment inside transaction
+      const { visitDoc, deltaResult } = await withTransaction(async (session) => {
+        // Double-check duplicate inside session
+        const sessionExisting = await Visit.findOne({
+          postId: post._id,
+          userId: req.user.id,
+        }).session(session);
+        if (sessionExisting) {
+          const err = new Error('You have already recorded a verified visit for this spot');
+          err.statusCode = 409;
+          err.code = ErrorCodes.CONFLICT;
+          throw err;
+        }
+
+        // For hidden spots, store feedLocation or fuzzed coords, never exact true coords!
+        const visitCoords =
+          post.hideExact && post.feedLocation?.coordinates
+            ? post.feedLocation.coordinates
+            : callerCoords;
+
+        const [createdVisit] = await Visit.create(
+          [
+            {
+              postId: post._id,
+              userId: req.user.id,
+              photoUrl: photoUrl || undefined,
+              note: note || undefined,
+              location: {
+                type: 'Point',
+                coordinates: visitCoords,
+              },
+              verified: true,
+              spotStatus: spotStatus || 'still_there',
+            },
+          ],
+          { session }
+        );
+
+        const delta = await meterService.applyDelta(
+          post._id,
+          { visits: 1 },
+          session,
+          { userId: req.user.id }
+        );
+
+        if (spotStatus) {
+          await Post.updateOne(
+            { _id: post._id },
+            { $set: { spotStatus } },
+            { session }
+          );
+        }
+
+        // Update User stats and award badges
+        const currentUser = await User.findById(req.user.id).session(session);
+        const newVisits = (currentUser.stats?.visits || 0) + 1;
+        const newBadges = [];
+        const existingBadges = new Set(currentUser.badges || []);
+        if (newVisits >= 1 && !existingBadges.has('first_visit')) {
+          newBadges.push('first_visit');
+        }
+        if (newVisits >= 10 && !existingBadges.has('10_visits')) {
+          newBadges.push('10_visits');
+        }
+
+        const userUpdate = { $inc: { 'stats.visits': 1 } };
+        if (newBadges.length > 0) {
+          userUpdate.$addToSet = { badges: { $each: newBadges } };
+        }
+        await User.findByIdAndUpdate(req.user.id, userUpdate, { session });
+
+        await recomputeUserTrust(req.user.id, session);
+
+        return { visitDoc: createdVisit, deltaResult: delta };
+      });
+
+      // Dispatch visit notification to post author
+      try {
+        await notifyVisit({
+          post,
+          actorId: req.user.id,
+          visitId: visitDoc._id,
+          actorShadowBanned: Boolean(req.user.shadowBanned),
+        });
+      } catch (err) {
+        console.error('Failed to dispatch visit notification:', err.message);
+      }
+
+      // Safe response: Never leak exact coordinates
+      return res.status(201).json({
+        ok: true,
+        visit: {
+          id: visitDoc._id.toString(),
+          postId: post._id.toString(),
+          userId: req.user.id,
+          verified: true,
+          spotStatus: visitDoc.spotStatus,
+          photoUrl: visitDoc.photoUrl || null,
+          note: visitDoc.note || null,
+          createdAt: visitDoc.createdAt,
+        },
+        meterScore: deltaResult ? deltaResult.score : post.meter?.score,
+      });
+    } catch (err) {
+      if (err.statusCode === 409 || err.code === ErrorCodes.CONFLICT) {
+        return res
+          .status(409)
+          .json(formatErrorResponse(ErrorCodes.CONFLICT, err.message));
+      }
+      next(err);
+    }
+  }
+);
+
+// GET /api/v1/posts/:id/visits - List verified visits for a spot
+router.get(
+  '/:id/visits',
+  validateParams(postsValidators.postIdParamSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      const visits = await Visit.find({ postId: id, verified: true })
+        .sort({ createdAt: -1 })
+        .populate('userId', 'username avatarUrl badges')
+        .select('-location')
+        .lean();
+
+      return res.status(200).json({
+        count: visits.length,
+        visits: visits.map((v) => ({
+          id: v._id.toString(),
+          user: v.userId,
+          photoUrl: v.photoUrl || null,
+          note: v.note || null,
+          spotStatus: v.spotStatus,
+          verified: v.verified,
+          createdAt: v.createdAt,
+        })),
       });
     } catch (err) {
       next(err);

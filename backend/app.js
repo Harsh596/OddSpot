@@ -13,6 +13,7 @@ const commentsRoutes = require('./routes/comments');
 const feedRoutes = require('./routes/feed');
 const modRoutes = require('./routes/mod');
 const notificationsRoutes = require('./routes/notifications');
+const communitiesRoutes = require('./routes/communities');
 const errorHandler = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
 const { metricsMiddleware, metricsHandler } = require('./services/metrics');
@@ -286,6 +287,7 @@ function createApp() {
   apiRouter.use('/posts/feed', feedRoutes);
   apiRouter.use('/mod', modRoutes);
   apiRouter.use('/notifications', notificationsRoutes);
+  apiRouter.use('/communities', communitiesRoutes);
 
   // 404 handler for unmatched /api routes
   apiRouter.use((req, res) => {
