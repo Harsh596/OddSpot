@@ -156,6 +156,22 @@ async function applyDelta(postId, delta, session = null, options = {}) {
     updateOpts.session ? { session: updateOpts.session } : {}
   );
 
+  if (tieredUp && postBefore.authorId) {
+    try {
+      const { notifyTierUp } = require('./notifications');
+      await notifyTierUp({
+        post: {
+          _id: postId,
+          authorId: postBefore.authorId,
+          tier: newTier,
+          meter: newMeter,
+        },
+      });
+    } catch (e) {
+      console.error('Failed to dispatch tier_up notification:', e.message);
+    }
+  }
+
   return {
     score: newScore,
     tieredUp,

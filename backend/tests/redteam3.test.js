@@ -440,21 +440,34 @@ describe('Red-Team Pass 3: Rate-Limit Bypass, IPv6 Subnets, Log Injection & ReDo
         `City body ReDoS check must finish in < 50ms, took ${durationPostMs.toFixed(2)}ms`
       );
 
-      // 2. Query parameter on GET /api/v1/feed/city rejected in < 50ms (either 400 validation or 431 header size limit)
+      // 2. Query parameter on GET /api/v1/feed/city rejected in < 50ms (either 400 validation, 431 header limit, or TCP reset)
       const t1 = performance.now();
-      const resQuery = await request(app)
-        .get('/api/v1/feed/city')
-        .query({
-          city: evilReDoS,
-          countryCode: 'US',
-        });
-      const durationQueryMs = performance.now() - t1;
+      try {
+        const resQuery = await request(app)
+          .get('/api/v1/feed/city')
+          .query({
+            city: evilReDoS,
+            countryCode: 'US',
+          });
+        const durationQueryMs = performance.now() - t1;
 
-      assert.ok([400, 431].includes(resQuery.status), `Must be rejected with 400 or 431, got ${resQuery.status}`);
-      assert.ok(
-        durationQueryMs < 50,
-        `City query ReDoS check must finish in < 50ms, took ${durationQueryMs.toFixed(2)}ms`
-      );
+        assert.ok([400, 431].includes(resQuery.status), `Must be rejected with 400 or 431, got ${resQuery.status}`);
+        assert.ok(
+          durationQueryMs < 50,
+          `City query ReDoS check must finish in < 50ms, took ${durationQueryMs.toFixed(2)}ms`
+        );
+      } catch (err) {
+        const durationQueryMs = performance.now() - t1;
+        // Node HTTP parser abruptly terminates socket when request line exceeds maxHeaderSize (16KB)
+        assert.ok(
+          err.code === 'ECONNRESET' || err.message.includes('ECONNRESET'),
+          `Unexpected error: ${err.message}`
+        );
+        assert.ok(
+          durationQueryMs < 50,
+          `Connection reset must occur immediately (< 50ms), took ${durationQueryMs.toFixed(2)}ms`
+        );
+      }
     });
   });
 

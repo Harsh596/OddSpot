@@ -32,6 +32,11 @@ const { toCityKey, resolveCountry } = require('../utils/place');
 const { calculateTitleSimilarity } = require('../utils/similarity');
 const { checkImpossibleTravel } = require('../utils/impossibleTravel');
 const { serializePost, sanitizePost } = require('../utils/postSerializer');
+const {
+  notifyComment,
+  notifyMentions,
+  notifyVisit,
+} = require('../services/notifications');
 
 const router = Router();
 
@@ -213,6 +218,19 @@ router.post(
           lastPostAt: new Date(),
         },
       });
+
+      // Dispatch mentions in post title and body
+      try {
+        const mentionText = `${title || ''} ${body || ''}`;
+        await notifyMentions({
+          text: mentionText,
+          postId: post._id,
+          actorId: req.user.id,
+          actorShadowBanned: Boolean(req.user.shadowBanned),
+        });
+      } catch (err) {
+        console.error('Failed to dispatch post mentions notification:', err.message);
+      }
 
       res.status(201).json(serializePost(post));
     } catch (err) {
@@ -512,6 +530,9 @@ router.post(
       const { id } = req.params;
       const { body, parentId = null } = req.body;
 
+      let postDoc = null;
+      let parentCommentAuthorId = null;
+
       const { commentDoc, deltaResult } = await withTransaction(async (session) => {
         const post = await Post.findOne({ _id: id, removed: { $ne: true } }).session(session);
         if (!post) {
@@ -520,6 +541,7 @@ router.post(
           err.code = ErrorCodes.NOT_FOUND;
           throw err;
         }
+        postDoc = post;
 
         // K4: Validate parentId (valid ObjectId, belongs to same post, not removed, depth <= 3)
         if (parentId) {
@@ -542,6 +564,8 @@ router.post(
             err.code = ErrorCodes.VALIDATION_FAILED;
             throw err;
           }
+
+          parentCommentAuthorId = parentComment.authorId;
 
           let depth = 1;
           let curr = parentComment;
@@ -616,6 +640,19 @@ router.post(
         }
         return { commentDoc: createdDoc, deltaResult: delta };
       });
+
+      // Dispatch comment/reply/mention notifications
+      try {
+        await notifyComment({
+          post: postDoc,
+          comment: commentDoc,
+          actorId: req.user.id,
+          parentCommentAuthorId,
+          actorShadowBanned: Boolean(req.user.shadowBanned),
+        });
+      } catch (err) {
+        console.error('Failed to dispatch comment notification:', err.message);
+      }
 
       const populated = await Comment.findById(commentDoc._id)
         .populate('authorId', 'username avatarUrl badges');
@@ -974,6 +1011,17 @@ router.post(
           revealsToday: todayReveals + 1,
         },
       });
+
+      // Dispatch visit notification to spot author
+      try {
+        await notifyVisit({
+          post,
+          actorId: req.user.id,
+          actorShadowBanned: Boolean(req.user.shadowBanned),
+        });
+      } catch (err) {
+        console.error('Failed to dispatch visit notification:', err.message);
+      }
 
       res.json({
         message: 'Exact spot revealed successfully',

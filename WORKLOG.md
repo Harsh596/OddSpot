@@ -1575,6 +1575,76 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase P13: Notifications Engine (Triggers, Deduplication, Unread Counts & TTL)
+
+### 1. Key Changes & Implementation Details
+- **Task P13-T1: Update Notification Schema ([SCHEMA])** (`backend/models/Notification.js`):
+  - Updated `Notification` model with:
+    - `userId` (ref User, required, indexed)
+    - `actorId` (ref User, default null)
+    - `type` (enum: `['comment', 'reply', 'visit', 'tier_up', 'nearby_find', 'mention']`)
+    - `postId` (ref Post, default null)
+    - `dedupeKey` (String, default null)
+    - `data` (Mixed, default `{}`)
+    - `read` (Boolean, default false, indexed)
+    - `createdAt` (Date, default `Date.now`, expires in 30 days via MongoDB TTL index).
+  - Added indexes:
+    - Compound index: `{ userId: 1, createdAt: -1, _id: -1 }`
+    - Read count index: `{ userId: 1, read: 1 }`
+    - Partial unique index: `{ dedupeKey: 1 }` with `{ unique: true, partialFilterExpression: { dedupeKey: { $type: 'string' } } }`.
+- **Task P13-T2: Notification Dispatcher & 1-Hour Bucket Deduplication** (`backend/services/notifications.js`):
+  - Built `createNotification`:
+    - Enforces self-action suppression: returns `null` if `String(userId) === String(actorId)`.
+    - Enforces shadow-ban suppression: returns `null` if `actorShadowBanned === true`.
+    - Generates deduplication keys:
+      - `tier_up:${postId}` for single-fire tier-ups.
+      - `${type}:${userId}:${actorId}:${postId}:${hourBucket}` with `hourBucket = Math.floor(Date.now() / 3600000)` for comment, reply, visit, and mention events.
+    - Performs atomic upsert via `Notification.findOneAndUpdate({ dedupeKey }, { $setOnInsert: ... }, { upsert: true, new: true })`, catching code 11000 duplicate key errors and returning the existing record safely.
+  - Built `extractMentionedUsernames(text)`:
+    - Matches ASCII usernames using `/(?:^|[^A-Za-z0-9_])@([A-Za-z0-9_]{3,24})/g`.
+    - Deduplicates and caps at 5 unique usernames.
+  - Implemented event dispatchers:
+    - `notifyMentions`: Resolves non-banned users by `usernameLower` and dispatches `mention` notifications.
+    - `notifyComment`: Handles top-level comments (notifying post author), replies (notifying parent comment author and post author if distinct), and mentions in comment body.
+    - `notifyTierUp`: Dispatches `tier_up` notification to post author.
+    - `notifyVisit`: Dispatches `visit` notification to spot author on verified GPS check-in / reveal.
+- **Task P13-T3: Wire Triggers & Endpoints** (`backend/routes/notifications.js`, `backend/routes/posts.js`, `backend/services/meter.js`):
+  - Created `backend/validators/notifications.validators.js` with Zod validation for queries (`cursor`, `limit` 1–50, `unreadOnly`) and mark-read payloads (`ids` array <= 100 or `all: true`). Exported under `validators.notifications`.
+  - Created `backend/routes/notifications.js` mounted at `/api/v1/notifications` and aliased to `/api/notifications`:
+    - All routes require authentication (`requireAuth`) and emit `Cache-Control: no-store, no-cache, must-revalidate`.
+    - `GET /api/v1/notifications`: Returns `{ notifications, unreadCount, nextCursor, hasMore }` supporting cursor pagination and optional `unreadOnly=true` filter.
+    - `POST /api/v1/notifications/read`: Marks specified `ids` or `{ all: true }` strictly scoped to caller's `req.user.id`, returning `{ ok: true, modifiedCount, unreadCount }`.
+  - Wired triggers:
+    - `backend/routes/posts.js`: Post creation dispatches post title/body mentions via `notifyMentions`. Comment creation dispatches `notifyComment`. Location reveal dispatches `notifyVisit`.
+    - `backend/services/meter.js`: In `applyDelta`, if `tieredUp && postBefore.authorId`, dispatches `notifyTierUp`.
+
+### 2. Files Touched
+- `backend/models/Notification.js`
+- `backend/services/notifications.js` *(New)*
+- `backend/validators/notifications.validators.js` *(New)*
+- `backend/validators/index.js`
+- `backend/routes/notifications.js` *(New)*
+- `backend/routes/posts.js`
+- `backend/services/meter.js`
+- `backend/app.js`
+- `backend/test/phase13.test.js` *(New)*
+- `backend/tests/phase13.test.js` *(New)*
+- `backend/test/redteam3.test.js`
+- `backend/tests/redteam3.test.js`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 306 / 306** tests across 102 suites (0 failures).
+- **`node --test test/phase13.test.js`**: **Passed: 3 / 3** test suites (0 failures).
+- **`npm run build` (frontend)**: Clean production build in 107ms.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

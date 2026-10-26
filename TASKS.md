@@ -98,7 +98,11 @@
   - [x] Task P12-T4: Pluggable Error-Tracking Hook (`backend/services/errorTracker.js` with `captureException` behind `ERROR_TRACKING_DSN`).
   - [x] Task P12-T5: JobLock Model & Distributed Job Scheduler (`backend/models/JobLock.js`, `backend/services/scheduler.js` with atomic `runWithJobLock`, nightly counter reconciliation, hotScore refresh, and expired record sweep).
   - [x] Dedicated regression test suite: `backend/test/phase12.test.js` (3 comprehensive tests covering secret redaction + CRLF stripping, authenticated Prometheus /metrics, and distributed job lock concurrency).
-- [ ] **P13: Counter Drift Reconciliation Utility**
+- [x] **P13: Notifications Engine (Triggers, Deduplication, Unread Counts & TTL)**
+  - [x] Task P13-T1 [SCHEMA]: Update `Notification` schema (`userId`, `actorId`, `type`, `postId`, `dedupeKey`, `data`, `read`, `createdAt` with 30-day TTL, compound index `{ userId: 1, createdAt: -1, _id: -1 }`, `{ userId: 1, read: 1 }`, and partial unique index on `dedupeKey`).
+  - [x] Task P13-T2: Notification Dispatcher & 1-Hour Bucket Deduplication (`backend/services/notifications.js` with `createNotification`, 1-hour time-bucket deduplication, duplicate key collision recovery, self-action suppression, shadow-ban suppression, and mention extractor up to 5 unique `@mentions`).
+  - [x] Task P13-T3: Wire Triggers & Endpoints (`backend/routes/notifications.js` mounted at `/api/v1/notifications` and `/api/notifications` with `GET /` cursor-paginated with `unreadCount` & `POST /read` marking items or `{ all: true }` strictly scoped to caller; wired triggers in `posts.js` and `meter.js`).
+  - [x] Dedicated regression test suite: `backend/test/phase13.test.js` (and mirror `backend/tests/phase13.test.js` passing 3 comprehensive test suites covering comment/reply/mention/tier_up triggers, no self-notifications, 1-hour bucket deduplication, cursor pagination, and scoped read marks).
 - [ ] **P14: Central Error Mapping & Error Codes Envelope**
 - [ ] **P15: Zod Schema Boundaries & Scalar Type Injection Guards**
 - [ ] **P16: Input Normalization & Payload Size Caps**
