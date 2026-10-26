@@ -1218,6 +1218,52 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **Dependencies Installed**: `react-router-dom`, `leaflet`, `marked`, `dompurify` (justified above).
 - **Zero breaking schema changes.**
 
+---
+
+## [2026-10-27] - Phase F2: Frontend Slice 2 — Explore Tab, Leaflet Map with Clustering & Filters
+
+### 1. Work Completed Per Task
+- **Task F2-T1 - Web Mercator Projection & Deterministic Clustering Engine**:
+  - Created `frontend/src/utils/mapCluster.js` implementing:
+    - `latLngToPixel(lat, lng, zoom)` and `pixelToLatLng(x, y, zoom)` using standard Web Mercator projection formulas.
+    - `extractPostCoords(post)` safely resolving GeoJSON `location.coordinates`, `feedLocation.coordinates`, or scalar properties, while rejecting Null Island `(0, 0)`.
+    - `clusterMarkers(posts, zoomLevel, clusterRadiusPx)` grouping markers deterministically based on projected pixel distance ($\le 50$ px default), calculating incremental weighted centroids and bounding boxes.
+  - Authored unit test suite in `backend/test/mapCluster.test.js` (and synchronized `backend/tests/mapCluster.test.js`): 5/5 tests passing cleanly verifying projection roundtrips, coordinate extraction, deterministic grouping, and edge cases.
+- **Task F2-T2 - Interactive Leaflet Map with Clustering & Privacy Circles**:
+  - Built `frontend/src/components/map/OddspotMap.jsx` using `leaflet` with OpenStreetMap tile layer (requiring 0 external API keys).
+  - Implemented custom HTML `divIcon` pins with theme-aware styling, cluster count badges, and popup cards.
+  - Implemented zoom-to-cluster functionality fitting the map to the cluster's geographic bounding box on click.
+  - Built privacy circle visualization: when `post.hideExact === true` or `post.fuzzed === true`, renders an SVG 400m dashed circle labeled `"Approximate Area"` with center privacy marker instead of an exact pin.
+  - Added recenter button and interactive map legend.
+- **Task F2-T3 - Anomaly Radar & Explore Page**:
+  - Built `frontend/src/pages/ExplorePage.jsx` uniting Nearby GPS radar feed and City explorer feeds.
+  - Added radius selector (1 km, 2 km, 5 km, 10 km, 25 km), sort controls (`hot`, `new`, `top`), and category filter pills (`urban_decay`, `hidden_art`, `nature_anomaly`, etc.).
+  - Added realtime text search filtering titles, descriptions, and places.
+  - Implemented accessible view switcher supporting Split View (side-by-side / top-bottom map and list), List View only, and Map View only.
+  - Preserved backward compatibility by forwarding `NearbyFeed.jsx` directly to `ExplorePage`.
+  - Updated `frontend/src/App.jsx` and `frontend/src/components/Navbar.jsx` to route both `#/explore` and `#/feed`.
+
+### 2. Files Touched
+- `frontend/src/utils/mapCluster.js` *(New)*
+- `frontend/src/components/map/OddspotMap.jsx` *(New)*
+- `frontend/src/pages/ExplorePage.jsx` *(New)*
+- `backend/test/mapCluster.test.js` *(New)*
+- `backend/tests/mapCluster.test.js` *(New)*
+- `frontend/src/pages/NearbyFeed.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/components/Navbar.jsx`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm run build` (frontend)**: Clean production build in 443ms (`dist/assets/index-*.js`, `dist/assets/index-*.css`).
+- **`node --test backend/test/mapCluster.test.js`**: **Passed: 5 / 5** unit tests (0 failures).
+- **`npm test` (backend)**: **Passed: 274 / 274** tests across 90 suites (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

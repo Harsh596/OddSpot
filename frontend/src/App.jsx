@@ -12,6 +12,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
+import { ExplorePage } from './pages/ExplorePage';
 import { NearbyFeed } from './pages/NearbyFeed';
 import { CreatePost } from './pages/CreatePost';
 import { PostDetail } from './pages/PostDetail';
@@ -46,7 +47,7 @@ function AppShell() {
     }
   };
 
-  const currentRoute = '#' + (location.pathname === '/' ? '/feed' : location.pathname);
+  const currentRoute = '#' + (location.pathname === '/' ? '/explore' : location.pathname);
 
   return (
     <div className="app-shell">
@@ -54,13 +55,14 @@ function AppShell() {
       <main id="main-content" className="main-content" tabIndex="-1">
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<Navigate to="/feed" replace />} />
-            <Route path="/feed" element={<NearbyFeed navigate={navigate} />} />
+            <Route path="/" element={<Navigate to="/explore" replace />} />
+            <Route path="/explore" element={<ExplorePage navigate={navigate} />} />
+            <Route path="/feed" element={<ExplorePage navigate={navigate} />} />
             <Route path="/create" element={<CreatePost navigate={navigate} />} />
             <Route path="/post/:id" element={<PostDetailRouteWrapper navigate={navigate} />} />
             <Route path="/login" element={<Login navigate={navigate} />} />
             <Route path="/signup" element={<Signup navigate={navigate} />} />
-            <Route path="*" element={<Navigate to="/feed" replace />} />
+            <Route path="*" element={<Navigate to="/explore" replace />} />
           </Routes>
         </ErrorBoundary>
       </main>

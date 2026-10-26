@@ -36,7 +36,11 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
     setMobileMenuOpen(false);
   };
 
-  const isFeedActive = currentRoute.startsWith('#/feed') || currentRoute === '#/' || !currentRoute;
+  const isFeedActive =
+    currentRoute.startsWith('#/feed') ||
+    currentRoute.startsWith('#/explore') ||
+    currentRoute === '#/' ||
+    !currentRoute;
   const isCreateActive = currentRoute === '#/create';
   const isLoginActive = currentRoute === '#/login';
   const isSignupActive = currentRoute === '#/signup';

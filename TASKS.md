@@ -112,7 +112,10 @@
   - [x] Task F1-T2: Implement CSS custom-property design tokens in `frontend/src/styles/tokens.css` with 4 theme presets (`neon-night`, `paper-zine`, `terminal`, `vaporwave`) and `@media (prefers-reduced-motion: reduce)`. Create `frontend/src/context/ThemeContext.jsx` with persistence.
   - [x] Task F1-T3: In `frontend/src/api.js`, support 401 refresh token rotation with single-flight queued retries, localStorage tokens (`oddspot_token`, `oddspot_refresh_token`), Idempotency-Key support, and public config loader.
   - [x] Task F1-T4: Create `ErrorBoundary.jsx`, `StatusViews.jsx` (`LoadingSkeleton`, `EmptyState`, `ErrorBanner`), update `Navbar.jsx` with responsive mobile drawer and skip-to-content accessibility anchor, and configure `HashRouter` shell navigation in `App.jsx`.
-- [ ] **F2: Auth Context, JWT Storage & 401 Interceptors**
+- [x] **F2: Explore Tab, Leaflet Map with Clustering & Filters**
+  - [x] Task F2-T1: Create `frontend/src/utils/mapCluster.js` with Web Mercator projection and deterministic clustering. Unit tested (5/5 passed).
+  - [x] Task F2-T2: Build `frontend/src/components/map/OddspotMap.jsx` using Leaflet & OpenStreetMap tiles, custom divIcons, interactive zoom-to-cluster, and 400m dashed circles for fuzzed/hidden spots.
+  - [x] Task F2-T3: Build `frontend/src/pages/ExplorePage.jsx` combining Nearby GPS radar and City feeds, radius selector (1..25 km), category filter pills, sort controls, and split/list/map view modes. Retained backward compatibility in `NearbyFeed.jsx`.
 - [ ] **F3: Navigation Shell & Modular Layout**
 - [ ] **F4: Nearby Feed Page & Distance Badges**
 - [ ] **F5: Post Creation Form & GPS Autofill**
