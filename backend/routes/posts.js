@@ -650,6 +650,7 @@ router.get(
 router.patch(
   '/:id/comments/:commentId',
   requireAuth,
+  validateParams(postsValidators.postAndCommentIdParamSchema),
   validateBody(postsValidators.updateCommentSchema),
   async (req, res, next) => {
     try {
@@ -686,6 +687,7 @@ router.patch(
 router.delete(
   '/:id/comments/:commentId',
   requireAuth,
+  validateParams(postsValidators.postAndCommentIdParamSchema),
   async (req, res, next) => {
     try {
       const { id, commentId } = req.params;

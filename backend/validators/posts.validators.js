@@ -291,6 +291,17 @@ const postIdParamSchema = z
   })
   .strip();
 
+const postAndCommentIdParamSchema = z
+  .object({
+    id: z
+      .string({ required_error: 'Invalid post ID', invalid_type_error: 'Invalid post ID' })
+      .regex(/^[0-9a-fA-F]{24}$/, 'Invalid post ID'),
+    commentId: z
+      .string({ required_error: 'Invalid comment ID', invalid_type_error: 'Invalid comment ID' })
+      .regex(/^[0-9a-fA-F]{24}$/, 'Invalid comment ID'),
+  })
+  .strip();
+
 // POST /api/v1/posts/:id/vote
 const voteSchema = z
   .object({
@@ -443,6 +454,7 @@ module.exports = {
   updatePostSchema,
   nearbyQuerySchema,
   postIdParamSchema,
+  postAndCommentIdParamSchema,
   voteSchema,
   commentSchema,
   updateCommentSchema,

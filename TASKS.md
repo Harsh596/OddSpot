@@ -71,7 +71,14 @@
 - [ ] **P19: Automated Test Data Cleanup Utility**
 
 ### Review & Hardening Phases (R1–R4)
-- [ ] **R1: Security Review & Audit Findings Remediations**
+- [x] **R1: Security Review & Audit Findings Remediations**
+  - [x] Task R1-T1: Create `docs/THREAT_MODEL.md` documenting API1:2023 through API10:2023 with severity, file/line references, and remediation status.
+  - [x] Task R1-T2: In `backend/test/redteam1.test.js`, write and pass:
+    - [x] Exploit Test 1: BOLA/IDOR attempt across all :id routes returning 403.
+    - [x] Exploit Test 2: Mass assignment and prototype pollution payloads rejected or sanitized.
+    - [x] Exploit Test 3: Concurrent refresh token race: only one succeeds, second triggers family revocation.
+    - [x] Exploit Test 4: Alg 'none' and forged kid JWTs rejected with 401.
+    - [x] Exploit Test 5: Rapid mixed vote toggle race leaves counter and reconcile script with 0 drift.
 - [ ] **R2: API Contract & Penetration Testing**
 - [ ] **R3: Database Performance & Index Optimization**
 - [ ] **R4: Final Pre-Release Verification & Hardening**

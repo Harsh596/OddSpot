@@ -35,15 +35,23 @@ function verifyAccessToken(token) {
     throw new Error('Invalid token structure');
   }
 
+  if (decodedComplete.header && decodedComplete.header.alg === 'none') {
+    throw new Error('Algorithm "none" is not permitted');
+  }
+
   const kid = decodedComplete.header && decodedComplete.header.kid;
   const keyring = getKeyring();
 
   let secretToUse = process.env.JWT_SECRET;
-  if (kid && keyring[kid]) {
-    secretToUse = keyring[kid];
+  if (kid) {
+    if (keyring[kid]) {
+      secretToUse = keyring[kid];
+    } else {
+      throw new Error('Unknown or invalid key identifier (kid)');
+    }
   }
 
-  return jwt.verify(token, secretToUse);
+  return jwt.verify(token, secretToUse, { algorithms: ['HS256'] });
 }
 
 const compromisedFamilies = new Set();

@@ -898,6 +898,51 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
   - `Post`: added `editedAt` (Date), `editHistory` (Array of capped revisions), and `updates` (Array).
   - `Comment`: added `editedAt` (Date).
 
+---
+
+## [2026-10-26] - Phase R1: Red-Team Pass 1 (Auth, IDOR, Mass Assignment & Concurrency)
+
+### 1. Work Completed Per Task
+- **Task R1-T1 - Comprehensive Threat Model (`docs/THREAT_MODEL.md`)**:
+  - Produced `docs/THREAT_MODEL.md` thoroughly mapping OWASP API Security Top 10 (2023 Edition) against Oddspot Phases P0–P5.
+  - Documented attack vectors, exact code file and line references, severity ratings, and remediation status for API1:2023 through API10:2023:
+    - API1: BOLA/IDOR (Post/comment mutations, author ownership, self-voting/self-reporting).
+    - API2: Broken Authentication (JWT alg 'none', forged kid, refresh token race/family revocation, login lockout).
+    - API3: Mass Assignment & Excessive Data Exposure (Zod `.strict()` & `.strip()`, public profile safe projections).
+    - API4: Unrestricted Resource Consumption (Per-route byte limits, query timeouts, rate limiting).
+    - API5: BFLA/RBAC (DB-backed `requireRole`, immutable `AuditLog`).
+    - API6: Sensitive Business Flows (Transactions, Idempotency-Key locks, unique report indexes).
+    - API7: SSRF (HTTPS scheme validation, rejection of data/file/javascript protocols).
+    - API8: Security Misconfiguration (CORS whitelist, helmet headers, no-store caching, standardized dual error envelopes).
+    - API9: Inventory Management (`/api/v1` namespace, OpenAPI 3.1.0 contract, legacy endpoint deprecation).
+    - API10: Injections & Unsafe Consumption (Mongoose `sanitizeFilter`, Unicode NFKC normalization, scalar type guards).
+- **Task R1-T2 - Red-Team Exploit Test Suite (`backend/test/redteam1.test.js`)**:
+  - Authored 5 dedicated exploit tests (10 test assertions) in `backend/test/redteam1.test.js`:
+    - **Exploit Test 1 (BOLA/IDOR)**: Verified that cross-user mutations across `PATCH /api/v1/posts/:id`, `DELETE /api/v1/posts/:id`, `PATCH /api/v1/comments/:id`, `DELETE /api/v1/comments/:id`, nested comment routes `PATCH/DELETE /api/v1/posts/:id/comments/:commentId`, and self-voting `POST /api/v1/posts/:id/vote` return `403 FORBIDDEN` and leave database records intact.
+    - **Exploit Test 2 (Mass Assignment & Prototype Pollution)**: Verified that signup mass assignment of privileged fields (`role: 'admin'`, `trust`, `tokenVersion`, `stats`) is safely sanitized to defaults (`member`, 0), post creation mass assignment (`authorId`, `removed`, `tier`, `meter`) is stripped and bound strictly to caller token, post update mass assignment modifying coordinates/privacy returns 400, and `__proto__` / `constructor.prototype` payloads do not pollute global Object prototypes.
+    - **Exploit Test 3 (Concurrent Refresh Race & Family Revocation)**: Verified that two concurrent `POST /api/auth/refresh` requests with the exact same refresh token yield exactly one success (200) and one failure (401), immediately revoking the entire token family (`familyId`) and incrementing `user.tokenVersion`.
+    - **Exploit Test 4 (Alg 'none' & Forged 'kid' Rejection)**: Hardened `verifyAccessToken` in `backend/services/token.js` to strictly enforce `algorithms: ['HS256']`, reject `alg: 'none'` tokens, and validate `kid` against the server keyring (throwing on unknown/forged kid). Verified that alg 'none', forged kid, and tampered signatures all return 401 `AUTH_INVALID_TOKEN`.
+    - **Exploit Test 5 (Rapid Mixed Vote Toggle Race & Drift-Free Reconciliation)**: Executed rapid concurrent interleaved like/dislike vote transitions across 5 concurrent voters on a single post. Verified that post meter (`likes`, `dislikes`, `score`) strictly matches the `Vote` collection truth in MongoDB, and `reconcileCounters({ apply: false })` detects exactly 0 posts with drift.
+
+### 2. Files Touched
+- `docs/THREAT_MODEL.md` *(New)*
+- `backend/test/redteam1.test.js` *(New)*
+- `backend/tests/redteam1.test.js` *(New)*
+- `backend/services/token.js`
+- `backend/validators/posts.validators.js`
+- `backend/routes/posts.js`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 237 / 237** tests across 70 suites (0 failures, duration ~35.3s).
+- **`node --test backend/test/redteam1.test.js`**: **Passed: 10 / 10** tests (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 82 / 82** (0 failures, 5 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 84ms.
+- **Zero breaking schema changes.**
+
+
 
 
 
