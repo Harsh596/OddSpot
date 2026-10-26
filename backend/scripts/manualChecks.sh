@@ -143,7 +143,7 @@ check "feed distance for hidden posts is a multiple of 500" "yes" "$(echo "$FEED
 
 # ---------------------------------------------------------------- concurrency
 section "CONCURRENCY (race conditions)"
-CP=$(mkpost "$(p ',"title":"test_chk race"')" | js 'd._id')
+CP=$(curl -s -X POST "$BASE/api/posts" -H "$J" -H "Authorization: Bearer $T2" -d "$(p ',"title":"test_chk race"')" | js 'd._id')
 echo "--- 20 parallel likes from ONE user: expect one 200 and the rest 200/409, but NO 500 ---"
 for i in $(seq 20); do codeln -X POST "$BASE/api/posts/$CP/vote" -H "$J" -H "Authorization: Bearer $T1" -d '{"value":1}' & done | sort | uniq -c
 wait

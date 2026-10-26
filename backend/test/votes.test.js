@@ -14,6 +14,7 @@ const {
 
 describe('Votes Integration Tests', () => {
   let user;
+  let voter;
   let post;
 
   before(async () => {
@@ -27,6 +28,7 @@ describe('Votes Integration Tests', () => {
   beforeEach(async () => {
     await clearCollections();
     user = await createTestUser();
+    voter = await createTestUser();
     const postRes = await createTestPost(user.token);
     post = postRes.body;
   });
@@ -72,7 +74,7 @@ describe('Votes Integration Tests', () => {
   it('4. First like increments meter and calculates score', async () => {
     const res = await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: 1 });
 
     assert.equal(res.status, 200);
@@ -85,12 +87,12 @@ describe('Votes Integration Tests', () => {
   it('5. Like twice returns changed: false (idempotent)', async () => {
     await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: 1 });
 
     const secondRes = await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: 1 });
 
     assert.equal(secondRes.status, 200);
@@ -101,12 +103,12 @@ describe('Votes Integration Tests', () => {
   it('6. Like -> dislike switch moves counters correctly', async () => {
     const firstLike = await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: 1 });
 
     const dislikeRes = await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: -1 });
 
     assert.equal(dislikeRes.status, 200);
@@ -119,12 +121,12 @@ describe('Votes Integration Tests', () => {
   it('7. Dislike twice returns changed: false', async () => {
     await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: -1 });
 
     const secondRes = await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: -1 });
 
     assert.equal(secondRes.status, 200);

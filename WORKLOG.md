@@ -72,7 +72,7 @@ This document records the work completed for Phase 1 of Oddspot across all parts
 | `backend/routes/posts.js` | Created | Posts CRUD, `$geoNear` feed with anti-trilateration, voting, comments, reporting |
 | `backend/config/meter.js` | Modified | Added env override for country threshold and `reportFuzzThreshold` |
 | `backend/services/meter.js` | Modified | Dynamic `METER_COUNTRY_THRESHOLD` lookup in `applyDelta` |
-| `backend/scripts/smokeTest.js` | Created | 23-point automated backend test suite |
+| `backend/scripts/smokeTest.js` | Created | 23-point automated backend test suite (evolved to 32 checks across domain migrations) |
 | `backend/package.json` | Modified | Added dependencies and scripts (`start`, `dev`, `test:smoke`) |
 | `backend/.env.example` | Modified | Documented `PORT`, `FRONTEND_URL`, `JWT_SECRET`, `METER_COUNTRY_THRESHOLD`, `REPORT_FUZZ_THRESHOLD` |
 | `frontend/.env.example` | Created | Documented `VITE_API_URL` |
@@ -98,7 +98,7 @@ This document records the work completed for Phase 1 of Oddspot across all parts
 1. **`express`** (`^5.3.0`): Core HTTP web server framework for RESTful routing and middleware.
 2. **`cors`** (`^2.8.6`): Handles Cross-Origin Resource Sharing for decoupled frontend/backend communication.
 3. **`jsonwebtoken`** (`^9.0.3`): Signs and verifies JSON Web Tokens for stateless authenticated sessions.
-4. **`bcrypt`** (`^6.0.0`): Industry-standard password hashing (salted SHA-512 based) to protect stored user credentials.
+4. **`bcrypt`** (`^6.0.0`): Industry-standard adaptive password hashing (Blowfish-derived/Eksblowfish cipher based) to protect stored user credentials.
 5. **`express-rate-limit`** (`^8.7.1`): Rate limiting protection against credential stuffing, post flooding, vote brigading, and comment spam.
 6. **`helmet`** (`^8.3.0`): Adds essential HTTP security headers (X-Content-Type-Options, Strict-Transport-Security, X-Frame-Options).
 
@@ -587,6 +587,74 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`bash backend/scripts/manualChecks2.sh`**: **Passed: 78 / 78** (0 failures, 9 expected pre-launch gaps).
 - **`npm run build` (frontend)**: Passed clean production build in 123ms.
 - **`npm audit`**: 0 vulnerabilities across both backend and frontend.
+
+---
+
+## [2026-10-26] - Phase P1: Immediate Fixes Without Schema Changes (K2-K6, K8, K9, K12-K14, K16)
+
+### 1. Work Completed Per Task
+- **Task P1-T1 (K13) - Text Normalization & Sanitization (`backend/utils/normalize.js`)**:
+  - Implemented `normalizeText(input, { maxLength, allowNewlines, fieldName })` enforcing Unicode NFKC normalization, stripping zero-width characters (`\u200B-\u200D`, `\uFEFF`), stripping control characters (while optionally preserving `\n`, `\r`, `\t` when `allowNewlines` is true), trimming whitespace, and rejecting strings with NUL bytes (`\0` / `\u0000`).
+  - Applied input bounds: post title (140), body (10000), comment body (5000), tags (30), and place fields (100).
+- **Task P1-T2 (K2) - Strict Coordinate Validation & Precision (`backend/utils/coordinates.js`)**:
+  - Implemented `parseStrictCoordinate` and `parseLngLat`.
+  - Validates numeric bounds: `longitude` (-180..180), `latitude` (-90..90).
+  - Explicitly rejects Null Island `(0, 0)` with HTTP 400 `VALIDATION_FAILED`.
+  - Rounds all coordinates to 6 decimal places (~10cm precision) across `POST /api/posts` and `GET /api/posts/nearby`.
+- **Task P1-T3 (K3 Part 1) - Place Length Caps**:
+  - Enforced max 100 character limit on `place.city`, `place.state`, and `place.country` in `backend/routes/posts.js` and `backend/validators/posts.js`.
+- **Task P1-T4 (K5) - Strict Type & Enum Checks**:
+  - Enforced strict boolean validation on `hideExact` in `backend/routes/posts.js` and `backend/validators/posts.js`.
+  - Enforced strict allowlist validation for `warnings` array: `['private_property', 'walking_required', 'unsafe_night', 'other']`.
+- **Task P1-T5 (K9) - Image Constraints**:
+  - Restricted images to a maximum of 6 per post.
+  - Enforced HTTPS-only image URLs with maximum 500 characters.
+  - Enforced integer `width` and `height` between 1 and 10000.
+- **Task P1-T6 (K4, K14) - Comment Parent Hierarchy & Pagination Limits**:
+  - Validated comment `parentId`: must be a valid 24-character hexadecimal ObjectId, must belong to the same post, must not be soft-deleted (`removed: true`), and must not exceed maximum comment nesting depth of 3.
+  - Added and mounted `commentsQuerySchema` validating `page` parameter as an integer between 1 and 100.
+- **Task P1-T7 (K6) - Self-Voting Prohibition**:
+  - Forbade authors from voting on their own posts: returns HTTP 403 `Authors cannot vote on their own post` with `FORBIDDEN` code in both `backend/routes/posts.js` and `backend/services/meter.js`.
+- **Task P1-T8 (K8) - Atomic Pipeline Ratchet for Meter Scoring**:
+  - Updated `applyDelta()` in `backend/services/meter.js` to execute an atomic `Post.findOneAndUpdate` with `returnDocument: 'before'` and aggregation pipeline ratchet.
+  - Guarantees that `tieredUp: true` fires exactly once when crossing the regional threshold, eliminating duplicate tier transition events under concurrency.
+- **Task P1-T9 (K12) - Non-Cacheable Security Headers**:
+  - Added middleware in `backend/app.js` setting `Cache-Control: no-store, no-cache, must-revalidate` and `Pragma: no-cache` for `/api/auth/*` routes and any incoming requests carrying `Authorization` headers.
+- **Task P1-T10 (K16) - Accuracy Corrections**:
+  - Corrected description of `bcrypt` in `WORKLOG.md` to Blowfish-derived / Eksblowfish cipher based.
+  - Documented evolution of backend automated smoke test checks (23 initial -> 32 current).
+- **Dedicated Regression Suite (`backend/test/phase1.test.js`)**:
+  - Created comprehensive test suite verifying all Prompt 01 requirements (26 regression test cases across K2–K6, K8, K9, K12–K14, K16).
+
+### 2. Files Touched
+- `backend/utils/normalize.js` *(New)*
+- `backend/utils/coordinates.js` *(New)*
+- `backend/test/phase1.test.js` *(New)*
+- `backend/validators/common.js`
+- `backend/validators/posts.js`
+- `backend/routes/posts.js`
+- `backend/services/meter.js`
+- `backend/app.js`
+- `backend/test/votes.test.js`
+- `backend/test/concurrency.test.js`
+- `backend/test/transactions.test.js`
+- `backend/test/safety.test.js`
+- `backend/scripts/manualChecks.sh`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 163 / 163** tests across 36 suites (0 failures, duration ~22.9s).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 82 / 82** (0 failures, 5 remaining pre-launch design gaps).
+  - Null Island `(0, 0)` refused: PASS.
+  - Coordinates rounded to 6 decimals: PASS.
+  - Authenticated responses non-cacheable: PASS.
+  - Author cannot vote on own post: PASS.
+  - No Atlas credentials in tracked files: PASS.
+- **`npm run build` (frontend)**: Passed clean production build in 77ms.
+- **Zero schema changes made.**
+
 
 
 

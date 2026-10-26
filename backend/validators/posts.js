@@ -24,19 +24,39 @@ function isSecureImageUrl(url) {
   }
 }
 
-// Image item validator
+// Image item validator: HTTPS URL max 500 chars, optional integer width/height between 1 and 10000
 const imageSchema = z
   .union([
-    z.string().refine(isSecureImageUrl, {
-      message: 'Images must use secure HTTPS URLs',
-    }),
+    z
+      .string({ invalid_type_error: 'Image URL must be a string' })
+      .refine(isSecureImageUrl, {
+        message: 'Images must use secure HTTPS URLs',
+      })
+      .refine((url) => url.length <= 500, {
+        message: 'Image URL must not exceed 500 characters',
+      }),
     z
       .object({
-        url: z.string().refine(isSecureImageUrl, {
-          message: 'Images must use secure HTTPS URLs',
-        }),
-        width: z.number().optional(),
-        height: z.number().optional(),
+        url: z
+          .string({ required_error: 'Image URL is required', invalid_type_error: 'Image URL must be a string' })
+          .refine(isSecureImageUrl, {
+            message: 'Images must use secure HTTPS URLs',
+          })
+          .refine((url) => url.length <= 500, {
+            message: 'Image URL must not exceed 500 characters',
+          }),
+        width: z
+          .number({ invalid_type_error: 'Width must be a number' })
+          .int('Width must be an integer')
+          .min(1, 'Width must be between 1 and 10000')
+          .max(10000, 'Width must be between 1 and 10000')
+          .optional(),
+        height: z
+          .number({ invalid_type_error: 'Height must be a number' })
+          .int('Height must be an integer')
+          .min(1, 'Height must be between 1 and 10000')
+          .max(10000, 'Height must be between 1 and 10000')
+          .optional(),
       })
       .strict(),
   ])
@@ -88,9 +108,21 @@ const createPostSchema = z
       .optional(),
     place: z
       .object({
-        city: z.string({ invalid_type_error: 'City must be a text string' }).optional(),
-        state: z.string({ invalid_type_error: 'State must be a text string' }).optional(),
-        country: z.string({ invalid_type_error: 'Country must be a text string' }).optional(),
+        city: z
+          .string({ invalid_type_error: 'City must be a text string' })
+          .transform((val) => normalizeText(val, { maxLength: 100, fieldName: 'City' }))
+          .refine((val) => val.length <= 100, 'City must not exceed 100 characters')
+          .optional(),
+        state: z
+          .string({ invalid_type_error: 'State must be a text string' })
+          .transform((val) => normalizeText(val, { maxLength: 100, fieldName: 'State' }))
+          .refine((val) => val.length <= 100, 'State must not exceed 100 characters')
+          .optional(),
+        country: z
+          .string({ invalid_type_error: 'Country must be a text string' })
+          .transform((val) => normalizeText(val, { maxLength: 100, fieldName: 'Country' }))
+          .refine((val) => val.length <= 100, 'Country must not exceed 100 characters')
+          .optional(),
       })
       .optional(),
     type: z.enum(['find', 'identify'], {
@@ -112,9 +144,12 @@ const createPostSchema = z
       .optional()
       .default([]),
     warnings: z
-      .array(z.enum(['private_property', 'walking_required', 'unsafe_night', 'other']), {
-        invalid_type_error: 'Warnings must be an array of warning types',
-      })
+      .array(
+        z.enum(['private_property', 'walking_required', 'unsafe_night', 'other'], {
+          message: 'Invalid warning type',
+        }),
+        { invalid_type_error: 'Warnings must be an array of warning types' }
+      )
       .optional()
       .default([]),
     hideExact: z.boolean({ invalid_type_error: 'hideExact must be a boolean' }).optional().default(false),
@@ -137,6 +172,17 @@ const createPostSchema = z
         code: z.ZodIssueCode.custom,
         path: ['longitude'],
         message: 'Longitude is required',
+      });
+    }
+
+    // Null Island (0, 0) check
+    const latVal = typeof data.latitude === 'number' ? data.latitude : (hasCoords ? data.coordinates[1] : null);
+    const lngVal = typeof data.longitude === 'number' ? data.longitude : (hasCoords ? data.coordinates[0] : null);
+    if (latVal === 0 && lngVal === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['latitude'],
+        message: 'Coordinates (0, 0) - Null Island is not permitted',
       });
     }
 
@@ -207,7 +253,21 @@ const nearbyQuerySchema = z
       .default(20),
     tier: z.enum(['city', 'state', 'country']).optional(),
   })
-  .passthrough(); // Ignore harmless tracking query params, but sanitize core params
+  .passthrough()
+  .superRefine((data, ctx) => {
+    if (data.lat === 0 && data.lng === 0) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['lat'],
+        message: 'Coordinates (0, 0) - Null Island is not permitted',
+      });
+    }
+  })
+  .transform((data) => ({
+    ...data,
+    lat: Number(data.lat.toFixed(6)),
+    lng: Number(data.lng.toFixed(6)),
+  }));
 
 // Parameter with ObjectId
 const postIdParamSchema = z
@@ -233,7 +293,14 @@ const voteSchema = z
 const commentSchema = z
   .object({
     body: normalizedString({ min: 1, max: 5000, multiLine: true, fieldName: 'Comment body' }),
-    parentId: z.string().optional().nullable(),
+    parentId: z
+      .string({ invalid_type_error: 'Invalid parent comment ID' })
+      .refine((val) => val === '' || /^[0-9a-fA-F]{24}$/.test(val), {
+        message: 'Invalid parent comment ID',
+      })
+      .transform((val) => (val === '' ? null : val))
+      .optional()
+      .nullable(),
   })
   .passthrough();
 
@@ -273,11 +340,33 @@ const reportSchema = z
   })
   .strip();
 
+// GET /api/v1/posts/:id/comments query validation
+const commentsQuerySchema = z
+  .object({
+    page: z.coerce
+      .number({ invalid_type_error: 'page must be a number' })
+      .int('page must be an integer')
+      .min(1, 'page must be between 1 and 100')
+      .max(100, 'page must be between 1 and 100')
+      .optional()
+      .default(1),
+    limit: z.coerce
+      .number({ invalid_type_error: 'limit must be a number' })
+      .int('limit must be an integer')
+      .min(1, 'limit must be between 1 and 100')
+      .max(100, 'limit must be between 1 and 100')
+      .optional()
+      .default(50),
+  })
+  .passthrough();
+
 module.exports = {
   createPostSchema,
   nearbyQuerySchema,
   postIdParamSchema,
   voteSchema,
   commentSchema,
+  commentsQuerySchema,
   reportSchema,
 };
+

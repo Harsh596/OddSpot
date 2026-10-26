@@ -22,6 +22,8 @@ const {
   formatErrorResponse,
   posts: postsValidators,
 } = require('../validators');
+const { normalizeText } = require('../utils/normalize');
+const { parseLngLat, parseStrictCoordinate } = require('../utils/coordinates');
 
 const router = Router();
 
@@ -110,13 +112,73 @@ router.post(
         warnings = [],
         hideExact = false,
         type = 'find',
+        place,
       } = req.body;
+
+      // K5: Strict boolean type check for hideExact
+      if (typeof hideExact !== 'boolean' && hideExact !== undefined) {
+        return res.status(400).json(
+          formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'hideExact must be a boolean')
+        );
+      }
+
+      // K5: Validate warnings array strictly
+      const ALLOWED_WARNINGS = ['private_property', 'walking_required', 'unsafe_night', 'other'];
+      if (!Array.isArray(warnings) || !warnings.every((w) => ALLOWED_WARNINGS.includes(w))) {
+        return res.status(400).json(
+          formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Invalid warning type')
+        );
+      }
+
+      // K9: Image constraints: max 6, HTTPS URL max 500 chars, width/height integer 1..10000
+      if (!Array.isArray(images) || images.length > 6) {
+        return res.status(400).json(
+          formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Maximum of 6 images allowed')
+        );
+      }
+
+      for (const img of images) {
+        const url = typeof img === 'string' ? img : img?.url;
+        if (typeof url !== 'string' || !url.startsWith('https://') || url.length > 500) {
+          return res.status(400).json(
+            formatErrorResponse(
+              ErrorCodes.VALIDATION_FAILED,
+              'Images must use secure HTTPS URLs not exceeding 500 characters'
+            )
+          );
+        }
+        if (typeof img === 'object' && img !== null) {
+          if (img.width !== undefined && (!Number.isInteger(img.width) || img.width < 1 || img.width > 10000)) {
+            return res.status(400).json(
+              formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Image width must be an integer between 1 and 10000')
+            );
+          }
+          if (img.height !== undefined && (!Number.isInteger(img.height) || img.height < 1 || img.height > 10000)) {
+            return res.status(400).json(
+              formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Image height must be an integer between 1 and 10000')
+            );
+          }
+        }
+      }
 
       const formattedImages = images.map((img) => ({
         url: typeof img === 'string' ? img : img.url,
         ...(img.width ? { width: img.width } : {}),
         ...(img.height ? { height: img.height } : {}),
       }));
+
+      // K2: Parse, round to 6 decimal places, and reject (0, 0) Null Island
+      const rawCoordinates = req.body.coordinates || [longitude, latitude];
+      const parsedCoords = parseLngLat(rawCoordinates);
+
+      // K3 Part 1: Enforce max 100 char limit on place.city, place.state, and place.country
+      const rawCity = (place && place.city) || city;
+      const rawCountry = (place && place.country) || country;
+      const rawState = (place && place.state) || state || '';
+
+      const normalizedCity = normalizeText(rawCity, { maxLength: 100, fieldName: 'City' });
+      const normalizedCountry = normalizeText(rawCountry, { maxLength: 100, fieldName: 'Country' });
+      const normalizedState = rawState ? normalizeText(rawState, { maxLength: 100, fieldName: 'State' }) : '';
 
       const post = await Post.create({
         authorId: req.user.id,
@@ -125,13 +187,13 @@ router.post(
         images: formattedImages,
         location: {
           type: 'Point',
-          coordinates: [longitude, latitude],
+          coordinates: parsedCoords,
         },
         hideExact: Boolean(hideExact),
         place: {
-          city,
-          state,
-          country,
+          city: normalizedCity,
+          state: normalizedState,
+          country: normalizedCountry,
         },
         tags,
         warnings,
@@ -153,8 +215,14 @@ router.get('/nearby', validateQuery(postsValidators.nearbyQuerySchema), async (r
   try {
     const { lat, lng, maxDistance, limit, page } = req.query;
 
-    const latNum = Number(lat);
-    const lngNum = Number(lng);
+    // K2: parse strictly, round to 6 decimals, and reject Null Island (0, 0)
+    const latNum = parseStrictCoordinate(lat, { min: -90, max: 90, name: 'Latitude' });
+    const lngNum = parseStrictCoordinate(lng, { min: -180, max: 180, name: 'Longitude' });
+    if (latNum === 0 && lngNum === 0) {
+      return res.status(400).json(
+        formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Coordinates (0, 0) - Null Island is not permitted')
+      );
+    }
 
     // Snap maxDistance to fixed allowed steps [1000, 2000, 5000, 10000, 25000]
     const snappedDistance = snapMaxDistance(maxDistance);
@@ -270,6 +338,13 @@ router.post(
         return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
       }
 
+      // K6: Forbid self-voting: return 403 if user is post author
+      if (post.authorId.toString() === req.user.id.toString()) {
+        return res.status(403).json(
+          formatErrorResponse(ErrorCodes.FORBIDDEN, 'Authors cannot vote on their own post')
+        );
+      }
+
       const result = await meterService.castVote(req.user.id, post._id, value);
       if (!result) {
         const currentPost = await Post.findById(id).select('meter tier');
@@ -323,12 +398,57 @@ router.post(
             throw err;
           }
 
+          // K4: Validate parentId (valid ObjectId, belongs to same post, not removed, depth <= 3)
+          if (parentId) {
+            if (!mongoose.Types.ObjectId.isValid(parentId)) {
+              const err = new Error('Invalid parent comment ID');
+              err.statusCode = 400;
+              err.code = ErrorCodes.VALIDATION_FAILED;
+              throw err;
+            }
+
+            const parentComment = await Comment.findOne({
+              _id: parentId,
+              postId: post._id,
+              removed: { $ne: true },
+            }).session(session);
+
+            if (!parentComment) {
+              const err = new Error('Parent comment not found on this post');
+              err.statusCode = 400;
+              err.code = ErrorCodes.VALIDATION_FAILED;
+              throw err;
+            }
+
+            let depth = 1;
+            let curr = parentComment;
+            const visited = new Set([curr._id.toString()]);
+            while (curr && curr.parentId) {
+              depth++;
+              if (depth >= 3) {
+                const err = new Error('Maximum comment nesting depth of 3 exceeded');
+                err.statusCode = 400;
+                err.code = ErrorCodes.VALIDATION_FAILED;
+                throw err;
+              }
+              curr = await Comment.findOne({
+                _id: curr.parentId,
+                postId: post._id,
+                removed: { $ne: true },
+              }).session(session);
+              if (curr) {
+                if (visited.has(curr._id.toString())) break;
+                visited.add(curr._id.toString());
+              }
+            }
+          }
+
           const createdComments = await Comment.create(
             [
               {
                 postId: post._id,
                 authorId: req.user.id,
-                parentId,
+                parentId: parentId || null,
                 body,
               },
             ],
@@ -353,6 +473,9 @@ router.post(
       if (err.statusCode === 404 || err.message === 'Post not found') {
         return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
       }
+      if (err.code === ErrorCodes.VALIDATION_FAILED || err.statusCode === 400) {
+        return res.status(400).json(formatErrorResponse(ErrorCodes.VALIDATION_FAILED, err.message));
+      }
       next(err);
     }
   }
@@ -362,6 +485,7 @@ router.post(
 router.get(
   '/:id/comments',
   validateParams(postsValidators.postIdParamSchema),
+  validateQuery(postsValidators.commentsQuerySchema),
   async (req, res, next) => {
     try {
       const { id } = req.params;
@@ -373,7 +497,7 @@ router.get(
       }
 
       const limitNum = Math.min(Math.max(Number(limit) || 50, 1), 100);
-      const pageNum = Math.max(Number(page) || 1, 1);
+      const pageNum = Math.min(Math.max(Number(page) || 1, 1), 100);
       const skipNum = (pageNum - 1) * limitNum;
 
       const comments = await Comment.find({ postId: id, removed: { $ne: true } })

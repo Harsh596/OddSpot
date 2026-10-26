@@ -14,6 +14,7 @@ const {
 
 describe('Concurrency & Race Condition Integration Tests', () => {
   let user;
+  let voter;
   let post;
 
   before(async () => {
@@ -27,6 +28,7 @@ describe('Concurrency & Race Condition Integration Tests', () => {
   beforeEach(async () => {
     await clearCollections();
     user = await createTestUser();
+    voter = await createTestUser();
     const postRes = await createTestPost(user.token, { title: 'Concurrency Test Post' });
     post = postRes.body;
   });
@@ -35,7 +37,7 @@ describe('Concurrency & Race Condition Integration Tests', () => {
     const promises = Array.from({ length: 20 }, () =>
       request(app)
         .post(`/api/posts/${post._id}/vote`)
-        .set('Authorization', `Bearer ${user.token}`)
+        .set('Authorization', `Bearer ${voter.token}`)
         .send({ value: 1 })
     );
 
@@ -58,7 +60,7 @@ describe('Concurrency & Race Condition Integration Tests', () => {
 
     // Exactly one vote record in DB
     const voteCount = await models.Vote.countDocuments({
-      userId: user.id,
+      userId: voter.id,
       postId: post._id,
     });
     assert.equal(voteCount, 1);
@@ -68,14 +70,14 @@ describe('Concurrency & Race Condition Integration Tests', () => {
     // Initial upvote
     await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: 1 });
 
     // 20 parallel downvotes
     const promises = Array.from({ length: 20 }, () =>
       request(app)
         .post(`/api/posts/${post._id}/vote`)
-        .set('Authorization', `Bearer ${user.token}`)
+        .set('Authorization', `Bearer ${voter.token}`)
         .send({ value: -1 })
     );
 
@@ -94,7 +96,7 @@ describe('Concurrency & Race Condition Integration Tests', () => {
     assert.equal(postDoc.meter.dislikes, 1, 'Dislikes counter must be 1 after switch');
 
     const voteDoc = await models.Vote.findOne({
-      userId: user.id,
+      userId: voter.id,
       postId: post._id,
     });
     assert.equal(voteDoc.value, -1);

@@ -24,20 +24,21 @@ describe('Wave 1: Transactions & Atomic Writes Integration Tests', () => {
   });
 
   test('1. Successful vote updates Vote collection and Post meter atomically', async () => {
-    const user = await createTestUser();
-    const postRes = await createTestPost(user.token);
+    const author = await createTestUser();
+    const voter = await createTestUser();
+    const postRes = await createTestPost(author.token);
     const post = postRes.body;
 
     const res = await request(app)
       .post(`/api/posts/${post._id}/vote`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${voter.token}`)
       .send({ value: 1 });
 
     assert.equal(res.status, 200);
     assert.equal(res.body.changed, true);
     assert.equal(res.body.meter.likes, 1);
 
-    const voteInDb = await models.Vote.findOne({ userId: user.id, postId: post._id });
+    const voteInDb = await models.Vote.findOne({ userId: voter.id, postId: post._id });
     assert.ok(voteInDb);
     assert.equal(voteInDb.value, 1);
 
@@ -46,8 +47,9 @@ describe('Wave 1: Transactions & Atomic Writes Integration Tests', () => {
   });
 
   test('2. Simulated failure during castVote rolls back Vote and leaves Post meter with 0 drift', async () => {
-    const user = await createTestUser();
-    const postRes = await createTestPost(user.token);
+    const author = await createTestUser();
+    const voter = await createTestUser();
+    const postRes = await createTestPost(author.token);
     const post = postRes.body;
 
     // Verify initial state
@@ -63,7 +65,7 @@ describe('Wave 1: Transactions & Atomic Writes Integration Tests', () => {
     try {
       await assert.rejects(
         async () => {
-          await meterService.castVote(user.id, post._id, 1);
+          await meterService.castVote(voter.id, post._id, 1);
         },
         (err) => {
           assert.equal(err.message, 'SIMULATED_TRANSACTION_FAILURE_MID_VOTE');
@@ -76,7 +78,7 @@ describe('Wave 1: Transactions & Atomic Writes Integration Tests', () => {
     }
 
     // Verify atomicity: Vote was rolled back, Post meter is untouched
-    const voteInDb = await models.Vote.findOne({ userId: user.id, postId: post._id });
+    const voteInDb = await models.Vote.findOne({ userId: voter.id, postId: post._id });
     assert.equal(voteInDb, null, 'Vote document must be rolled back on transaction abort');
 
     const postAfter = await models.Post.findById(post._id);

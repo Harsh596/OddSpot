@@ -135,6 +135,16 @@ function createApp() {
     next();
   });
 
+  // K12: Cache-Control and Pragma headers on /api/auth/* and requests with Authorization headers
+  app.use((req, res, next) => {
+    const url = req.originalUrl || req.url || '';
+    if (url.includes('/auth') || req.headers['authorization']) {
+      res.setHeader('Cache-Control', 'no-store, no-cache, must-revalidate');
+      res.setHeader('Pragma', 'no-cache');
+    }
+    next();
+  });
+
   // 7. API Router mounted under /api/v1 and aliased to /api
   const apiRouter = express.Router();
 

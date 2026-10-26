@@ -57,17 +57,12 @@ async function applyDelta(postId, delta, session = null) {
     },
   };
 
-  let queryBefore = Post.findById(postId).select('tier');
-  if (session) queryBefore = queryBefore.session(session);
-  const postBefore = await queryBefore;
-  if (!postBefore) return null;
-
-  const updateOpts = { new: true };
+  const updateOpts = { returnDocument: 'before' };
   if (session) updateOpts.session = session;
 
-  // Single atomic aggregation pipeline update
-  const updatedPost = await Post.findByIdAndUpdate(
-    postId,
+  // Single atomic aggregation pipeline update returning document BEFORE modification
+  const postBefore = await Post.findOneAndUpdate(
+    { _id: postId },
     [
       { $set: { lastEngagedAt: new Date(), ...counterUpdates } },
       { $set: { 'meter.score': scoreExpr } },
@@ -75,14 +70,28 @@ async function applyDelta(postId, delta, session = null) {
     ],
     updateOpts
   );
-  if (!updatedPost) return null;
+  if (!postBefore) return null;
 
-  const tieredUp = postBefore.tier === 'city' && updatedPost.tier === 'country';
+  const newMeter = {
+    likes: (postBefore.meter?.likes || 0) + (delta.likes || 0),
+    dislikes: (postBefore.meter?.dislikes || 0) + (delta.dislikes || 0),
+    comments: (postBefore.meter?.comments || 0) + (delta.comments || 0),
+    visits: (postBefore.meter?.visits || 0) + (delta.visits || 0),
+    reactions: (postBefore.meter?.reactions || 0) + (delta.reactions || 0),
+  };
+  const newScore = computeScore(newMeter);
+  newMeter.score = newScore;
+
+  const wasCity = postBefore.tier === 'city' || !postBefore.tier;
+  const isCountry = postBefore.tier === 'country' || newScore >= countryThreshold;
+  const newTier = isCountry ? 'country' : 'city';
+  const tieredUp = wasCity && newScore >= countryThreshold;
+
   return {
-    score: updatedPost.meter.score,
+    score: newScore,
     tieredUp,
-    meter: updatedPost.meter,
-    tier: updatedPost.tier,
+    meter: newMeter,
+    tier: newTier,
   };
 }
 
@@ -91,12 +100,20 @@ async function applyDelta(postId, delta, session = null) {
 async function castVote(userId, postId, value, externalSession = null) {
   const executeVote = async (session) => {
     // 1. Verify target post exists and is not removed
-    let postQuery = Post.findOne({ _id: postId, removed: { $ne: true } }).select('_id');
+    let postQuery = Post.findOne({ _id: postId, removed: { $ne: true } }).select('_id authorId');
     if (session) postQuery = postQuery.session(session);
     const post = await postQuery;
     if (!post) {
       const err = new Error('Post not found');
       err.statusCode = 404;
+      throw err;
+    }
+
+    // K6: Forbid self-voting
+    if (post.authorId && post.authorId.toString() === userId.toString()) {
+      const err = new Error('Authors cannot vote on their own post');
+      err.statusCode = 403;
+      err.code = 'FORBIDDEN';
       throw err;
     }
 

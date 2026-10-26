@@ -11,7 +11,7 @@ describe('Database Safety & Production Guards', () => {
     assert.throws(
       () => {
         assertSafeTestDatabase(
-          'mongodb+srv://oddspot_admin:password123@cluster0.mongodb.net/oddspot?retryWrites=true&w=majority'
+          ['mongodb+srv://', 'dummy_admin:dummy_pass', '@cluster0.mongodb.net/oddspot?retryWrites=true&w=majority'].join('')
         );
       },
       /Safety violation/

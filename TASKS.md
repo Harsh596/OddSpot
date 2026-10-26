@@ -12,7 +12,18 @@
   - [x] Task P0-T6: Create test suites in `backend/test/` and update `backend/package.json` test script.
   - [x] Task P0-T7: Build `backend/scripts/cleanupTestData.js` supporting `test_` and `test_2_`.
   - [x] Task P0-T8: Configure GitHub Actions CI in `.github/workflows/ci.yml`.
-- [ ] **P1: Core Geolocation & Snapped Radius Feeds**
+- [x] **P1: Immediate Fixes Without Schema Changes (K2-K6, K8, K9, K12-K14, K16)**
+  - [x] Task P1-T1 (K13): Create `backend/utils/normalize.js` exporting `normalizeText(input, { maxLength, allowNewlines, fieldName })`. Enforce Unicode NFKC, strip control/zero-width chars, reject NUL bytes, and trim. Applied to title (140), body (10000), comment body (5000), tags (30), and place fields (100).
+  - [x] Task P1-T2 (K2): Create `backend/utils/coordinates.js` exporting `parseStrictCoordinate` and `parseLngLat`. Validate bounds (lng -180..180, lat -90..90), reject (0, 0) Null Island with 400, and round to 6 decimal places. Applied to `POST /api/posts` and `GET /api/posts/nearby`.
+  - [x] Task P1-T3 (K3 Part 1): Enforce max 100 char limit on `place.city`, `place.state`, and `place.country` in `backend/routes/posts.js`.
+  - [x] Task P1-T4 (K5): In `backend/routes/posts.js`, enforce strict boolean type check for `hideExact`. Validate `warnings` array strictly against `['private_property', 'walking_required', 'unsafe_night', 'other']`.
+  - [x] Task P1-T5 (K9): Enforce image constraints: max 6 images, HTTPS URL max 500 chars, integer width/height between 1 and 10000.
+  - [x] Task P1-T6 (K4, K14): Validate `parentId` on comments (valid ObjectId, belongs to same post, not removed, max depth <= 3). Validate comments query `page` param (integer between 1 and 100 via `commentsQuerySchema`).
+  - [x] Task P1-T7 (K6): Forbid self-voting: return 403 if `req.user.id === post.authorId`.
+  - [x] Task P1-T8 (K8): In `backend/services/meter.js` `applyDelta()`, use `findOneAndUpdate` with `returnDocument: 'before'` and an aggregation pipeline ratchet so `tieredUp` fires exactly once on threshold crossing.
+  - [x] Task P1-T9 (K12): Add middleware in `backend/app.js` adding `Cache-Control: no-store, no-cache, must-revalidate` and `Pragma: no-cache` on `/api/auth/*` and requests with `Authorization` headers.
+  - [x] Task P1-T10 (K16): Correct inaccuracies in `WORKLOG.md` regarding bcrypt (Blowfish-derived/Eksblowfish cipher, not SHA-512) and smoke test migration count evolution (23 -> 32).
+  - [x] Dedicated regression test suite: `backend/test/phase1.test.js` covering all backlog fixes.
 - [ ] **P2: Posts CRUD & EXIF Sanitization**
 - [ ] **P3: Voting, Like/Dislike Frequencies & Anti-Brigading**
 - [ ] **P4: Comments & Atomic Score Pipelines**
