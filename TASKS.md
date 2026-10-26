@@ -93,7 +93,16 @@
     - [x] Exploit Test 3: Concurrent refresh token race: only one succeeds, second triggers family revocation.
     - [x] Exploit Test 4: Alg 'none' and forged kid JWTs rejected with 401.
     - [x] Exploit Test 5: Rapid mixed vote toggle race leaves counter and reconcile script with 0 drift.
-- [ ] **R2: API Contract & Penetration Testing**
+- [x] **R2: API Contract & Penetration Testing**
+  - [x] Task R2-T1: Verify ETag computation hashes sanitized posts so true location coordinates are never leaked via ETags.
+  - [x] Task R2-T2: Add JSON nesting depth limit middleware (max depth 10) in `backend/app.js`.
+  - [x] Task R2-T3: Strictly validate base64 cursor decoding, returning 400 on malformed input.
+  - [x] Task R2-T4: In `backend/test/redteam2.test.js`, write and pass 5 exploit suites:
+    - [x] Exploit 1: Hidden location recovery across all endpoints fails to recover true coordinates within 150m.
+    - [x] Exploit 2: 10 Sybil accounts spamming votes/comments trigger velocity freeze and unique commenter caps.
+    - [x] Exploit 3: Downvote brigade cannot reduce country tier back to city.
+    - [x] Exploit 4: Malformed cursor and 25-level deep JSON rejected with 400.
+    - [x] Exploit 5: Reveal-on-arrival grid probing blocked by 10/day rate limit.
 - [ ] **R3: Database Performance & Index Optimization**
 - [ ] **R4: Final Pre-Release Verification & Hardening**
 

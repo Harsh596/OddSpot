@@ -234,3 +234,75 @@ Oddspot is a location-sensitive community exploration platform enabling users to
 | **API8: Misconfiguration** | Strict CORS whitelist, helmet headers, dual-compatible error envelopes | `manualChecks.sh` | **REMEDIATED** |
 | **API9: Inventory** | `/api/v1` route versioning, OpenAPI 3.1.0 specification, contract test suite | `openapiContract.test.js` | **REMEDIATED** |
 | **API10: Injection** | Mongoose `sanitizeFilter`, Unicode NFKC normalization, scalar type guards | `redteam1.test.js` (Test 2) | **REMEDIATED** |
+
+---
+
+## 4. Red-Team Pass 2 (R2): Advanced Threat Vectors & Hardening
+
+### Focus Areas (Phases P6–P8)
+1. **Location Privacy & Anti-Trilateration (K18, K1)**: Complete verification that true GPS coordinates cannot be derived through feed observation, detail views, comments, public profiles, ETag headers, or timing side-channels.
+2. **Meter Brigading & Sybil Resistance**: Neutralizing automated Sybil armies attempting to inflate or suppress engagement counters, enforce unique commenter caps, and guarantee tier monotonicity.
+3. **Query Exhaustion & Resource Abuse**: Enforcing maximum JSON payload nesting depth (max 10) and strict base64url cursor decoding.
+4. **GPS Probing Abuse**: Blocking reveal-on-arrival radius probing via strict per-user daily caps.
+
+---
+
+### Detailed Threat Analysis & Mitigations (Pass 2)
+
+#### 1. Hidden Location Recovery via Multi-Endpoint Correlation
+- **Attack Vector:** An adversary collects responses across `/posts/:id`, `/posts/nearby`, `/feed/city`, `/feed/country`, `/posts/:id/comments`, and `/users/:username`, attempting to correlate distances, coordinates, or ETag hashes to approximate the true location within 150m.
+- **Affected Endpoints:** `GET /api/v1/posts/:id`, `GET /api/v1/posts/nearby`, `GET /api/v1/feed/*`, `GET /api/v1/posts/:id/comments`, `GET /api/v1/users/:username`.
+- **Remediation & Defense:**
+  - `serializePost` unconditionally replaces exact coordinates with deterministic HMAC polar fuzzed coordinates (`fuzzed: true`) where displacement distance $r \in [150\text{m}, 400\text{m}]$.
+  - Distances in feed responses are quantized to 500-meter increments (`Math.round(dist / 500) * 500`), mathematically defeating multi-point trilateration.
+  - Internal `feedLocation` database fields are stripped prior to response transmission.
+  - Comments and public profile endpoints contain zero location structures.
+  - Weak ETags on anonymous feed responses hash only sanitized, fuzzed JSON structures.
+- **Verification:** `backend/test/redteam2.test.js` (Exploit 1) — True coordinates never appear; returned coordinates are strictly $\ge 150\text{m}$ away from ground truth.
+
+#### 2. Sybil Account Meter Brigading & Engagement Flooding
+- **Attack Vector:** An adversary provisions 10+ throwaway Sybil accounts to spam comments or likes/dislikes on a post, aiming to artificially elevate it to national prominence or force censorship.
+- **Affected Endpoints:** `POST /api/v1/posts/:id/comments`, `POST /api/v1/posts/:id/vote`.
+- **Remediation & Defense:**
+  - **Unique Commenter Cap:** Non-author comments are capped at 3 score contributions (maximum 9 points) per unique user account. Additional comments are stored for community conversation but do not inflate `meter.score`.
+  - **Velocity Surge Freeze:** In-memory sliding window tracks interaction velocity on every post. When interactions reach 10+ within 60 seconds (or 10 unique users in a surge), the post triggers `velocityFrozen: true` and `underReview: true`.
+  - While `velocityFrozen` is active, further score inflation is strictly arrested.
+- **Verification:** `backend/test/redteam2.test.js` (Exploit 2) — 8 comments by one user capped at 9 points; 10 Sybil surge activates `velocityFrozen` and arrests score inflation.
+
+#### 3. Downvote Brigading & Tier Deprecation Attempt
+- **Attack Vector:** Coordinated brigade targets a popular country-tier post with rapid downvotes, attempting to drop its score below 50 and demote it back to a city-tier feed.
+- **Affected Endpoints:** `POST /api/v1/posts/:id/vote`.
+- **Remediation & Defense:**
+  - **Tier Ratchet Guarantee:** Aggregation pipeline update utilizes an immutable conditional expression (`$cond: { if: { $eq: ['$tier', 'country'] }, then: 'country', else: ... }`). Once a post reaches `tier: 'country'`, it can never be demoted back to `city`.
+- **Verification:** `backend/test/redteam2.test.js` (Exploit 3) — 15 downvotes lower score below 50, but `tier` strictly remains `'country'`.
+
+#### 4. Parser Exhaustion via Deep JSON Nesting & Malformed Cursors
+- **Attack Vector:** Attacker sends payloads with 25+ levels of nested objects/arrays to exhaust V8 call stack or sends oversized/corrupted cursor strings to crash Mongoose query filters.
+- **Affected Endpoints:** All POST/PATCH endpoints, `GET /feed/*`, `GET /posts/:id/comments`.
+- **Remediation & Defense:**
+  - `exceedsMaxDepth` middleware in `backend/app.js` inspects incoming JSON structures and rejects any payload exceeding depth 10 with HTTP 400 `VALIDATION_FAILED`.
+  - `decodeCursor` strictly validates base64url character sets, JSON structure, and 24-character hexadecimal ObjectId validity, returning HTTP 400 on any malformed input.
+- **Verification:** `backend/test/redteam2.test.js` (Exploit 4) — 25-level nested payload rejected with 400; corrupt and non-base64 cursors rejected with 400.
+
+#### 5. Reveal-on-Arrival GPS Probing Abuse
+- **Attack Vector:** Attacker walks or spoofs GPS locations near multiple hidden spots, repeatedly calling `/reveal` to uncover exact coordinates of private spots across a city grid.
+- **Affected Endpoints:** `POST /api/v1/posts/:id/reveal`.
+- **Remediation & Defense:**
+  - Daily rate limit enforced via `AuditLog` query: callers are capped at strictly 10 successful reveals per UTC day.
+  - Attempt 11 is rejected with HTTP 429 `RATE_LIMIT_EXCEEDED` and audit-logged.
+- **Verification:** `backend/test/redteam2.test.js` (Exploit 5) — Reveals 1–10 succeed; reveals 11 and 12 rejected with 429.
+
+---
+
+## 5. Red-Team Pass 2 Verification Summary
+
+| Threat / Exploit Vector | Defense Mechanism | Exploit Test Suite | Status |
+|---|---|---|---|
+| **Location Recovery (< 150m)** | HMAC polar fuzzing, 500m quantization, stripped `feedLocation`, ETag hash sanitization | `redteam2.test.js` (Exploit 1) | **REMEDIATED** |
+| **Sybil Comment Spam** | Unique commenter cap (max 3 comments / 9 points per non-author) | `redteam2.test.js` (Exploit 2) | **REMEDIATED** |
+| **Sybil Velocity Surge** | 60s sliding window trigger at 10 interactions; `velocityFrozen: true`, `underReview: true` | `redteam2.test.js` (Exploit 2) | **REMEDIATED** |
+| **Downvote Demotion** | Monotonic tier ratchet (`country` tier never demotes to `city`) | `redteam2.test.js` (Exploit 3) | **REMEDIATED** |
+| **Malformed Cursor Injection** | Strict base64url JSON and 24-hex ObjectId validation returning 400 | `redteam2.test.js` (Exploit 4) | **REMEDIATED** |
+| **Deep JSON Nesting Attack** | Maximum nesting depth limit middleware (depth > 10 rejected with 400) | `redteam2.test.js` (Exploit 4) | **REMEDIATED** |
+| **Grid Probing Abuse** | Strict 10 reveals/day cap via `AuditLog`, 11th request returns 429 | `redteam2.test.js` (Exploit 5) | **REMEDIATED** |
+

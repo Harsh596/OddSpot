@@ -49,22 +49,47 @@ function encodeCursor(sort, post) {
   return Buffer.from(JSON.stringify({ v, id: post._id.toString() })).toString('base64url');
 }
 
-// Decode incoming cursor
+// Strictly decode incoming cursor, returning 400 on malformed input
 function decodeCursor(cursorStr) {
-  if (!cursorStr || typeof cursorStr !== 'string') return null;
+  if (!cursorStr) return null;
+  if (typeof cursorStr !== 'string') {
+    const err = new Error('Invalid cursor format: must be string');
+    err.status = 400;
+    throw err;
+  }
+
+  // 1. Check if raw 24-character hexadecimal ObjectId
+  if (/^[0-9a-fA-F]{24}$/.test(cursorStr) && mongoose.Types.ObjectId.isValid(cursorStr)) {
+    return { id: cursorStr, rawId: true };
+  }
+
+  // 2. Validate base64 / base64url characters
+  if (!/^[A-Za-z0-9_-]+={0,2}$/.test(cursorStr)) {
+    const err = new Error('Invalid cursor format: invalid encoding');
+    err.status = 400;
+    throw err;
+  }
+
   try {
     const raw = Buffer.from(cursorStr, 'base64url').toString('utf8');
     const parsed = JSON.parse(raw);
-    if (parsed && parsed.id && parsed.v !== undefined) {
-      return parsed;
+    if (!parsed || typeof parsed !== 'object' || !parsed.id || parsed.v === undefined) {
+      const err = new Error('Malformed cursor payload structure: missing id or sort value');
+      err.status = 400;
+      throw err;
     }
-  } catch {
-    // If not base64url JSON, check if it's a raw ObjectId
-    if (mongoose.Types.ObjectId.isValid(cursorStr)) {
-      return { id: cursorStr, rawId: true };
+    if (!/^[0-9a-fA-F]{24}$/.test(parsed.id) || !mongoose.Types.ObjectId.isValid(parsed.id)) {
+      const err = new Error('Invalid cursor id format');
+      err.status = 400;
+      throw err;
     }
+    return parsed;
+  } catch (parseErr) {
+    if (parseErr.status === 400) throw parseErr;
+    const err = new Error('Invalid cursor format: failed to decode cursor payload');
+    err.status = 400;
+    throw err;
   }
-  return null;
 }
 
 // Send cached JSON response with weak ETag and stale-while-revalidate (for anonymous callers)
@@ -236,6 +261,14 @@ router.get(
 
       return sendCachedFeedResponse(req, res, responseBody);
     } catch (err) {
+      if (err.status === 400 || err.statusCode === 400) {
+        return res.status(400).json(
+          formatErrorResponse(
+            err.code || ErrorCodes.VALIDATION_FAILED,
+            err.message || 'Invalid cursor format'
+          )
+        );
+      }
       next(err);
     }
   }
@@ -312,6 +345,14 @@ router.get(
 
       return sendCachedFeedResponse(req, res, responseBody);
     } catch (err) {
+      if (err.status === 400 || err.statusCode === 400) {
+        return res.status(400).json(
+          formatErrorResponse(
+            err.code || ErrorCodes.VALIDATION_FAILED,
+            err.message || 'Invalid cursor format'
+          )
+        );
+      }
       next(err);
     }
   }

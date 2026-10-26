@@ -12,7 +12,7 @@ const cityFeedQuerySchema = z
     countryCode: z.string().optional(),
     sort: z.enum(['new', 'hot', 'top']).optional().default('new'),
     limit: z.coerce.number().optional().default(20),
-    cursor: z.string().optional(),
+    cursor: z.string().max(512).optional(),
     page: z.coerce.number().optional(),
   })
   .strip()
@@ -40,7 +40,7 @@ const countryFeedQuerySchema = z
     countryCode: z.string().optional(),
     sort: z.enum(['new', 'hot', 'top']).optional().default('new'),
     limit: z.coerce.number().optional().default(20),
-    cursor: z.string().optional(),
+    cursor: z.string().max(512).optional(),
     page: z.coerce.number().optional(),
   })
   .strip()

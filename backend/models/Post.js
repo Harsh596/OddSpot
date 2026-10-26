@@ -75,6 +75,7 @@ const postSchema = new Schema(
 
     hotScore: { type: Number, default: 0, index: true },
     underReview: { type: Boolean, default: false },
+    velocityFrozen: { type: Boolean, default: false, index: true },
     removed: { type: Boolean, default: false },
   },
   { timestamps: true }

@@ -32,6 +32,21 @@ function containsNullByte(val) {
   return false;
 }
 
+// Helper to recursively detect JSON nesting depth exceeding maxDepth (default 10)
+function exceedsMaxDepth(val, maxDepth = 10, currentDepth = 1) {
+  if (currentDepth > maxDepth) return true;
+  if (val === null || typeof val !== 'object') return false;
+  const entries = Array.isArray(val) ? val : Object.values(val);
+  for (const item of entries) {
+    if (item && typeof item === 'object') {
+      if (exceedsMaxDepth(item, maxDepth, currentDepth + 1)) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 function createApp() {
   const app = express();
   const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
@@ -90,6 +105,16 @@ function createApp() {
           )
         );
       }
+    }
+
+    // Reject any request payload exceeding maximum allowed nesting depth of 10
+    if (exceedsMaxDepth(req.body, 10)) {
+      return res.status(400).json(
+        formatErrorResponse(
+          ErrorCodes.VALIDATION_FAILED,
+          'Request body exceeds maximum allowed nesting depth of 10'
+        )
+      );
     }
 
     // Ensure req.body is always an object, never undefined, null, or array

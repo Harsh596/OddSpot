@@ -30,9 +30,40 @@ function calculateHotScore(score = 0, createdAt = new Date()) {
   return Number((sign * order + seconds / 45000).toFixed(7));
 }
 
+// Interaction velocity tracking per post: Map<postIdString, Array<{ userId, timestamp }>>
+const postInteractions = new Map();
+
+function trackInteraction(postId, userId) {
+  if (!postId) return { isSurge: false, count: 0, uniqueUsers: 0 };
+  const now = Date.now();
+  const windowMs = 60000; // 60 seconds sliding window
+  const key = postId.toString();
+
+  const history = (postInteractions.get(key) || []).filter((item) => now - item.timestamp < windowMs);
+  history.push({ userId: userId ? userId.toString() : 'anon', timestamp: now });
+  postInteractions.set(key, history);
+
+  const uniqueUsers = new Set(history.map((h) => h.userId));
+  // Surge triggers if >= 10 interactions from distinct Sybil accounts within 60s
+  const isSurge = uniqueUsers.size >= 10;
+  return { isSurge, count: history.length, uniqueUsers: uniqueUsers.size };
+}
+
+function resetVelocityTracking(postId) {
+  if (postId) {
+    postInteractions.delete(postId.toString());
+  } else {
+    postInteractions.clear();
+  }
+}
+
 // Atomically bump counters, recalculate score, and update tier in a single update pipeline.
 // Supports passing an active Mongoose session for multi-document transaction atomicity.
-async function applyDelta(postId, delta, session = null) {
+async function applyDelta(postId, delta, session = null, options = {}) {
+  const userId = options?.userId;
+  const freezeScoreOpt = Boolean(options?.freezeScore);
+  const velocityStatus = trackInteraction(postId, userId);
+
   const counterUpdates = {};
   for (const [k, v] of Object.entries(delta)) {
     counterUpdates[`meter.${k}`] = { $add: [{ $ifNull: [`$meter.${k}`, 0] }, v] };
@@ -48,6 +79,16 @@ async function applyDelta(postId, delta, session = null) {
       { $multiply: [{ $ifNull: ['$meter.dislikes', 0] }, w.dislike] },
     ],
   };
+
+  const effectiveScoreExpr = freezeScoreOpt
+    ? { $ifNull: ['$meter.score', 0] }
+    : {
+        $cond: {
+          if: { $eq: ['$velocityFrozen', true] },
+          then: { $ifNull: ['$meter.score', 0] },
+          else: scoreExpr,
+        },
+      };
 
   const countryThreshold = process.env.METER_COUNTRY_THRESHOLD
     ? Number(process.env.METER_COUNTRY_THRESHOLD)
@@ -76,13 +117,23 @@ async function applyDelta(postId, delta, session = null) {
     { _id: postId },
     [
       { $set: { lastEngagedAt: new Date(), ...counterUpdates } },
-      { $set: { 'meter.score': scoreExpr } },
+      { $set: { 'meter.score': effectiveScoreExpr } },
       { $set: { tier: tierExpr } },
     ],
     updateOpts
   );
   if (!postBefore) return null;
 
+  // If newly triggered surge from 10 Sybil accounts, flag post as velocityFrozen and underReview
+  if (velocityStatus.isSurge && !postBefore.velocityFrozen) {
+    await Post.updateOne(
+      { _id: postId },
+      { $set: { velocityFrozen: true, underReview: true } },
+      updateOpts.session ? { session: updateOpts.session } : {}
+    );
+  }
+
+  const isFrozen = postBefore.velocityFrozen || velocityStatus.isSurge || freezeScoreOpt;
   const newMeter = {
     likes: (postBefore.meter?.likes || 0) + (delta.likes || 0),
     dislikes: (postBefore.meter?.dislikes || 0) + (delta.dislikes || 0),
@@ -90,7 +141,7 @@ async function applyDelta(postId, delta, session = null) {
     visits: (postBefore.meter?.visits || 0) + (delta.visits || 0),
     reactions: (postBefore.meter?.reactions || 0) + (delta.reactions || 0),
   };
-  const newScore = computeScore(newMeter);
+  const newScore = isFrozen ? (postBefore.meter?.score ?? 0) : computeScore(newMeter);
   newMeter.score = newScore;
 
   const wasCity = postBefore.tier === 'city' || !postBefore.tier;
@@ -111,6 +162,7 @@ async function applyDelta(postId, delta, session = null) {
     meter: newMeter,
     tier: newTier,
     hotScore: newHotScore,
+    velocityFrozen: isFrozen,
   };
 }
 
@@ -175,7 +227,7 @@ async function castVote(userId, postId, value, externalSession = null, options =
       const delta = {};
       delta[value === 1 ? 'likes' : 'dislikes'] = 1;
       delta[value === 1 ? 'dislikes' : 'likes'] = -1;
-      return await meter.applyDelta(postId, delta, session);
+      return await meter.applyDelta(postId, delta, session, { userId, ...opts });
     }
 
     // 3. Not existing: create vote
@@ -193,10 +245,19 @@ async function castVote(userId, postId, value, externalSession = null, options =
 
     const delta = {};
     delta[value === 1 ? 'likes' : 'dislikes'] = 1;
-    return await meter.applyDelta(postId, delta, session);
+    return await meter.applyDelta(postId, delta, session, { userId, ...opts });
   }, actualSession);
 }
 
-const meter = { computeScore, decayedScore, calculateHotScore, applyDelta, castVote };
+const meter = {
+  computeScore,
+  decayedScore,
+  calculateHotScore,
+  applyDelta,
+  castVote,
+  trackInteraction,
+  recordInteraction: trackInteraction,
+  resetVelocityTracking,
+};
 module.exports = meter;
 

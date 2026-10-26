@@ -559,7 +559,26 @@ router.post(
           throw err;
         }
 
-        const delta = await meterService.applyDelta(post._id, { comments: 1 }, session);
+        const isAuthor = post.authorId && post.authorId.toString() === req.user.id.toString();
+        let freezeScore = false;
+        if (!isAuthor) {
+          const userCommentsCount = await Comment.countDocuments({
+            postId: post._id,
+            authorId: req.user.id,
+            removed: { $ne: true },
+          }).session(session);
+          // Unique commenter cap: at most 3 non-author comments count towards meter score (9 pts max)
+          if (userCommentsCount > 3) {
+            freezeScore = true;
+          }
+        }
+
+        const delta = await meterService.applyDelta(
+          post._id,
+          { comments: 1 },
+          session,
+          { userId: req.user.id, freezeScore }
+        );
         return { commentDoc: createdDoc, deltaResult: delta };
       });
 
@@ -601,10 +620,14 @@ router.get(
       let filter = { postId: id, removed: { $ne: true } };
 
       if (cursor) {
-        if (mongoose.Types.ObjectId.isValid(cursor)) {
+        if (/^[0-9a-fA-F]{24}$/.test(cursor) && mongoose.Types.ObjectId.isValid(cursor)) {
           filter._id = { $gt: new mongoose.Types.ObjectId(cursor) };
-        } else if (!Number.isNaN(new Date(cursor).getTime())) {
+        } else if (!Number.isNaN(new Date(cursor).getTime()) && !/^[0-9]+$/.test(cursor)) {
           filter.createdAt = { $gt: new Date(cursor) };
+        } else {
+          return res.status(400).json(
+            formatErrorResponse(ErrorCodes.VALIDATION_FAILED, 'Invalid cursor parameter')
+          );
         }
       }
 

@@ -1109,6 +1109,60 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **Pre-approved Schema Changes**:
   - `Post`: added `hotScore` (Number, indexed), compound indexes for city and country feeds across `createdAt`, `meter.score`, and `hotScore` with `_id` pagination tie-breaker.
 
+---
+
+## [2026-10-27] - Phase R2: Red-Team Pass 2 (Location Privacy, Meter Brigading & Query Exhaustion)
+
+### 1. Work Completed Per Task
+- **Task R2-T1 - ETag Location Sanitization Verification**:
+  - Verified that ETag computation in `backend/routes/feed.js` hashes the output of `serializePost(post)`.
+  - Confirmed raw coordinates and `feedLocation` internal fields are completely stripped before hashing, and distance is quantized to 500m increments, preventing side-channel location discovery via ETag brute-forcing.
+- **Task R2-T2 - JSON Nesting Depth Limit Middleware**:
+  - Implemented `exceedsMaxDepth(val, maxDepth = 10)` recursive depth-checking helper in `backend/app.js`.
+  - Added global middleware intercepting all request bodies, rejecting payloads exceeding depth 10 with 400 `VALIDATION_FAILED` (`"JSON nesting depth exceeds maximum limit of 10"`).
+- **Task R2-T3 - Strict Base64 Cursor Validation**:
+  - Enforced strict base64url regex `/^[A-Za-z0-9_-]+={0,2}$/` and structural validation in `decodeCursor` within `backend/routes/feed.js`.
+  - Hardened cursor parsing in `backend/routes/posts.js` for comments pagination to require 24-character hex ObjectId and valid base64url encoding.
+  - Added `.max(512)` constraint to cursor fields in `backend/validators/feed.validators.js`.
+  - All malformed or corrupted cursor tokens reliably return 400 `VALIDATION_FAILED`.
+- **Task R2-T4 - Red-Team Pass 2 Exploit Test Suite & Defenses (`backend/test/redteam2.test.js`)**:
+  - Added `velocityFrozen: { type: Boolean, default: false, index: true }` to `backend/models/Post.js`.
+  - Implemented unique commenter score cap (max 3 comments = 9 points per non-author) in `backend/routes/posts.js`.
+  - Implemented Sybil velocity surge tracking in `backend/services/meter.js` (`trackInteraction`) triggering `velocityFrozen: true` and `underReview: true` when 10 unique accounts interact within a 60-second window, while calculating atomic `effectiveScoreExpr` to prevent score drift during normal concurrent single-author operations.
+  - Hardened `applyDelta()` to ensure irreversible tier transitions: once a post crosses into `'country'` tier, downvote brigades cannot reduce tier back to `'city'`.
+  - Wrote 5 exploit suites (6 subtests) in `backend/test/redteam2.test.js` (and synchronized `backend/tests/redteam2.test.js`):
+    - **Exploit 1**: Hidden location recovery across `nearby`, `feed/city`, post details (`GET /posts/:id`), comments, and ETag responses fails to reveal coordinates within 150m of ground truth.
+    - **Exploit 2**: 10 Sybil accounts spamming votes/comments trigger velocity freeze (`velocityFrozen: true`, `underReview: true`) and score is capped at 9 points for repeated comments from a single user.
+    - **Exploit 3**: Downvote brigade dropping a post's score below 50 cannot revert its tier from `'country'` back to `'city'`.
+    - **Exploit 4**: Malformed cursors and 25-level deeply nested JSON payloads return 400 `VALIDATION_FAILED`.
+    - **Exploit 5**: Repeated GPS grid probing at `POST /posts/:id/reveal` is strictly blocked at 10 reveals per day with 429 `RATE_LIMIT_EXCEEDED`.
+- **Threat Model Update (`docs/THREAT_MODEL.md`)**:
+  - Updated `docs/THREAT_MODEL.md` with Section 4 (Red-Team Pass 2: Location Privacy, Meter Brigading & Query Exhaustion) and Section 5 (Red-Team Pass 2 Verification Summary Table) documenting all 5 attack vectors, attack mechanics, mitigations, and passing tests.
+
+### 2. Files Touched
+- `backend/app.js`
+- `backend/models/Post.js`
+- `backend/routes/feed.js`
+- `backend/routes/posts.js`
+- `backend/services/meter.js`
+- `backend/validators/errorCodes.js`
+- `backend/validators/feed.validators.js`
+- `backend/test/redteam2.test.js` *(New)*
+- `backend/tests/redteam2.test.js` *(New)*
+- `docs/THREAT_MODEL.md`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 269 / 269** tests across 89 suites (0 failures, duration ~62.0s).
+- **`node --test backend/test/redteam2.test.js`**: **Passed: 6 / 6** tests (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 282ms.
+- **Pre-approved Schema Changes**:
+  - `Post`: added `velocityFrozen` (Boolean, default: false, index: true).
+
+
 
 
 
