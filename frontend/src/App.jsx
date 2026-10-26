@@ -12,7 +12,9 @@ import { ThemeProvider } from './context/ThemeContext';
 import { AuthProvider } from './context/AuthContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 import { Navbar } from './components/Navbar';
+import { HomePage } from './pages/HomePage';
 import { ExplorePage } from './pages/ExplorePage';
+import { RandomPage } from './pages/RandomPage';
 import { NearbyFeed } from './pages/NearbyFeed';
 import { CreatePost } from './pages/CreatePost';
 import { PostDetail } from './pages/PostDetail';
@@ -30,7 +32,8 @@ function PostDetailRouteWrapper({ navigate }) {
 
 /**
  * Main application shell containing responsive navigation,
- * skip-to-content accessibility target, and route dispatching.
+ * skip-to-content accessibility target, and route dispatching across
+ * Home, Explore, Random, Create, Details, and Auth tabs.
  */
 function AppShell() {
   const location = useLocation();
@@ -47,7 +50,7 @@ function AppShell() {
     }
   };
 
-  const currentRoute = '#' + (location.pathname === '/' ? '/explore' : location.pathname);
+  const currentRoute = '#' + (location.pathname === '/' ? '/home' : location.pathname);
 
   return (
     <div className="app-shell">
@@ -55,14 +58,16 @@ function AppShell() {
       <main id="main-content" className="main-content" tabIndex="-1">
         <ErrorBoundary>
           <Routes>
-            <Route path="/" element={<Navigate to="/explore" replace />} />
+            <Route path="/" element={<HomePage navigate={navigate} />} />
+            <Route path="/home" element={<HomePage navigate={navigate} />} />
             <Route path="/explore" element={<ExplorePage navigate={navigate} />} />
             <Route path="/feed" element={<ExplorePage navigate={navigate} />} />
+            <Route path="/random" element={<RandomPage navigate={navigate} />} />
             <Route path="/create" element={<CreatePost navigate={navigate} />} />
             <Route path="/post/:id" element={<PostDetailRouteWrapper navigate={navigate} />} />
             <Route path="/login" element={<Login navigate={navigate} />} />
             <Route path="/signup" element={<Signup navigate={navigate} />} />
-            <Route path="*" element={<Navigate to="/explore" replace />} />
+            <Route path="*" element={<Navigate to="/home" replace />} />
           </Routes>
         </ErrorBoundary>
       </main>

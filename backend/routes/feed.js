@@ -185,6 +185,47 @@ async function buildFeedFilter({ baseFilter, sort, cursorStr, pageNum, limitNum 
   return { filter, sortObj };
 }
 
+// GET /api/v1/feed/home - Home feed (country-tier highlights and trending community spots)
+router.get('/home', async (req, res, next) => {
+  try {
+    const limitNum = Math.floor(Math.min(Math.max(Number(req.query.limit) || 20, 1), 50));
+    const sort = req.query.sort || 'hot';
+
+    let sortObj = { hotScore: -1, _id: -1 };
+    if (sort === 'top') sortObj = { 'meter.score': -1, _id: -1 };
+    if (sort === 'new') sortObj = { createdAt: -1, _id: -1 };
+
+    // Fetch country-tier spots for home digest
+    let docs = await Post.find({ removed: { $ne: true }, tier: 'country' }, FEED_PROJECTION)
+      .sort(sortObj)
+      .limit(limitNum)
+      .populate('authorId', 'username avatarUrl badges')
+      .lean();
+
+    // Fallback to top overall spots if few country tier spots exist
+    if (docs.length < 5) {
+      docs = await Post.find({ removed: { $ne: true } }, FEED_PROJECTION)
+        .sort(sortObj)
+        .limit(limitNum)
+        .populate('authorId', 'username avatarUrl badges')
+        .lean();
+    }
+
+    const posts = docs.map((doc) => serializePost(doc));
+
+    const responseBody = {
+      feedType: 'home',
+      sort,
+      count: posts.length,
+      posts,
+    };
+
+    return sendCachedFeedResponse(req, res, responseBody);
+  } catch (err) {
+    next(err);
+  }
+});
+
 // GET /api/v1/feed/city - Filtered city feed with sort=new|hot|top
 router.get(
   '/city',

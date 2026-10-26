@@ -1263,6 +1263,48 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## [2026-10-27] - Phase F3: Frontend Slice 3 — Home & Random Feeds with Surprise-Me & Teleport Mode
+
+### 1. Work Completed Per Task
+- **Task F3-T1 - Home Feed Page (`frontend/src/pages/HomePage.jsx`) & Feed Fallback**:
+  - Implemented `GET /api/v1/feed/home` route in `backend/routes/feed.js` (and mounted under `/feed/home`) returning active country-tier and trending community spots using lean projections and ETag caching, falling back to top spots if regional spots are sparse.
+  - Added `getHomeFeed({ sort, limit, countryCode })` to `frontend/src/api.js` with client-side fallback calling `getCountryFeed()` if `/feed/home` returns an empty set or error.
+  - Built `frontend/src/pages/HomePage.jsx`:
+    - Top Trending Digest Strip highlighting the top 4 highest-scored spots with ranking badges (#1–#4).
+    - Feed Mode Toggle allowing instantaneous switching between "Default Dispatch" and "Custom Feed Rules" (enables minimum score slider and custom tag filters).
+    - Integrated with `LoadingSkeleton`, `EmptyState` (prompting users to explore nearby spots or create a spot when feeds are empty), and dismissible `ErrorBanner`.
+- **Task F3-T2 - Random Teleportation & Surprise-Me Page (`frontend/src/pages/RandomPage.jsx`)**:
+  - Implemented `frontend/src/pages/RandomPage.jsx` fetching verified country-tier finds via `GET /api/v1/posts/feed/random` (with fallback to top/recent posts).
+  - Features an animated "Surprise Me!" shuffle button with a 360° rotating dice roll micro-animation.
+  - Added global `Shift + R` keyboard shortcut for instant teleportation, intelligently disabled while typing inside `<input>` or `<textarea>` elements.
+  - Added "Teleport Mode" country sector dropdown allowing users to teleport to specific national radars (Global, India, United States, Japan, United Kingdom, Germany, France, Australia).
+  - Designed full card showcase with high-res spot imagery, country tier badge, 400m approximate area label, oddity score, place metadata, and live upvote/downvote interactions.
+- **Routing & Shell Navigation Integration**:
+  - Registered `/home` and `/random` in `frontend/src/App.jsx`.
+  - Updated `frontend/src/components/Navbar.jsx` with active navigation links for "Home", "Explore Radar", "Random", and "Create Spot" across both desktop and mobile hamburger navigation drawers.
+  - Preserved root `/` path defaulting to `HomePage` for returning or landing users.
+
+### 2. Files Touched
+- `backend/routes/feed.js`
+- `frontend/src/api.js`
+- `frontend/src/pages/HomePage.jsx` *(New)*
+- `frontend/src/pages/RandomPage.jsx` *(New)*
+- `frontend/src/App.jsx`
+- `frontend/src/components/Navbar.jsx`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm run build` (frontend)**: Clean production build in 119ms (`dist/assets/index-*.js`, `dist/assets/index-*.css`).
+- **`node --test backend/test/mapCluster.test.js`**: **Passed: 5 / 5** unit tests (0 failures).
+- **`npm test` (backend)**: **Passed: 274 / 274** tests across 90 suites (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

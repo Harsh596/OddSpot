@@ -116,7 +116,10 @@
   - [x] Task F2-T1: Create `frontend/src/utils/mapCluster.js` with Web Mercator projection and deterministic clustering. Unit tested (5/5 passed).
   - [x] Task F2-T2: Build `frontend/src/components/map/OddspotMap.jsx` using Leaflet & OpenStreetMap tiles, custom divIcons, interactive zoom-to-cluster, and 400m dashed circles for fuzzed/hidden spots.
   - [x] Task F2-T3: Build `frontend/src/pages/ExplorePage.jsx` combining Nearby GPS radar and City feeds, radius selector (1..25 km), category filter pills, sort controls, and split/list/map view modes. Retained backward compatibility in `NearbyFeed.jsx`.
-- [ ] **F3: Navigation Shell & Modular Layout**
+- [x] **F3: Navigation Shell & Modular Layout**
+  - [x] Task F3-T1: Build `frontend/src/pages/HomePage.jsx` calling `GET /api/v1/feed/home` (with fallback to `/feed/country`). Include trending digest strip and Default vs Custom Feed Rules.
+  - [x] Task F3-T2: Build `frontend/src/pages/RandomPage.jsx` calling `GET /api/v1/posts/feed/random` with optional country teleport filter, animated "Surprise Me!" button, and `Shift + R` keyboard shortcut.
+  - [x] Routing verification: verified clean navigation across Home (`#/home`), Explore (`#/explore`), Random (`#/random`), and Create (`#/create`) tabs on both desktop and mobile layouts.
 - [ ] **F4: Nearby Feed Page & Distance Badges**
 - [ ] **F5: Post Creation Form & GPS Autofill**
 - [ ] **F6: Post Detail Page & Safe Plaintext Rendering**

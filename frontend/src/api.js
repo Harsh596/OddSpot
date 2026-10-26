@@ -374,6 +374,17 @@ export const api = {
     }),
 
   // Regional Feeds
+  getHomeFeed: async ({ sort = 'hot', limit = 20, countryCode = 'IN' } = {}) => {
+    try {
+      const params = new URLSearchParams();
+      if (sort) params.append('sort', sort);
+      if (limit) params.append('limit', limit);
+      return await apiRequest(`/feed/home?${params.toString()}`);
+    } catch {
+      // Graceful fallback to country feed
+      return await api.getCountryFeed({ countryCode, sort, limit });
+    }
+  },
   getCityFeed: ({ city, cityKey, country, countryCode, sort = 'hot', limit = 20, cursor } = {}) => {
     const params = new URLSearchParams();
     if (cityKey) params.append('cityKey', cityKey);

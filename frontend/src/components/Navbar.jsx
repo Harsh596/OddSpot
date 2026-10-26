@@ -36,11 +36,10 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
     setMobileMenuOpen(false);
   };
 
-  const isFeedActive =
-    currentRoute.startsWith('#/feed') ||
-    currentRoute.startsWith('#/explore') ||
-    currentRoute === '#/' ||
-    !currentRoute;
+  const isHomeActive = currentRoute === '#/home' || currentRoute === '#/' || !currentRoute;
+  const isExploreActive =
+    currentRoute.startsWith('#/explore') || currentRoute.startsWith('#/feed');
+  const isRandomActive = currentRoute.startsWith('#/random');
   const isCreateActive = currentRoute === '#/create';
   const isLoginActive = currentRoute === '#/login';
   const isSignupActive = currentRoute === '#/signup';
@@ -72,11 +71,11 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
         {/* Brand identity */}
         <div
           className="nav-brand"
-          onClick={() => handleNav('#/feed')}
+          onClick={() => handleNav('#/home')}
           tabIndex={0}
           role="button"
           aria-label="Oddspot Home"
-          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNav('#/feed')}
+          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNav('#/home')}
           style={{
             display: 'flex',
             alignItems: 'center',
@@ -116,24 +115,68 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
         >
           <button
             type="button"
-            className={`nav-btn ${isFeedActive ? 'active' : ''}`}
-            onClick={() => handleNav('#/feed')}
-            aria-current={isFeedActive ? 'page' : undefined}
+            className={`nav-btn ${isHomeActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/home')}
+            aria-current={isHomeActive ? 'page' : undefined}
             style={{
               cursor: 'pointer',
-              background: isFeedActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-              color: isFeedActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-              border: isFeedActive
+              background: isHomeActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+              color: isHomeActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
+              border: isHomeActive
                 ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
                 : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-4, 16px)',
+              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
               fontSize: 'var(--text-sm, 0.875rem)',
               fontWeight: 600,
               borderRadius: 'var(--radius-md, 8px)',
               transition: 'all var(--transition-fast, 150ms ease)',
             }}
           >
-            🧭 Nearby Feed
+            🏠 Home
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isExploreActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/explore')}
+            aria-current={isExploreActive ? 'page' : undefined}
+            style={{
+              cursor: 'pointer',
+              background: isExploreActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+              color: isExploreActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
+              border: isExploreActive
+                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
+                : '1px solid transparent',
+              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
+              fontSize: 'var(--text-sm, 0.875rem)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md, 8px)',
+              transition: 'all var(--transition-fast, 150ms ease)',
+            }}
+          >
+            🧭 Explore Radar
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isRandomActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/random')}
+            aria-current={isRandomActive ? 'page' : undefined}
+            style={{
+              cursor: 'pointer',
+              background: isRandomActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+              color: isRandomActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
+              border: isRandomActive
+                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
+                : '1px solid transparent',
+              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
+              fontSize: 'var(--text-sm, 0.875rem)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md, 8px)',
+              transition: 'all var(--transition-fast, 150ms ease)',
+            }}
+          >
+            🎲 Random
           </button>
 
           <button
@@ -148,7 +191,7 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
               border: isCreateActive
                 ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
                 : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-4, 16px)',
+              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
               fontSize: 'var(--text-sm, 0.875rem)',
               fontWeight: 600,
               borderRadius: 'var(--radius-md, 8px)',
@@ -398,21 +441,57 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
           <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2, 8px)' }}>
             <button
               type="button"
-              className={`nav-btn ${isFeedActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/feed')}
+              className={`nav-btn ${isHomeActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/home')}
               style={{
                 cursor: 'pointer',
                 textAlign: 'left',
                 padding: 'var(--space-3, 12px)',
-                background: isFeedActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isFeedActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
+                background: isHomeActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+                color: isHomeActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
                 border: '1px solid var(--border-subtle, #202738)',
                 borderRadius: 'var(--radius-md, 8px)',
                 fontSize: 'var(--text-sm, 0.875rem)',
                 fontWeight: 600,
               }}
             >
-              🧭 Nearby Feed
+              🏠 Home
+            </button>
+            <button
+              type="button"
+              className={`nav-btn ${isExploreActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/explore')}
+              style={{
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 'var(--space-3, 12px)',
+                background: isExploreActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+                color: isExploreActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
+                border: '1px solid var(--border-subtle, #202738)',
+                borderRadius: 'var(--radius-md, 8px)',
+                fontSize: 'var(--text-sm, 0.875rem)',
+                fontWeight: 600,
+              }}
+            >
+              🧭 Explore Radar
+            </button>
+            <button
+              type="button"
+              className={`nav-btn ${isRandomActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/random')}
+              style={{
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 'var(--space-3, 12px)',
+                background: isRandomActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+                color: isRandomActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
+                border: '1px solid var(--border-subtle, #202738)',
+                borderRadius: 'var(--radius-md, 8px)',
+                fontSize: 'var(--text-sm, 0.875rem)',
+                fontWeight: 600,
+              }}
+            >
+              🎲 Random
             </button>
             <button
               type="button"
