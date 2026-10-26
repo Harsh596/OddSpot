@@ -103,8 +103,11 @@ async function connect(customUri) {
   }
 
   cached = await mongoose.connect(uri, {
+    autoIndex: process.env.NODE_ENV !== 'production',
+    writeConcern: { w: 'majority', wtimeoutMS: 5000 },
+    retryWrites: true,
     maxPoolSize: 10,
-    serverSelectionTimeoutMS: 8000,
+    serverSelectionTimeoutMS: 5000,
   });
   return cached;
 }

@@ -22,21 +22,29 @@ async function backfillUsernameLower() {
   }
 }
 
-async function syncAllIndexes() {
-  await connect();
+async function syncAllIndexes({ disconnectAfter = (require.main === module) } = {}) {
+  const needsConnect = mongoose.connection.readyState !== 1;
+  if (needsConnect) {
+    await connect();
+  }
   await backfillUsernameLower();
   for (const [name, Model] of Object.entries(models)) {
     await Model.createCollection().catch(() => {});
-    await Model.syncIndexes();
-    const idx = await Model.collection.indexes();
-    console.log(`${name}: ${idx.length} indexes`);
+    await Model.createIndexes();
+    const indexes = await Model.collection.indexes();
+    console.log(`${name}: ${indexes.length} indexes`);
+    for (const idx of indexes) {
+      console.log(`  - ${name}.${idx.name}`);
+    }
   }
-  await mongoose.disconnect();
-  console.log('Done.');
+  if (disconnectAfter) {
+    await mongoose.disconnect();
+  }
+  console.log('Done syncing indexes.');
 }
 
 if (require.main === module) {
-  syncAllIndexes().catch((e) => {
+  syncAllIndexes({ disconnectAfter: true }).catch((e) => {
     console.error(e);
     process.exit(1);
   });

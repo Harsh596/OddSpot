@@ -12,4 +12,5 @@ module.exports = {
   RefreshToken: require('./RefreshToken'),
   EmailToken: require('./EmailToken'),
   AuditLog: require('./AuditLog'),
+  SchemaVersion: require('./SchemaVersion'),
 };

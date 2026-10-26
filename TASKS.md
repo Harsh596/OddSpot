@@ -78,7 +78,13 @@
   - [x] Task P9-T3: Shadow-Ban Mechanics (`User.shadowBanned`, `Post.shadowBannedAuthor`, `Comment.shadowBannedAuthor` - silent 200/201 to author, excluded from feeds and public views, 0 meter drift).
   - [x] Task P9-T4: Moderation Endpoints (`backend/routes/mod.js` mounted at `/api/v1/mod` and `/api/mod` with `requireAuth`, `requireRole('moderator', 'admin')`, `GET /reports`, `POST /reports/:id/action`, `POST /users/:id/ban`, `POST /users/:id/unban`, AuditLog generation).
   - [x] Dedicated regression test suite: `backend/test/phase9.test.js` (5 comprehensive integration test suites).
-- [ ] **P10: Concurrency, Atomic Transitions & Race Eliminator**
+- [x] **P10: Database Safety (collMod Schemas, Migrations, Storage Report & Backups)**
+  - [x] Task P10-T1: Connection Hardening & `syncIndexes.js` (`autoIndex`, `writeConcern: 'majority'`, `retryWrites`, `maxPoolSize: 10`, `serverSelectionTimeoutMS: 5000`, `syncAllIndexes` logging all index names).
+  - [x] Task P10-T2: MongoDB Native `$jsonSchema` Validation (`backend/scripts/applySchemaValidation.js` with `collMod`, `validationLevel: 'moderate'`, `validationAction: 'error'` for users, posts, votes, comments, reports).
+  - [x] Task P10-T3: Versioned Migration Runner (`backend/models/SchemaVersion.js`, `backend/migrations/runner.js`, `001_initial_indexes.js`, `002_backfill_feed_location_and_place_keys.js`, `003_apply_collmod_validators.js` with `--status` and `--dry-run`).
+  - [x] Task P10-T4: Storage Budget Reporter (`backend/scripts/storageReport.js` auditing collections, total MB against 512 MB Atlas M0 limit, warning on >= 400 MB, `--fail-on-warn` option).
+  - [x] Task P10-T5: Backup Script (`backend/scripts/backup.sh`), Built-in EJSON Engine (`backend/scripts/jsonBackupRestore.js`), `.gitignore` updates, and `docs/RESTORE.md` step-by-step runbook.
+  - [x] Dedicated regression test suite: `backend/test/phase10.test.js` (4 comprehensive tests covering collMod rejection, idempotent migrations, storage report, and backup/restore drill).
 - [ ] **P11: Soft Delete & State Consistency**
 - [ ] **P12: Idempotency Key Engine & Replay Cache**
 - [ ] **P13: Counter Drift Reconciliation Utility**

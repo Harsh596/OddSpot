@@ -1359,6 +1359,61 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase P10 (Test 2): Database Safety (collMod Schemas, Migrations, Storage Report & Backups)
+
+### 1. Architectural & Implementation Summary
+- **Task P10-T1: Connection Hardening & `syncIndexes.js`**:
+  - Hardened connection parameters in `backend/db.js`: `autoIndex: process.env.NODE_ENV !== 'production'`, `writeConcern: { w: 'majority', wtimeoutMS: 5000 }`, `retryWrites: true`, `maxPoolSize: 10`, `serverSelectionTimeoutMS: 5000`.
+  - Updated `backend/scripts/syncIndexes.js`: imports all models from `backend/models/index.js`, executes `Model.createIndexes()`, and logs every created index name.
+- **Task P10-T2: MongoDB Native `$jsonSchema` Validation (`backend/scripts/applySchemaValidation.js`)**:
+  - Created `applyCollectionValidators(db)` applying native `$jsonSchema` rules via `collMod` with `validationLevel: 'moderate'` and `validationAction: 'error'` to act as a resilient defense-in-depth layer behind Mongoose without dropping collections or data.
+  - Defined rigid schemas for `users` (username, email, role), `posts` (title, location, feedLocation, tier), `votes` (userId, postId, value in `[1, -1]`), `comments` (postId, body max 5000), and `reports` (targetType, targetId, reporterId, reason).
+- **Task P10-T3: Versioned Migration Runner (`backend/migrations/runner.js`)**:
+  - Created `SchemaVersion` model (`schemaversions` collection) tracking applied schema versions.
+  - Implemented migration runner with `--status` and `--dry-run` CLI options, executing migrations in numerical order:
+    - `001_initial_indexes.js`: backfills `usernameLower` and ensures index creation across all collections.
+    - `002_backfill_feed_location_and_place_keys.js`: backfills `feedLocation`, canonical `cityKey`, and ISO `countryCode`.
+    - `003_apply_collmod_validators.js`: invokes `applyCollectionValidators()`.
+- **Task P10-T4: Storage Budget Reporter (`backend/scripts/storageReport.js`)**:
+  - Built real-time storage auditor analyzing collection metrics (document count, data size, storage size, index size) against Atlas M0 512 MB limit.
+  - Emits formatted ASCII table and triggers warnings when total consumed size exceeds threshold (default 400 MB). Supports `--fail-on-warn` flag for CI/monitoring gates.
+- **Task P10-T5: Backup Script & Runbook (`backend/scripts/backup.sh`, `backend/scripts/jsonBackupRestore.js`, `docs/RESTORE.md`)**:
+  - Created `backend/scripts/backup.sh` (chmod +x) with automatic timestamping and fallback to built-in Node EJSON engine.
+  - Implemented `jsonBackupRestore.js` supporting `--dump` and `--restore` using `BSON.EJSON` to preserve native `ObjectId`, `Date`, and GeoJSON structures with idempotent `bulkWrite` replace/upsert.
+  - Updated `.gitignore` to ignore `backups/` and `backend/backups/`.
+  - Penned `docs/RESTORE.md` step-by-step staging disaster recovery runbook.
+
+### 2. Files Touched
+- `backend/db.js`
+- `backend/scripts/syncIndexes.js`
+- `backend/scripts/applySchemaValidation.js` *(New)*
+- `backend/models/SchemaVersion.js` *(New)*
+- `backend/models/index.js`
+- `backend/migrations/001_initial_indexes.js` *(New)*
+- `backend/migrations/002_backfill_feed_location_and_place_keys.js` *(New)*
+- `backend/migrations/003_apply_collmod_validators.js` *(New)*
+- `backend/migrations/runner.js` *(New)*
+- `backend/scripts/storageReport.js` *(New)*
+- `backend/scripts/jsonBackupRestore.js` *(New)*
+- `backend/scripts/backup.sh` *(New, chmod +x)*
+- `.gitignore`
+- `docs/RESTORE.md` *(New)*
+- `backend/test/phase10.test.js` *(New)*
+- `backend/tests/phase10.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 283 / 283** tests across 92 suites (0 failures).
+- **`node backend/migrations/runner.js --status`**: Clean exit 0 with pending/applied status display.
+- **`node backend/scripts/storageReport.js`**: Clean exit 0 with table breakdown and 0.25% storage consumption reported.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

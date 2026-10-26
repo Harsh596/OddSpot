@@ -18,3 +18,7 @@ npm-debug.log*
 .DS_Store
 .vscode/
 .idea/
+
+# Database backups
+backups/
+backend/backups/
