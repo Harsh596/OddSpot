@@ -31,8 +31,11 @@ const userSchema = new Schema(
     failedLoginAttempts: { type: Number, default: 0 },
     lockUntil: { type: Date },
     passwordChangedAt: { type: Date },
-    shadowBanned: { type: Boolean, default: false },
-    trust: { type: Number, default: 0 },
+    shadowBanned: { type: Boolean, default: false, index: true },
+    trust: {
+      type: Schema.Types.Mixed,
+      default: 0,
+    },
     lastPostLocation: {
       type: { type: String, enum: ['Point'], default: 'Point' },
       coordinates: [Number],

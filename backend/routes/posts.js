@@ -10,7 +10,8 @@ const {
   reportLimiter,
 } = require('../config/rateLimits');
 const { Post, User, Comment, Report, AuditLog } = require('../models');
-const { requireAuth } = require('../middleware/auth');
+const { requireAuth, optionalAuth } = require('../middleware/auth');
+const { getReporterWeight } = require('../services/trust');
 const { idempotency } = require('../middleware/idempotency');
 const meterService = require('../services/meter');
 const cfg = require('../config/meter');
@@ -201,6 +202,7 @@ router.post(
         warnings,
         type,
         underReview,
+        shadowBannedAuthor: Boolean(req.user.shadowBanned),
       });
 
       // Update user stats, lastPostLocation and lastPostAt
@@ -220,7 +222,7 @@ router.post(
 );
 
 // GET /api/posts/nearby - Proximity feed with radius protection
-router.get('/nearby', validateQuery(postsValidators.nearbyQuerySchema), async (req, res, next) => {
+router.get('/nearby', optionalAuth, validateQuery(postsValidators.nearbyQuerySchema), async (req, res, next) => {
   try {
     const { lat, lng, maxDistance, limit, page } = req.query;
 
@@ -241,6 +243,20 @@ router.get('/nearby', validateQuery(postsValidators.nearbyQuerySchema), async (r
 
     const queryCoords = [lngNum, latNum];
 
+    // Shadow-ban filter: exclude shadowBannedAuthor unless viewer is author or mod/admin
+    const isStaff = req.user && (req.user.role === 'moderator' || req.user.role === 'admin');
+    const geoQuery = { removed: { $ne: true } };
+    if (!isStaff) {
+      if (req.user) {
+        geoQuery.$or = [
+          { shadowBannedAuthor: { $ne: true } },
+          { authorId: new mongoose.Types.ObjectId(req.user.id) },
+        ];
+      } else {
+        geoQuery.shadowBannedAuthor = { $ne: true };
+      }
+    }
+
     // Task P6-T3: Pure DB-side $geoNear on feedLocation without $limit: 100 truncation
     const pipeline = [
       {
@@ -250,7 +266,7 @@ router.get('/nearby', validateQuery(postsValidators.nearbyQuerySchema), async (r
           maxDistance: snappedDistance,
           spherical: true,
           key: 'feedLocation',
-          query: { removed: { $ne: true } },
+          query: geoQuery,
         },
       },
       {
@@ -294,7 +310,7 @@ router.get('/nearby', validateQuery(postsValidators.nearbyQuerySchema), async (r
 });
 
 // GET /api/posts/:id - View single post
-router.get('/:id', validateParams(postsValidators.postIdParamSchema), async (req, res, next) => {
+router.get('/:id', optionalAuth, validateParams(postsValidators.postIdParamSchema), async (req, res, next) => {
   try {
     const { id } = req.params;
 
@@ -303,6 +319,15 @@ router.get('/:id', validateParams(postsValidators.postIdParamSchema), async (req
 
     if (!post) {
       return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+    }
+
+    // Exclude shadow-banned posts unless viewer is the author or moderator/admin
+    if (post.shadowBannedAuthor) {
+      const isAuthor = req.user && String(req.user.id) === String(post.authorId?._id || post.authorId);
+      const isStaff = req.user && (req.user.role === 'moderator' || req.user.role === 'admin');
+      if (!isAuthor && !isStaff) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
     }
 
     res.json(sanitizePost(post));
@@ -445,7 +470,9 @@ router.post(
         );
       }
 
-      const result = await meterService.castVote(req.user.id, post._id, value);
+      const result = await meterService.castVote(req.user.id, post._id, value, null, {
+        shadowBanned: Boolean(req.user.shadowBanned),
+      });
       if (!result) {
         const currentPost = await Post.findById(id).select('meter tier');
         return res.json({
@@ -539,6 +566,7 @@ router.post(
           }
         }
 
+        const isShadowBanned = Boolean(req.user.shadowBanned);
         const createdComments = await Comment.create(
           [
             {
@@ -546,6 +574,7 @@ router.post(
               authorId: req.user.id,
               parentId: parentId || null,
               body,
+              shadowBannedAuthor: isShadowBanned,
             },
           ],
           { session }
@@ -559,26 +588,32 @@ router.post(
           throw err;
         }
 
-        const isAuthor = post.authorId && post.authorId.toString() === req.user.id.toString();
-        let freezeScore = false;
-        if (!isAuthor) {
-          const userCommentsCount = await Comment.countDocuments({
-            postId: post._id,
-            authorId: req.user.id,
-            removed: { $ne: true },
-          }).session(session);
-          // Unique commenter cap: at most 3 non-author comments count towards meter score (9 pts max)
-          if (userCommentsCount > 3) {
-            freezeScore = true;
+        let delta = null;
+        if (!isShadowBanned) {
+          const isAuthor = post.authorId && post.authorId.toString() === req.user.id.toString();
+          let freezeScore = false;
+          if (!isAuthor) {
+            const userCommentsCount = await Comment.countDocuments({
+              postId: post._id,
+              authorId: req.user.id,
+              removed: { $ne: true },
+            }).session(session);
+            // Unique commenter cap: at most 3 non-author comments count towards meter score (9 pts max)
+            if (userCommentsCount > 3) {
+              freezeScore = true;
+            }
           }
-        }
 
-        const delta = await meterService.applyDelta(
-          post._id,
-          { comments: 1 },
-          session,
-          { userId: req.user.id, freezeScore }
-        );
+          delta = await meterService.applyDelta(
+            post._id,
+            { comments: 1 },
+            session,
+            { userId: req.user.id, freezeScore }
+          );
+        } else {
+          // Shadow-banned user: do NOT call applyDelta!
+          delta = { score: post.meter?.score ?? 0, meter: post.meter };
+        }
         return { commentDoc: createdDoc, deltaResult: delta };
       });
 
@@ -604,6 +639,7 @@ router.post(
 // GET /api/posts/:id/comments - List comments for a post (with cursor or page pagination)
 router.get(
   '/:id/comments',
+  optionalAuth,
   validateParams(postsValidators.postIdParamSchema),
   validateQuery(postsValidators.commentsQuerySchema),
   async (req, res, next) => {
@@ -617,7 +653,20 @@ router.get(
       }
 
       const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 50);
+
+      // Filter: exclude shadowBannedAuthor unless viewer is comment author or staff
+      const isStaff = req.user && (req.user.role === 'moderator' || req.user.role === 'admin');
       let filter = { postId: id, removed: { $ne: true } };
+      if (!isStaff) {
+        if (req.user) {
+          filter.$or = [
+            { shadowBannedAuthor: { $ne: true } },
+            { authorId: req.user.id },
+          ];
+        } else {
+          filter.shadowBannedAuthor = { $ne: true };
+        }
+      }
 
       if (cursor) {
         if (/^[0-9a-fA-F]{24}$/.test(cursor) && mongoose.Types.ObjectId.isValid(cursor)) {
@@ -782,6 +831,11 @@ router.post(
       }
 
       const cleanDetails = details || notes || undefined;
+
+      // Task P9-T2: Compute report weight based on reporter account age and trust score
+      const reporterUser = await User.findById(req.user.id);
+      const weight = getReporterWeight(reporterUser || req.user);
+
       let report;
       try {
         report = await Report.create({
@@ -790,6 +844,7 @@ router.post(
           reporterId: req.user.id,
           reason,
           details: cleanDetails,
+          weight,
         });
       } catch (createErr) {
         if (createErr.code === 11000) {
@@ -800,34 +855,49 @@ router.post(
         throw createErr;
       }
 
-      // Automatic fuzzing: when post reaches REPORT_FUZZ_THRESHOLD reports for 'unsafe_or_private'
-      let autoFuzzed = false;
-      if (reason === 'unsafe_or_private') {
-        const fuzzThreshold = cfg.reportFuzzThreshold || 3;
-        const unsafeCount = await Report.countDocuments({
-          targetType: 'post',
-          targetId: post._id,
-          reason: 'unsafe_or_private',
-        });
+      // Query all open/pending reports on target post
+      const openReports = await Report.find({
+        targetType: 'post',
+        targetId: post._id,
+        status: { $in: ['open', 'pending'] },
+      });
 
-        if (unsafeCount >= fuzzThreshold && !post.hideExact) {
-          const fuzzed = fuzzLocation(post.location.coordinates, post._id.toString());
-          await Post.updateOne(
-            { _id: post._id },
-            {
-              $set: {
-                hideExact: true,
-                'feedLocation.coordinates': fuzzed,
-              },
-            }
-          );
-          autoFuzzed = true;
-        }
+      const unsafeWeight = openReports
+        .filter((r) => r.reason === 'unsafe_or_private')
+        .reduce((sum, r) => sum + (r.weight !== undefined ? r.weight : 1.0), 0);
+
+      const totalWeight = openReports.reduce(
+        (sum, r) => sum + (r.weight !== undefined ? r.weight : 1.0),
+        0
+      );
+      const distinctReporters = new Set(openReports.map((r) => r.reporterId.toString())).size;
+
+      let autoFuzzed = false;
+      const fuzzThreshold = cfg.reportFuzzThreshold || 3.0;
+      const postUpdates = {};
+
+      // If weighted sum of unsafe_or_private reports >= fuzzThreshold (3.0) or standard 3-report threshold met
+      const unsafeCount = openReports.filter((r) => r.reason === 'unsafe_or_private').length;
+      if ((unsafeWeight >= fuzzThreshold || (unsafeCount >= 3 && unsafeWeight >= 1.5)) && !post.hideExact) {
+        const fuzzed = fuzzLocation(post.location.coordinates, post._id.toString());
+        postUpdates.hideExact = true;
+        postUpdates['feedLocation.coordinates'] = fuzzed;
+        autoFuzzed = true;
+      }
+
+      // If distinct reporters >= 5 or weighted sum >= 5.0, auto-escalate to underReview: true
+      if ((distinctReporters >= 5 || totalWeight >= 5.0) && !post.underReview) {
+        postUpdates.underReview = true;
+      }
+
+      if (Object.keys(postUpdates).length > 0) {
+        await Post.updateOne({ _id: post._id }, { $set: postUpdates });
       }
 
       res.status(201).json({
         message: 'Report submitted successfully',
         reportId: report._id,
+        weight,
         autoFuzzed,
       });
     } catch (err) {

@@ -54,6 +54,7 @@ module.exports = {
   auth: authValidators,
   posts: postsValidators,
   feed: require('./feed.validators'),
+  mod: require('./mod.validators'),
   common: commonValidators,
   ErrorCodes,
   formatErrorResponse,

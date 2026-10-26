@@ -11,7 +11,15 @@ const reportSchema = new Schema(
       required: true,
     },
     details: { type: String, maxlength: 500 },
-    status: { type: String, enum: ['open', 'actioned', 'dismissed'], default: 'open' },
+    status: {
+      type: String,
+      enum: ['open', 'pending', 'resolved', 'actioned', 'dismissed'],
+      default: 'open',
+    },
+    weight: { type: Number, default: 1.0 },
+    resolvedBy: { type: Schema.Types.ObjectId, ref: 'User', default: null },
+    resolvedAt: { type: Date, default: null },
+    resolutionNote: { type: String, maxlength: 500, default: null },
   },
   { timestamps: true }
 );

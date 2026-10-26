@@ -11,6 +11,7 @@ const postsRoutes = require('./routes/posts');
 const usersRoutes = require('./routes/users');
 const commentsRoutes = require('./routes/comments');
 const feedRoutes = require('./routes/feed');
+const modRoutes = require('./routes/mod');
 const errorHandler = require('./middleware/errorHandler');
 const { ErrorCodes, formatErrorResponse } = require('./validators');
 
@@ -192,6 +193,7 @@ function createApp() {
   apiRouter.use('/comments', commentsRoutes);
   apiRouter.use('/feed', feedRoutes);
   apiRouter.use('/posts/feed', feedRoutes);
+  apiRouter.use('/mod', modRoutes);
 
   // 404 handler for unmatched /api routes
   apiRouter.use((req, res) => {

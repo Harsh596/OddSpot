@@ -8,6 +8,7 @@ const commentSchema = new Schema(
     body: { type: String, required: true, maxlength: 5000 }, // markdown
     edited: { type: Boolean, default: false },
     editedAt: { type: Date },
+    shadowBannedAuthor: { type: Boolean, default: false, index: true },
     removed: { type: Boolean, default: false },
   },
   { timestamps: true }

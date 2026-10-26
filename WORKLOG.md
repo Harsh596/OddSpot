@@ -1304,6 +1304,62 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase P9 (Test 2): Moderation Queue, Weighted Reports, Per-User Trust Score & Shadow-Banning
+
+### 1. Architectural & Implementation Summary
+- **Task P9-T1: Per-User Trust Score Engine (`backend/services/trust.js`)**:
+  - Implemented `recomputeUserTrust(userId, session = null)` calculating trust score based on account age, verified visits, upheld reports, dismissed reports, and removed content:
+    `score = clamp(1.0 + min(0.3, accountAgeDays * 0.01) + min(0.4, verifiedVisitsCount * 0.05) + min(0.3, upheldReportsByUserCount * 0.05) - (dismissedReportsByUserCount * 0.10) - (removedPostsOrCommentsOfUserCount * 0.25), 0.1, 2.0)`.
+  - Persists `{ score: clampedScore, updatedAt: new Date() }` to `User.trust` and calls `invalidateUserAuthCache(userId)`.
+  - Implemented `getReporterWeight(user)` returning weighted multiplier (younger than 3 days starts at `0.5 * trust.score`; mature account starts at `1.0 * trust.score`, clamped to `[0.2, 2.0]`).
+  - Added `weight`, `resolvedBy`, `resolvedAt`, and `resolutionNote` to `Report` schema.
+- **Task P9-T2: Weighted Reports & Multi-Account Escalation (`backend/routes/posts.js`)**:
+  - Attached reporter weight via `getReporterWeight(req.user)` when filing a report on `POST /api/v1/posts/:id/report`.
+  - Aggregates open/pending reports: if weighted sum of `unsafe_or_private` reports >= 3.0 (or threshold reached), atomically sets `post.hideExact = true` and recalculates `post.feedLocation` via `computeFuzzedCoordinates()`.
+  - If distinct reporters across any reason >= 5 or total weighted sum >= 5.0, atomically sets `post.underReview = true` to freeze tier ratcheting and prioritize in the moderation queue.
+- **Task P9-T3: Shadow-Ban Mechanics (`User.shadowBanned`, `Post.shadowBannedAuthor`, `Comment.shadowBannedAuthor`)**:
+  - Shadow-banned users receive standard 200/201 responses so the client appears completely normal:
+    - `POST /posts`: sets `post.shadowBannedAuthor = true`. Feed queries (`/nearby`, `/feed/city`, `/feed/country`, `/feed/random`, `/feed/home`) and `GET /posts/:id` filter out shadow-banned posts unless the caller is the post's author or a moderator/admin.
+    - `POST /posts/:id/comments`: sets `comment.shadowBannedAuthor = true`, skips `applyDelta` (0 score/comment drift), and `GET /posts/:id/comments` filters shadow-banned comments unless requested by the comment's author.
+    - `POST /posts/:id/vote`: records the `Vote` document so the user's client reflects their vote state, but bypasses `applyDelta` (adds 0 to likes/dislikes/score).
+- **Task P9-T4: Moderation Endpoints (`backend/routes/mod.js`)**:
+  - Mounted `/api/v1/mod` and `/api/mod` protected by `requireAuth` and `requireRole('moderator', 'admin')` with `Cache-Control: no-store`.
+  - `GET /reports`: filtered queue with cursor pagination (`status`, `reason`, `targetType`), sorted by `underReview` first, then weighted sum, then creation date.
+  - `POST /reports/:id/action`: validates `action` (`remove_content`, `dismiss`, `ban_reporter`) and mandatory `reason` (3..500 chars). Transactionally updates reports, adjusts trust scores for target author and reporter, performs soft-deletes or reporter bans, and creates an immutable `AuditLog`.
+  - `POST /users/:id/ban` and `POST /users/:id/unban`: validates reason, forbids moderators from banning moderators or admins (403), supports `shadow: true` (flips `User.shadowBanned` and marks all user posts `shadowBannedAuthor: true`), revokes tokens/sessions for standard bans, invalidates auth caches, and logs audit events.
+
+### 2. Files Touched
+- `backend/models/Report.js`
+- `backend/models/User.js`
+- `backend/models/Post.js`
+- `backend/models/Comment.js`
+- `backend/middleware/auth.js`
+- `backend/services/trust.js` *(New)*
+- `backend/validators/mod.validators.js` *(New)*
+- `backend/validators/index.js`
+- `backend/routes/mod.js` *(New)*
+- `backend/app.js`
+- `backend/services/meter.js`
+- `backend/routes/posts.js`
+- `backend/routes/feed.js`
+- `backend/openapi/spec.js`
+- `backend/docs/openapi.json`
+- `docs/openapi.json`
+- `backend/test/phase9.test.js` *(New)*
+- `backend/tests/phase9.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 279 / 279** tests across 91 suites (0 failures).
+- **`npm run build` (frontend)**: Clean production build in 109ms.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

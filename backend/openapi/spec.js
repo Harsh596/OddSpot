@@ -730,6 +730,120 @@ function buildOpenApiSpec() {
           },
         },
       },
+      '/mod/reports': {
+        get: {
+          summary: 'Moderation queue: list and filter user reports',
+          tags: ['Moderation'],
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { in: 'query', name: 'status', schema: { type: 'string', enum: ['pending', 'resolved', 'dismissed'] } },
+            { in: 'query', name: 'reason', schema: { type: 'string' } },
+            { in: 'query', name: 'targetType', schema: { type: 'string', enum: ['post', 'comment', 'user'] } },
+            { in: 'query', name: 'limit', schema: { type: 'integer', default: 20, maximum: 50 } },
+          ],
+          responses: {
+            200: { description: 'List of reports with target and reporter metadata' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden: requires moderator or admin role' },
+          },
+        },
+      },
+      '/mod/reports/{id}/action': {
+        post: {
+          summary: 'Apply moderation action on a report (remove_content, dismiss, ban_reporter)',
+          tags: ['Moderation'],
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Report ID' },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['action', 'reason'],
+                  properties: {
+                    action: { type: 'string', enum: ['remove_content', 'dismiss', 'ban_reporter'] },
+                    reason: { type: 'string', minLength: 3, maxLength: 500 },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'Report actioned successfully' },
+            400: { description: 'Validation failed' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'Report not found' },
+          },
+        },
+      },
+      '/mod/users/{id}/ban': {
+        post: {
+          summary: 'Ban or shadow-ban a user',
+          tags: ['Moderation'],
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Target user ID' },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['reason'],
+                  properties: {
+                    reason: { type: 'string', minLength: 3, maxLength: 500 },
+                    shadow: { type: 'boolean', default: false },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'User banned or shadow-banned' },
+            400: { description: 'Validation failed' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'User not found' },
+          },
+        },
+      },
+      '/mod/users/{id}/unban': {
+        post: {
+          summary: 'Unban or lift shadow-ban on a user',
+          tags: ['Moderation'],
+          security: [{ BearerAuth: [] }],
+          parameters: [
+            { in: 'path', name: 'id', required: true, schema: { type: 'string' }, description: 'Target user ID' },
+          ],
+          requestBody: {
+            required: true,
+            content: {
+              'application/json': {
+                schema: {
+                  type: 'object',
+                  required: ['reason'],
+                  properties: {
+                    reason: { type: 'string', minLength: 3, maxLength: 500 },
+                    shadow: { type: 'boolean', default: false },
+                  },
+                },
+              },
+            },
+          },
+          responses: {
+            200: { description: 'User unbanned' },
+            400: { description: 'Validation failed' },
+            401: { description: 'Unauthorized' },
+            403: { description: 'Forbidden' },
+            404: { description: 'User not found' },
+          },
+        },
+      },
     },
     components: {
       securitySchemes: {

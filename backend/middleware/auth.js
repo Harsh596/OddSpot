@@ -44,7 +44,9 @@ async function requireAuth(req, res, next) {
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       user = cached.user;
     } else {
-      user = await User.findById(decoded.id).select('banned role username passwordChangedAt tokenVersion').lean();
+      user = await User.findById(decoded.id)
+        .select('banned role username passwordChangedAt tokenVersion shadowBanned trust createdAt')
+        .lean();
       if (user) {
         userCache.set(decoded.id, { user, timestamp: now });
       }
@@ -89,11 +91,62 @@ async function requireAuth(req, res, next) {
       id: user._id.toString(),
       username: user.username,
       role: user.role,
+      shadowBanned: Boolean(user.shadowBanned),
+      trust: user.trust,
+      createdAt: user.createdAt,
     };
     next();
   } catch (err) {
     next(err);
   }
+}
+
+async function optionalAuth(req, res, next) {
+  const authHeader = req.headers.authorization;
+  if (!authHeader || typeof authHeader !== 'string' || !authHeader.startsWith('Bearer ')) {
+    return next();
+  }
+
+  const parts = authHeader.split(' ');
+  if (parts.length !== 2 || !parts[1] || !parts[1].trim()) {
+    return next();
+  }
+
+  const token = parts[1].trim();
+  try {
+    const decoded = verifyAccessToken(token);
+    if (!decoded || typeof decoded !== 'object' || !decoded.id) {
+      return next();
+    }
+    const now = Date.now();
+    const cached = userCache.get(decoded.id);
+    let user;
+
+    if (cached && now - cached.timestamp < CACHE_TTL_MS) {
+      user = cached.user;
+    } else {
+      user = await User.findById(decoded.id)
+        .select('banned role username passwordChangedAt tokenVersion shadowBanned trust createdAt')
+        .lean();
+      if (user) {
+        userCache.set(decoded.id, { user, timestamp: now });
+      }
+    }
+
+    if (user && !user.banned) {
+      req.user = {
+        id: user._id.toString(),
+        username: user.username,
+        role: user.role,
+        shadowBanned: Boolean(user.shadowBanned),
+        trust: user.trust,
+        createdAt: user.createdAt,
+      };
+    }
+  } catch (err) {
+    // Non-blocking: continue as unauthenticated
+  }
+  next();
 }
 
 function requireRole(...allowedRoles) {
@@ -125,6 +178,7 @@ function invalidateUserAuthCache(userId = null) {
 
 module.exports = {
   requireAuth,
+  optionalAuth,
   requireRole,
   invalidateUserAuthCache,
   clearUserCache: invalidateUserAuthCache,

@@ -14,8 +14,29 @@ const {
   ErrorCodes,
   formatErrorResponse,
 } = require('../validators');
+const { optionalAuth } = require('../middleware/auth');
 
 const router = Router();
+router.use(optionalAuth);
+
+function applyShadowBanFilter(filter, user) {
+  const isStaff = user && (user.role === 'moderator' || user.role === 'admin');
+  if (isStaff) return filter;
+  if (user) {
+    const shadowOr = [
+      { shadowBannedAuthor: { $ne: true } },
+      { authorId: new mongoose.Types.ObjectId(user.id) },
+    ];
+    if (filter.$and) {
+      filter.$and.push({ $or: shadowOr });
+    } else {
+      filter.$or = shadowOr;
+    }
+  } else {
+    filter.shadowBannedAuthor = { $ne: true };
+  }
+  return filter;
+}
 
 // Standard lean feed projection (omits heavy editHistory, updates, etc.)
 const FEED_PROJECTION = {
@@ -122,8 +143,9 @@ function sendCachedFeedResponse(req, res, responseBody) {
 }
 
 // Build query filter with cursor pagination for sort=new|hot|top
-async function buildFeedFilter({ baseFilter, sort, cursorStr, pageNum, limitNum }) {
+async function buildFeedFilter({ baseFilter, sort, cursorStr, pageNum, limitNum, user = null }) {
   const filter = { ...baseFilter };
+  applyShadowBanFilter(filter, user);
   let sortObj = { createdAt: -1, _id: -1 };
 
   if (sort === 'top') {
@@ -195,8 +217,9 @@ router.get('/home', async (req, res, next) => {
     if (sort === 'top') sortObj = { 'meter.score': -1, _id: -1 };
     if (sort === 'new') sortObj = { createdAt: -1, _id: -1 };
 
-    // Fetch country-tier spots for home digest
-    let docs = await Post.find({ removed: { $ne: true }, tier: 'country' }, FEED_PROJECTION)
+    // Fetch country-tier spots for home digest, applying shadow-ban privacy
+    const homeFilter = applyShadowBanFilter({ removed: { $ne: true }, tier: 'country' }, req.user);
+    let docs = await Post.find(homeFilter, FEED_PROJECTION)
       .sort(sortObj)
       .limit(limitNum)
       .populate('authorId', 'username avatarUrl badges')
@@ -204,7 +227,8 @@ router.get('/home', async (req, res, next) => {
 
     // Fallback to top overall spots if few country tier spots exist
     if (docs.length < 5) {
-      docs = await Post.find({ removed: { $ne: true } }, FEED_PROJECTION)
+      const fallbackFilter = applyShadowBanFilter({ removed: { $ne: true } }, req.user);
+      docs = await Post.find(fallbackFilter, FEED_PROJECTION)
         .sort(sortObj)
         .limit(limitNum)
         .populate('authorId', 'username avatarUrl badges')
@@ -271,6 +295,7 @@ router.get(
         cursorStr: cursor,
         pageNum,
         limitNum,
+        user: req.user,
       });
 
       let query = Post.find(filter, FEED_PROJECTION)
@@ -355,6 +380,7 @@ router.get(
         cursorStr: cursor,
         pageNum,
         limitNum,
+        user: req.user,
       });
 
       let query = Post.find(filter, FEED_PROJECTION)
@@ -418,6 +444,19 @@ router.get(
         const rawCountry = countryCode || country;
         const resolved = resolveCountry(rawCountry);
         match['place.countryCode'] = resolved ? resolved.code : String(rawCountry).trim().toUpperCase();
+      }
+
+      // Shadow-ban filter: exclude shadowBannedAuthor unless viewer is author or staff
+      const isStaff = req.user && (req.user.role === 'moderator' || req.user.role === 'admin');
+      if (!isStaff) {
+        if (req.user) {
+          match.$or = [
+            { shadowBannedAuthor: { $ne: true } },
+            { authorId: new mongoose.Types.ObjectId(req.user.id) },
+          ];
+        } else {
+          match.shadowBannedAuthor = { $ne: true };
+        }
       }
 
       const pipeline = [

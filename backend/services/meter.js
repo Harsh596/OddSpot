@@ -224,6 +224,16 @@ async function castVote(userId, postId, value, externalSession = null, options =
         throw err;
       }
 
+      if (opts.shadowBanned) {
+        const currentPost = await Post.findById(postId).select('meter tier').session(session);
+        return {
+          score: currentPost ? currentPost.meter.score : 0,
+          meter: currentPost ? currentPost.meter : {},
+          tier: currentPost ? currentPost.tier : 'city',
+          tieredUp: false,
+        };
+      }
+
       const delta = {};
       delta[value === 1 ? 'likes' : 'dislikes'] = 1;
       delta[value === 1 ? 'dislikes' : 'likes'] = -1;
@@ -241,6 +251,16 @@ async function castVote(userId, postId, value, externalSession = null, options =
       const err = new Error('SIMULATED_TRANSACTION_FAILURE_BEFORE_APPLY_DELTA');
       err.code = 'SIMULATED_FAILURE';
       throw err;
+    }
+
+    if (opts.shadowBanned) {
+      const currentPost = await Post.findById(postId).select('meter tier').session(session);
+      return {
+        score: currentPost ? currentPost.meter.score : 0,
+        meter: currentPost ? currentPost.meter : {},
+        tier: currentPost ? currentPost.tier : 'city',
+        tieredUp: false,
+      };
     }
 
     const delta = {};

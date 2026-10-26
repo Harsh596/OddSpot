@@ -72,7 +72,12 @@
   - [x] Task P8-T4: Built `backend/scripts/seedLoadData.js` inserting synthetic posts into test DB and verified `explain('executionStats')` achieves 100% IXSCAN / GEO_NEAR_2DSPHERE coverage with 0 COLLSCAN.
   - [x] Task P8-T5: Built `backend/scripts/loadTest.js` using `autocannon` (50 connections, 10s duration) asserting p95 < 300ms (achieved 47ms at 1,914 req/s) and 0 errors.
   - [x] Dedicated regression test suite: `backend/test/phase8.test.js` (10 tests covering feeds, sorting, cursor pagination, 304 caching, and IXSCAN index verification).
-- [ ] **P9: Password Lifecycle, Email Tokens & Tombstoning**
+- [x] **P9: Moderation Queue, Weighted Reports, Per-User Trust Score & Shadow-Banning**
+  - [x] Task P9-T1: Per-User Trust Score Engine (`backend/services/trust.js`, `recomputeUserTrust`, `getReporterWeight`, schema updates to `Report` and `User`).
+  - [x] Task P9-T2: Weighted Reports & Multi-Account Escalation on `POST /api/v1/posts/:id/report` (weight storage, auto-fuzz threshold >= 3.0, underReview escalation >= 5 distinct reporters or weight >= 5.0).
+  - [x] Task P9-T3: Shadow-Ban Mechanics (`User.shadowBanned`, `Post.shadowBannedAuthor`, `Comment.shadowBannedAuthor` - silent 200/201 to author, excluded from feeds and public views, 0 meter drift).
+  - [x] Task P9-T4: Moderation Endpoints (`backend/routes/mod.js` mounted at `/api/v1/mod` and `/api/mod` with `requireAuth`, `requireRole('moderator', 'admin')`, `GET /reports`, `POST /reports/:id/action`, `POST /users/:id/ban`, `POST /users/:id/unban`, AuditLog generation).
+  - [x] Dedicated regression test suite: `backend/test/phase9.test.js` (5 comprehensive integration test suites).
 - [ ] **P10: Concurrency, Atomic Transitions & Race Eliminator**
 - [ ] **P11: Soft Delete & State Consistency**
 - [ ] **P12: Idempotency Key Engine & Replay Cache**
