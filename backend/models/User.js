@@ -8,12 +8,25 @@ const placeSchema = new Schema(
 const userSchema = new Schema(
   {
     username: { type: String, required: true, unique: true, trim: true, minlength: 3, maxlength: 24 },
+    usernameLower: { type: String, required: true, unique: true, lowercase: true, trim: true },
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     passwordHash: { type: String, required: true, select: false },
     avatarUrl: String,
     bio: { type: String, maxlength: 300 },
     homePlace: placeSchema,
     role: { type: String, enum: ['member', 'moderator', 'admin'], default: 'member' },
+
+    // Verification and Password Reset
+    emailVerified: { type: Boolean, default: false },
+    emailVerificationTokenHash: { type: String, select: false },
+    emailVerificationExpires: { type: Date, select: false },
+    passwordResetTokenHash: { type: String, select: false },
+    passwordResetExpires: { type: Date, select: false },
+
+    // Account-level lockout and session invalidation
+    failedLoginAttempts: { type: Number, default: 0 },
+    lockUntil: { type: Date },
+    passwordChangedAt: { type: Date },
 
     // Customization blobs. Validate/sanitize in the API layer; cap size here.
     theme: { type: Schema.Types.Mixed, default: {} },       // colors, fonts, neon, preset name
@@ -33,5 +46,12 @@ const userSchema = new Schema(
   },
   { timestamps: true }
 );
+
+// Keep lowercase normalized key in sync
+userSchema.pre('validate', function () {
+  if (this.username) {
+    this.usernameLower = (this.username || '').toLowerCase().trim();
+  }
+});
 
 module.exports = model('User', userSchema);

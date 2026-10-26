@@ -177,10 +177,14 @@ gap "JWT carries no role (role changes must apply at once)" 0 "$(echo "$JP" | gr
 if [ "${AUTH_HEAVY:-0}" = "1" ]; then
   section "IDENTITY AND AUTH RACES (AUTH_HEAVY)"
   UP=$(echo "$U1" | tr 'a-z' 'A-Z')
-  check "username uniqueness is case-insensitive" 409 "$(code -X POST "$BASE/api/auth/signup" -H "$J" -d "{\"username\":\"$UP\",\"email\":\"fresh$RANDOM@example.com\",\"password\":\"supersecretpassword\"}")"
-  check "email uniqueness is case-insensitive" "400 409" "$(code -X POST "$BASE/api/auth/signup" -H "$J" -d "{\"username\":\"test_chk_x$RANDOM\",\"email\":\"$(echo "$U1" | tr 'a-z' 'A-Z')@EXAMPLE.COM\",\"password\":\"supersecretpassword\"}")"
-  check "login with email works" 200 "$(code -X POST "$BASE/api/auth/login" -H "$J" -d "{\"identifier\":\"$U1@example.com\",\"password\":\"supersecretpassword\"}")"
-  check "homoglyph (Cyrillic) username refused" 400 "$(code -X POST "$BASE/api/auth/signup" -H "$J" -d "{\"username\":\"t\\u0435st_chk_h$RANDOM\",\"email\":\"h$RANDOM@example.com\",\"password\":\"supersecretpassword\"}")"
+  D_DUP="{\"username\":\"$UP\",\"email\":\"fresh$RANDOM@example.com\",\"password\":\"supersecretpassword\"}"
+  check "username uniqueness is case-insensitive" 409 "$(code -X POST "$BASE/api/auth/signup" -H "$J" -d "$D_DUP")"
+  D_EM="{\"username\":\"test_chk_x$RANDOM\",\"email\":\"$(echo "$U1" | tr 'a-z' 'A-Z')@EXAMPLE.COM\",\"password\":\"supersecretpassword\"}"
+  check "email uniqueness is case-insensitive" "400 409" "$(code -X POST "$BASE/api/auth/signup" -H "$J" -d "$D_EM")"
+  D_LOG="{\"identifier\":\"$U1@example.com\",\"password\":\"supersecretpassword\"}"
+  check "login with email works" 200 "$(code -X POST "$BASE/api/auth/login" -H "$J" -d "$D_LOG")"
+  D_CYR="{\"username\":\"t\\u0435st_chk_h$RANDOM\",\"email\":\"h$RANDOM@example.com\",\"password\":\"supersecretpassword\"}"
+  check "homoglyph (Cyrillic) username refused" 400 "$(code -X POST "$BASE/api/auth/signup" -H "$J" -d "$D_CYR")"
   U3="test_chk_$RANDOM"; PW72=$(printf 'A%.0s' $(seq 72))
   RS=$(code -X POST "$BASE/api/auth/signup" -H "$J" -d "{\"username\":\"$U3\",\"email\":\"$U3@example.com\",\"password\":\"${PW72}XYZ\"}")
   if [ "$RS" = "400" ]; then echo "PASS  passwords over 72 bytes are refused (bcrypt truncates them)"; PASS=$((PASS+1))

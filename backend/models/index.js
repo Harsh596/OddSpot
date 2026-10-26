@@ -9,4 +9,5 @@ module.exports = {
   Report: require('./Report'),
   Notification: require('./Notification'),
   IdempotencyKey: require('./IdempotencyKey'),
+  RefreshToken: require('./RefreshToken'),
 };

@@ -355,5 +355,178 @@ Split `smokeTest.js` and expanded test coverage into domain-focused suites backe
 - **`npm run db:reconcile`**: Verified dry-run execution.
 - **`npm run db:clean -- --apply`**: Purged all transient test artifacts from local runs.
 
+---
+
+## 10. Wave 2: Accounts and Sessions
+
+### 1. User Model & Case-Insensitive Uniqueness
+- **Model** ([backend/models/User.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/models/User.js)):
+  - Added indexed lowercase shadow field `usernameLower: { type: String, required: true, unique: true, lowercase: true, trim: true, index: true }`.
+  - Added `pre('validate')` hook safely synchronizing `this.usernameLower = (this.username || '').toLowerCase().trim()`.
+  - Blocked reserved usernames case-insensitively: `['admin', 'root', 'support', 'oddspot', 'moderator', 'mod', 'system', 'null', 'undefined']`.
+  - Enforced ASCII letters, digits, and underscores only (`/^[a-zA-Z0-9_]+$/`) on `cleanUsername`.
+  - Normalized email (lowercase, trimmed) with case-insensitive uniqueness.
+  - Added fields for email verification (`emailVerified`, `emailVerificationTokenHash`, `emailVerificationExpires`), password reset (`passwordResetTokenHash`, `passwordResetExpires`), per-account lockout (`failedLoginAttempts`, `lockUntil`), and session invalidation (`passwordChangedAt`).
+
+### 2. Password Strength & Common Password Blocklist
+- **Blocklist** ([backend/config/passwordBlocklist.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/config/passwordBlocklist.js)):
+  - Embedded set of top breached/common passwords checked case-insensitively with $O(1)$ memory lookup (`isCommonPassword(password)`). Zero new external dependencies.
+  - Password byte length validated between 8 and 72 bytes via `Buffer.byteLength(password, 'utf8')`, preventing silent bcrypt truncation beyond 72 bytes.
+
+### 3. Hashed Rotating Refresh Tokens & Reuse Detection
+- **Model** ([backend/models/RefreshToken.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/models/RefreshToken.js)):
+  - Stores SHA-256 hashed refresh tokens (`tokenHash`), lineage `familyId`, `userId`, `revoked` flag, and TTL expiration index on `expiresAt` (`expireAfterSeconds: 0`).
+  - Registered in [backend/models/index.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/models/index.js).
+- **Service** ([backend/services/token.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/services/token.js)):
+  - `issueRefreshToken(userId, familyId = null)`: issues 40-byte cryptographically secure random token, stores SHA-256 hash, and sets 7-day expiry.
+  - `POST /api/auth/refresh`: verifies and rotates token. If a previously revoked token is presented, detects reuse attack and revokes all tokens under that `familyId` (`code: 'TOKEN_REUSE_DETECTED'`).
+- **Session Termination**:
+  - `POST /api/auth/logout`: Revokes specific refresh token session.
+  - `POST /api/auth/logout-all`: Invalidate all refresh tokens for user and sets `passwordChangedAt` to revoke older access tokens.
+
+### 4. JWT Access Tokens & Dynamic DB Role Check
+- **Access Token Lifetime**: 15 minutes (`expiresIn: '15m'`).
+- **Token Claims**: Contains strictly `{ id, username }`. The `role` claim is excluded from the token payload to eliminate stale permission leaks and satisfy repo inspection tests.
+- **Middleware** ([backend/middleware/auth.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/middleware/auth.js)):
+  - Verifies token via `verifyAccessToken`.
+  - Checks user existence and ban status against database with an in-memory cache of at most 30 seconds (`CACHE_TTL_MS = 30000`).
+  - Fetches `role` directly from database document (`req.user.role = user.role`).
+  - Checks `user.passwordChangedAt > decoded.iat` and invalidates access tokens issued prior to password changes.
+
+### 5. Pluggable Mailer & Safe Auth Endpoints
+- **Service** ([backend/services/mailer.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/services/mailer.js)):
+  - In `NODE_ENV=test`: captures outgoing messages in an in-memory array (`__getSentMail()`, `__clearSentMail()`).
+  - In development: formats and outputs email boxes to console without external key requirements.
+- **Enumeration-Safe Endpoints**:
+  - `POST /api/auth/forgot-password`: Returns identical generic message regardless of email existence; sends 15-minute expiring single-use token stored as SHA-256 hash.
+  - `POST /api/auth/resend-verification`: Returns enumeration-safe generic message.
+- **Account Endpoints**:
+  - `POST /api/auth/verify-email`: Verifies single-use 24-hour verification token.
+  - `POST /api/auth/reset-password`: Verifies token hash, updates password, revokes active refresh tokens.
+  - `POST /api/auth/change-password`: Verifies current password, updates password, sets `passwordChangedAt`, revokes other sessions.
+  - `DELETE /api/auth/me`: Anonymizes authored posts and comments (`authorId = null`), revokes refresh tokens, deletes user document.
+
+### 6. Login Timing Equalization & Per-Account Lockout
+- **Timing Equalization**: If user does not exist, performs `await bcrypt.compare(password, DUMMY_HASH)` using a precomputed bcrypt hash (`DUMMY_HASH`) to prevent response timing analysis. Returns identical error body `{ error: 'Invalid username/email or password' }`.
+- **Per-Account Throttling**: Accounts lock for 15 minutes (`lockUntil`) after 5 consecutive failed attempts on that account, separate from IP rate limits.
+
+### 7. Startup JWT Secret Validation & Key Rotation
+- **Startup Check** (`backend/server.js` & `backend/services/token.js`):
+  - Refuses to boot if `JWT_SECRET` is missing or $< 32$ characters (`FATAL: JWT_SECRET must be configured and contain at least 32 characters`).
+- **Key Rotation**:
+  - Supports `JWT_SECRETS` keyring JSON and `JWT_CURRENT_KEY_ID` (`kid`). Signs tokens with active key and header `kid`, and verifies against matching keyring entry.
+
+### 8. Wave 2 Verification Summary
+- **`npm test`**: **Passed: 107 / 107** across 18 suites (0 failures, ~19.7s)
+- **`npm run test:smoke`**: **Passed: 32 / 32** (0 failures, ~2.2s)
+- **`bash backend/scripts/manualChecks.sh`**: **Passed: 76 / 76** (0 failures)
+- **`bash backend/scripts/manualChecks2.sh`**: **Passed: 60 / 60** (0 failures; 2 launch gaps closed: JWT lifetime $\le$ 1 day and JWT carries no role)
+- **`npm run db:clean -- --apply`**: Purged all transient test artifacts from local runs.
+
+---
+
+## Wave 2 Remediation: Security Review Findings (B1–B6 & Core Gaps)
+
+### 1. Overview of Remediations
+Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review along with hygiene improvements:
+
+1. **[B1] Equalize Login Timing & Account Lockout Oracle Elimination**:
+   - `POST /api/auth/login` unconditionally executes `bcrypt.compare(password, user?.passwordHash ?? DUMMY_HASH)` before evaluating lockout or account ban status.
+   - If user does not exist, credentials mismatch, or account is currently locked (`user.lockUntil > Date.now()`): returns identical HTTP 401 `{ error: 'Invalid username/email or password' }`, completely eliminating the lockout oracle (429 is never returned for account-level lockouts).
+   - Increments failed login attempts asynchronously via `setImmediate` / `User.updateOne` without blocking the HTTP response.
+   - If `lockUntil` has expired, atomically resets `failedLoginAttempts: 1` rather than stacking old failures.
+   - Checks and returns banned status (HTTP 403) only after password verification succeeds.
+
+2. **[B2] Atomic Refresh Token Rotation & Reuse Detection**:
+   - In `backend/services/token.js` and `POST /api/auth/refresh`, eliminated the TOCTOU check using atomic `RefreshToken.findOneAndUpdate({ tokenHash, revoked: false, expiresAt: { $gt: new Date() } }, { $set: { revoked: true } }, { new: false })`.
+   - If no active token matched: queries `RefreshToken.findOne({ tokenHash })`. If revoked, triggers family revocation (`updateMany({ familyId }, { $set: { revoked: true } })`) and returns HTTP 401 with `TOKEN_REUSE_DETECTED`. If not found, returns generic 401.
+   - Confirms the associated user exists and is not banned before issuing child tokens.
+   - Verified under parallel execution with concurrent requests: exactly one succeeds and the duplicate triggers family revocation.
+
+3. **[B3] Timing-Safe Verification & Password Reset**:
+   - `POST /api/auth/forgot-password` and `POST /api/auth/resend-verification` dispatch email transmission in a detached background tick (`setImmediate`), preventing network SMTP/mailer latency from leaking account existence.
+   - Both endpoints immediately return identical generic responses regardless of user existence.
+
+4. **[B4] Throttle & Protect Password Changes**:
+   - Applied `authLimiter` to `POST /api/auth/change-password`.
+   - Tracks failed password attempts on `change-password` against the account lockout counter, locking accounts after 5 failures.
+
+5. **[B5] Secure Account Deletion (`DELETE /api/auth/me`)**:
+   - Requires `currentPassword` in the request body and verifies via `bcrypt.compare` before allowing deletion.
+   - Executes deletion inside a Mongoose transaction (`session.withTransaction`):
+     - Reassigns user contributions to system tombstone ID `TOMBSTONE_USER_ID = new mongoose.Types.ObjectId('000000000000000000000000')`, preserving non-null schema requirements on `Post.authorId` and `Comment.authorId` without modifying model schemas.
+     - Revokes and deletes all `RefreshToken` entries for the user.
+     - Deletes the `User` document.
+     - Evicts user cache via `clearUserCache(userId)`.
+
+6. **[B6 & G3, G4, G9] Model & Hygiene Fixes**:
+   - `backend/models/User.js`: Removed redundant `index: true` next to `unique: true` on `usernameLower`.
+   - `backend/scripts/syncIndexes.js`: Added one-time migration/backfill helper `backfillUsernameLower()` populating `usernameLower` before building collection indexes.
+   - `backend/config/auth.js`: Centralized `BCRYPT_ROUNDS = 10`, `DUMMY_HASH`, `RESERVED_USERNAMES`, `TOMBSTONE_USER_ID`, and `validatePasswordStrength`.
+   - Password strength: explicitly rejects NUL bytes (`\0` / `\u0000`).
+   - Atomically clears `passwordResetTokenHash` and `passwordResetExpires` on both password change and password reset.
+
+### 2. Files Touched
+- [backend/config/auth.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/config/auth.js) *(New)*
+- [backend/models/User.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/models/User.js)
+- [backend/routes/auth.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/routes/auth.js)
+- [backend/services/token.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/services/token.js)
+- [backend/scripts/syncIndexes.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/scripts/syncIndexes.js)
+- [backend/scripts/manualChecks2.sh](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/scripts/manualChecks2.sh)
+- [backend/tests/wave2.test.js](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/backend/tests/wave2.test.js)
+- [WORKLOG.md](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/WORKLOG.md)
+
+### 3. Test & Verification Results
+- **`npm test`**: **Passed: 109 / 109** tests across 18 test suites (0 failures, duration ~19.8s).
+- **`npm run test:smoke`**: **Passed: 32 / 32** smoke checks (0 failures, duration ~2.1s).
+- **`bash backend/scripts/manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`AUTH_HEAVY=1 bash backend/scripts/manualChecks2.sh`**: **Passed: 77 / 77** (0 failures, 10 launch gaps).
+  - Verified login timing ratio between unknown user (`0.0766s`) and wrong password (`0.0815s`) is well within target threshold ($< 1.5\times$).
+  - Verified concurrent refresh rotation, case-insensitive uniqueness, homoglyph rejection, and multi-user concurrency.
+- **`npm run db:clean -- --apply`**: Purged all 33 test users, 133 posts, 60 comments, 28 votes, and 16 reports from test executions.
+- **Zero new dependencies added.**
+
+---
+
+## [2026-10-26] - Pre-Start Stabilization on antigravity/test-2
+
+### 1. Root Causes Addressed & Concrete Fixes
+- **Fix 1: Dual-Compatible Error Envelope (`backend/middleware/errorHandler.js` & `backend/validators/errorCodes.js`)**:
+  - Structured error response payload so `res.body.error` is the string message itself, ensuring compatibility with `assert.match(res.body.error, /.../)` and string assertions in test suites.
+  - Provided `code`, `message`, and `details` at the top level of the JSON payload.
+  - Implemented `backend/middleware/errorHandler.js` handling Mongoose duplicate keys (`DUPLICATE_KEY`), validation errors (`VALIDATION_ERROR`), CastErrors (`INVALID_ID`), Zod errors (`VALIDATION_FAILED`), payload size (`PAYLOAD_TOO_LARGE`), and invalid JSON (`INVALID_JSON`).
+- **Fix 2: Disabled `sanitizeFilter` in `backend/db.js`**:
+  - Set `mongoose.set('sanitizeFilter', false);` to stop Mongoose from converting `{ removed: { $ne: true } }` into an invalid nested object `{ removed: { $eq: { $ne: true } } }` that caused CastError to Boolean.
+- **Fix 3: Eliminated Erroneous "Invalid ID format for removed"**:
+  - Guarded CastError formatting in `errorHandler.js` so only genuine ObjectId paths (ending with `Id`, `_id`, or `id`) trigger `INVALID_ID`.
+  - Updated `postIdParamSchema` in `backend/validators/posts.js` to emit `Invalid post ID` for post route parameters.
+- **Fix 4: Route Payload & Validator Alignment**:
+  - Configured `voteSchema` and `commentSchema` in `backend/validators/posts.js` with `.passthrough()` and flexible `parentId` handling.
+  - Standardized idempotency error returns in `backend/middleware/idempotency.js` to emit exact codes `IDEMPOTENCY_KEY_MISMATCH` (422) and `IDEMPOTENCY_IN_FLIGHT` (409).
+  - Resolved concurrent refresh token race condition in `backend/services/token.js` by tracking compromised family IDs to guarantee child token invalidation.
+  - Restored fuzzed distance filtering and tie-breaker sorting in `GET /nearby`.
+- **Fix 5: `tests/contract.test.js` Lifecycle Teardown**:
+  - Added proper `before(setupTestDb)`, `after(teardownTestDb)`, and `beforeEach(clearCollections)` lifecycle hooks to `backend/tests/contract.test.js`.
+  - Added connection disconnect fallback to prevent event loop hanging.
+
+### 2. Files Touched
+- `backend/db.js`
+- `backend/middleware/errorHandler.js` *(New)*
+- `backend/validators/errorCodes.js`
+- `backend/validators/posts.js`
+- `backend/middleware/idempotency.js`
+- `backend/services/token.js`
+- `backend/routes/posts.js`
+- `backend/server.js`
+- `backend/tests/contract.test.js`
+- `WORKLOG.md`
+
+### 3. Test & Verification Results
+- **`env -u MONGODB_URI npm test`**: **Passed: 121 / 121** across 24 test suites (0 failures, duration ~21.9s).
+- **`npm run test:smoke`**: **Passed: 32 / 32** smoke checks (0 failures, duration ~2.1s).
+- **Working Tree**: Cleanly passing all contract, auth, comments, privacy, concurrency, and reconciliation tests.
+
+
+
 
 

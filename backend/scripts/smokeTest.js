@@ -1,5 +1,7 @@
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'smoke-test-secret-value-12345';
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'smoke-test-secret-value-12345-very-long-secret-key';
+}
 process.env.AUTH_RATE_LIMIT_MAX = '5000';
 process.env.WRITE_RATE_LIMIT_MAX = '5000';
 

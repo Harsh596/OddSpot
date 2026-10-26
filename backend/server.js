@@ -1,19 +1,32 @@
 require('dotenv').config();
+const path = require('path');
+const crypto = require('crypto');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
 const { connect } = require('./db');
+const { validateJwtConfig } = require('./services/token');
 const authRoutes = require('./routes/auth');
 const postsRoutes = require('./routes/posts');
+const errorHandler = require('./middleware/errorHandler');
+const { ErrorCodes, formatErrorResponse } = require('./validators');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
 const FRONTEND_URL = process.env.FRONTEND_URL || 'http://localhost:5173';
 
-// Security headers with helmet
+// 1. Request ID generation / preservation
+app.use((req, res, next) => {
+  const reqId = req.headers['x-request-id'] || crypto.randomUUID();
+  req.id = reqId;
+  res.setHeader('X-Request-Id', reqId);
+  next();
+});
+
+// 2. Security headers with helmet
 app.use(helmet());
 
-// CORS restricted to configured FRONTEND_URL (no wildcard)
+// 3. CORS restricted to configured FRONTEND_URL (no wildcard)
 app.use(
   cors({
     origin: FRONTEND_URL,
@@ -21,16 +34,45 @@ app.use(
   })
 );
 
-// Body limit of 100kb
-app.use(express.json({ limit: '100kb' }));
+// 4. Per-route JSON body limiters with multipart bypass hook
+const jsonLogin = express.json({ limit: '2kb' });
+const jsonPost = express.json({ limit: '20kb' });
+const jsonComment = express.json({ limit: '10kb' });
+const jsonDefault = express.json({ limit: '100kb' });
 
-// Handle JSON parser errors immediately, returning a generic error without parser internals
+app.use((req, res, next) => {
+  // Pass-through bypass hook for future multipart uploads
+  if (req.is('multipart/*')) {
+    return next();
+  }
+
+  const url = req.originalUrl || req.url || '';
+  if (req.method === 'POST') {
+    if (url.includes('/auth/login')) {
+      return jsonLogin(req, res, next);
+    }
+    if (url.match(/\/posts\/[^/]+\/comments/)) {
+      return jsonComment(req, res, next);
+    }
+    if (url.match(/\/posts\/?(\?.*)?$/)) {
+      return jsonPost(req, res, next);
+    }
+  }
+
+  return jsonDefault(req, res, next);
+});
+
+// 5. Handle JSON parser errors immediately, returning a generic error without parser internals
 app.use((err, req, res, next) => {
   if (err.type === 'entity.too.large') {
-    return res.status(413).json({ error: 'Request payload too large (max 100kb)' });
+    return res.status(413).json(
+      formatErrorResponse(ErrorCodes.PAYLOAD_TOO_LARGE, 'Request payload too large')
+    );
   }
   if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-    return res.status(400).json({ error: 'Invalid JSON body' });
+    return res.status(400).json(
+      formatErrorResponse(ErrorCodes.INVALID_JSON, 'Invalid JSON body')
+    );
   }
   next(err);
 });
@@ -38,14 +80,14 @@ app.use((err, req, res, next) => {
 // Helper to recursively detect NUL (\0 / \u0000) characters in any string or key
 function containsNullByte(val) {
   if (typeof val === 'string') {
-    return val.includes('\0');
+    return val.includes('\0') || val.includes('\u0000');
   }
   if (Array.isArray(val)) {
     return val.some(containsNullByte);
   }
   if (val && typeof val === 'object') {
     for (const key of Object.keys(val)) {
-      if (key.includes('\0') || containsNullByte(val[key])) {
+      if (key.includes('\0') || key.includes('\u0000') || containsNullByte(val[key])) {
         return true;
       }
     }
@@ -53,7 +95,7 @@ function containsNullByte(val) {
   return false;
 }
 
-// Central content-type validation and req.body guarding middleware
+// 6. Central content-type validation and req.body guarding middleware
 app.use((req, res, next) => {
   const contentLength = req.headers['content-length'];
   const hasBody =
@@ -61,11 +103,19 @@ app.use((req, res, next) => {
     Boolean(req.headers['transfer-encoding']);
 
   if (hasBody) {
+    // If multipart bypass hook applies, do not enforce application/json
+    if (req.is('multipart/*')) {
+      return next();
+    }
+
     // Non-JSON payloads are rejected
     if (!req.is('json')) {
-      return res.status(400).json({
-        error: 'Invalid content-type: Content-Type must be application/json',
-      });
+      return res.status(400).json(
+        formatErrorResponse(
+          ErrorCodes.INVALID_CONTENT_TYPE,
+          'Invalid content-type: Content-Type must be application/json'
+        )
+      );
     }
   }
 
@@ -76,91 +126,54 @@ app.use((req, res, next) => {
 
   // Reject any request body containing NUL (\0 / \u0000) characters
   if (containsNullByte(req.body)) {
-    return res.status(400).json({ error: 'Request body must not contain null characters' });
+    return res.status(400).json(
+      formatErrorResponse(
+        ErrorCodes.VALIDATION_FAILED,
+        'Request body must not contain null characters'
+      )
+    );
   }
 
   next();
 });
 
+// 7. API Router mounted under /api/v1 and aliased to /api
+const apiRouter = express.Router();
+
 // Basic health check
-app.get('/api/health', (req, res) => {
+apiRouter.get('/health', (req, res) => {
   res.json({ status: 'ok', time: new Date().toISOString() });
 });
 
-// Mount API routes
-app.use('/api/auth', authRoutes);
-app.use('/api/posts', postsRoutes);
-
-// 404 handler for unmatched /api routes
-app.use('/api', (req, res) => {
-  res.status(404).json({ error: `Route ${req.method} ${req.originalUrl} not found` });
+// OpenAPI spec endpoint
+apiRouter.get('/openapi.json', (req, res) => {
+  res.sendFile(path.resolve(__dirname, 'docs/openapi.json'));
 });
 
-// Central error handler
-function errorHandler(err, req, res, next) {
-  // If headers have already been sent, delegate to default express error handler
-  if (res.headersSent) {
-    return next(err);
-  }
+// Mount resource routes
+apiRouter.use('/auth', authRoutes);
+apiRouter.use('/posts', postsRoutes);
 
-  // 1. Payload size exceeded
-  if (err.type === 'entity.too.large') {
-    return res.status(413).json({ error: 'Request payload too large (max 100kb)' });
-  }
+// 404 handler for unmatched /api routes
+apiRouter.use((req, res) => {
+  res.status(404).json(
+    formatErrorResponse(
+      ErrorCodes.NOT_FOUND,
+      `Route ${req.method} ${req.originalUrl} not found`
+    )
+  );
+});
 
-  // 2. Syntax / JSON body errors
-  if (err instanceof SyntaxError && err.status === 400 && 'body' in err) {
-    return res.status(400).json({ error: 'Invalid JSON body' });
-  }
+// Mount /api/v1 and alias /api
+app.use('/api/v1', apiRouter);
+app.use('/api', apiRouter);
 
-  // 3. MongoDB duplicate key error (code 11000)
-  if (err.code === 11000) {
-    const field = err.keyValue ? Object.keys(err.keyValue)[0] : 'field';
-    return res.status(409).json({
-      error: `Duplicate entry detected for ${field}`,
-      code: 'DUPLICATE_KEY',
-      field,
-    });
-  }
-
-  // 4. Mongoose ValidationError
-  if (err.name === 'ValidationError') {
-    const details = Object.values(err.errors || {}).map((e) => e.message);
-    return res.status(400).json({
-      error: 'Validation failed',
-      code: 'VALIDATION_ERROR',
-      details: details.length ? details : [err.message],
-    });
-  }
-
-  // 5. Mongoose CastError (e.g. invalid ObjectId format)
-  if (err.name === 'CastError') {
-    return res.status(400).json({
-      error: `Invalid ID format for ${err.path || 'id'}`,
-      code: 'INVALID_ID',
-    });
-  }
-
-  // 6. Explicit HTTP status on error object
-  if (err.statusCode || err.status) {
-    const status = err.statusCode || err.status;
-    return res.status(status).json({
-      error: err.message || 'Error occurred',
-      ...(err.code ? { code: err.code } : {}),
-    });
-  }
-
-  // 7. Generic internal server error
-  console.error('Unhandled server error:', err);
-  res.status(500).json({
-    error: 'Internal server error',
-  });
-}
-
+// 8. Central error handler
 app.use(errorHandler);
 
 async function start() {
   try {
+    validateJwtConfig();
     await connect();
     console.log('MongoDB connected successfully.');
     app.listen(PORT, () => {

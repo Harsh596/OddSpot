@@ -16,6 +16,32 @@ function extractDbName(uri) {
   }
 }
 
+mongoose.set('strictQuery', true);
+mongoose.set('sanitizeFilter', false);
+
+// Global default maxTimeMS of 5000 on all query execution
+mongoose.plugin((schema) => {
+  schema.pre(
+    [
+      'find',
+      'findOne',
+      'findOneAndUpdate',
+      'findOneAndDelete',
+      'findOneAndReplace',
+      'countDocuments',
+      'updateOne',
+      'updateMany',
+      'deleteOne',
+      'deleteMany',
+    ],
+    function () {
+      if (!this.options || !this.options.maxTimeMS) {
+        this.maxTimeMS(5000);
+      }
+    }
+  );
+});
+
 async function connect(customUri) {
   const isTestEnv = process.env.NODE_ENV === 'test';
   const uri = customUri || (isTestEnv && process.env.MONGODB_TEST_URI) || process.env.MONGODB_URI;
@@ -35,7 +61,6 @@ async function connect(customUri) {
     return cached;
   }
 
-  mongoose.set('strictQuery', true);
   cached = await mongoose.connect(uri, {
     maxPoolSize: 10,
     serverSelectionTimeoutMS: 8000,

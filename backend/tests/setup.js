@@ -2,7 +2,9 @@
 // Shared test setup and helpers using mongodb-memory-server and supertest
 
 process.env.NODE_ENV = 'test';
-process.env.JWT_SECRET = process.env.JWT_SECRET || 'test-jwt-secret-very-secure-1234567890';
+if (!process.env.JWT_SECRET) {
+  process.env.JWT_SECRET = 'test-jwt-secret-very-secure-1234567890-test-key';
+}
 process.env.AUTH_RATE_LIMIT_MAX = '5000';
 process.env.WRITE_RATE_LIMIT_MAX = '5000';
 

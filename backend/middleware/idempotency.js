@@ -1,5 +1,6 @@
 const crypto = require('crypto');
 const { IdempotencyKey } = require('../models');
+const { ErrorCodes, formatErrorResponse } = require('../validators/errorCodes');
 
 // Computes a deterministic SHA-256 hash of the request body
 function hashPayload(body) {
@@ -21,16 +22,24 @@ function idempotency(endpoint) {
     }
 
     if (typeof rawKey !== 'string' || !rawKey.trim() || rawKey.length > 128) {
-      return res.status(400).json({
-        error: 'Idempotency-Key header must be a non-empty string up to 128 characters',
-      });
+      return res.status(400).json(
+        formatErrorResponse(
+          ErrorCodes.VALIDATION_FAILED,
+          'Idempotency-Key header must be a non-empty string up to 128 characters'
+        )
+      );
     }
 
     const key = rawKey.trim();
     const userId = req.user && req.user.id;
     if (!userId) {
       // Must have authenticated user identity
-      return res.status(401).json({ error: 'Authentication required for idempotent requests' });
+      return res.status(401).json(
+        formatErrorResponse(
+          ErrorCodes.AUTH_INVALID_TOKEN,
+          'Authentication required for idempotent requests'
+        )
+      );
     }
 
     const requestHash = hashPayload(req.body);
@@ -43,10 +52,12 @@ function idempotency(endpoint) {
       if (existing) {
         // Parameter mismatch check: same key with different body is forbidden
         if (existing.requestHash !== requestHash) {
-          return res.status(422).json({
-            error: 'Idempotency key reuse with different parameters',
-            code: 'IDEMPOTENCY_KEY_MISMATCH',
-          });
+          return res.status(422).json(
+            formatErrorResponse(
+              ErrorCodes.IDEMPOTENCY_KEY_MISMATCH,
+              'Idempotency key reuse with different parameters'
+            )
+          );
         }
 
         // Cached replay if previously completed
@@ -57,10 +68,12 @@ function idempotency(endpoint) {
         // Pending check: lock timeout is 60 seconds
         const lockAgeMs = Date.now() - new Date(existing.lockedAt).getTime();
         if (lockAgeMs <= 60000) {
-          return res.status(409).json({
-            error: 'Request is currently being processed',
-            code: 'IDEMPOTENCY_IN_FLIGHT',
-          });
+          return res.status(409).json(
+            formatErrorResponse(
+              ErrorCodes.IDEMPOTENCY_IN_FLIGHT,
+              'Request is currently being processed'
+            )
+          );
         }
 
         // Lock timed out (> 60s): re-acquire the lock
@@ -72,10 +85,12 @@ function idempotency(endpoint) {
 
         if (!reacquired) {
           // Another concurrent worker re-acquired it first
-          return res.status(409).json({
-            error: 'Request is currently being processed',
-            code: 'IDEMPOTENCY_IN_FLIGHT',
-          });
+          return res.status(409).json(
+            formatErrorResponse(
+              ErrorCodes.IDEMPOTENCY_IN_FLIGHT,
+              'Request is currently being processed'
+            )
+          );
         }
       } else {
         // 2. Insert new pending record
@@ -94,18 +109,22 @@ function idempotency(endpoint) {
             const raced = await IdempotencyKey.findOne({ userId, key });
             if (raced) {
               if (raced.requestHash !== requestHash) {
-                return res.status(422).json({
-                  error: 'Idempotency key reuse with different parameters',
-                  code: 'IDEMPOTENCY_KEY_MISMATCH',
-                });
+                return res.status(422).json(
+                  formatErrorResponse(
+                    ErrorCodes.IDEMPOTENCY_KEY_MISMATCH,
+                    'Idempotency key reuse with different parameters'
+                  )
+                );
               }
               if (raced.status === 'completed') {
                 return res.status(raced.statusCode).json(raced.responseBody);
               }
-              return res.status(409).json({
-                error: 'Request is currently being processed',
-                code: 'IDEMPOTENCY_IN_FLIGHT',
-              });
+              return res.status(409).json(
+                formatErrorResponse(
+                  ErrorCodes.IDEMPOTENCY_IN_FLIGHT,
+                  'Request is currently being processed'
+                )
+              );
             }
           }
           throw createErr;
@@ -129,12 +148,19 @@ function idempotency(endpoint) {
                   responseBody: body,
                 },
               }
-            ).catch((err) => {
-              console.error('Failed to commit idempotency key result:', err);
-            });
+            )
+              .then(() => originalJson(body))
+              .catch((err) => {
+                console.error('Failed to commit idempotency key result:', err);
+                originalJson(body);
+              });
+            return res;
           } else {
             // Non-2xx response: purge pending lock so user can correct input and retry
-            IdempotencyKey.deleteOne({ userId, key, status: 'pending' }).catch(() => {});
+            IdempotencyKey.deleteOne({ userId, key, status: 'pending' })
+              .catch(() => {})
+              .finally(() => originalJson(body));
+            return res;
           }
         }
         return originalJson(body);
