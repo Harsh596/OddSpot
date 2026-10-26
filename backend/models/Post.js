@@ -20,13 +20,20 @@ const postSchema = new Schema(
       type: { type: String, enum: ['Point'], default: 'Point' },
       coordinates: { type: [Number], required: true },
     },
+    // Feed coordinates (fuzzed when hideExact: true, exact when false) for direct $geoNear indexing
+    feedLocation: {
+      type: { type: String, enum: ['Point'], default: 'Point' },
+      coordinates: { type: [Number] },
+    },
     hideExact: { type: Boolean, default: false }, // API returns a fuzzed point when true
 
     // Reverse geocoded ONCE at creation, never at read time
     place: {
       city: { type: String, required: true },
+      cityKey: { type: String, index: true },
       state: String,
       country: { type: String, required: true },
+      countryCode: { type: String, index: true },
     },
 
     tags: [String],
@@ -66,21 +73,64 @@ const postSchema = new Schema(
       },
     ],
 
+    underReview: { type: Boolean, default: false },
     removed: { type: Boolean, default: false },
   },
   { timestamps: true }
 );
 
-// Nearby feed
+// Geo indices
 postSchema.index({ location: '2dsphere' });
+postSchema.index({ feedLocation: '2dsphere' });
 // City feed, newest and hottest
 postSchema.index({ 'place.city': 1, 'place.country': 1, createdAt: -1 });
 postSchema.index({ 'place.city': 1, 'place.country': 1, 'meter.score': -1 });
+postSchema.index({ 'place.cityKey': 1, 'place.countryCode': 1, createdAt: -1 });
+postSchema.index({ 'place.cityKey': 1, 'place.countryCode': 1, 'meter.score': -1 });
 // Country feed + Random tab
 postSchema.index({ tier: 1, 'place.country': 1, 'meter.score': -1 });
 // Community page
 postSchema.index({ communityId: 1, createdAt: -1 });
 // Profile page
 postSchema.index({ authorId: 1, createdAt: -1 });
+
+// Automatically keep feedLocation, cityKey, and countryCode synchronized
+const { fuzzLocation } = require('../utils/fuzzLocation');
+const { toCityKey, resolveCountry } = require('../utils/place');
+
+postSchema.pre('save', function (next) {
+  if (this.location && Array.isArray(this.location.coordinates)) {
+    if (
+      !this.feedLocation ||
+      !Array.isArray(this.feedLocation.coordinates) ||
+      this.isModified('hideExact') ||
+      this.isModified('location')
+    ) {
+      if (this.hideExact) {
+        this.feedLocation = {
+          type: 'Point',
+          coordinates: fuzzLocation(this.location.coordinates, this._id ? this._id.toString() : ''),
+        };
+      } else {
+        this.feedLocation = {
+          type: 'Point',
+          coordinates: this.location.coordinates,
+        };
+      }
+    }
+  }
+
+  if (this.place) {
+    if (this.place.city && (!this.place.cityKey || this.isModified('place.city'))) {
+      this.place.cityKey = toCityKey(this.place.city);
+    }
+    if (this.place.country && (!this.place.countryCode || this.isModified('place.country'))) {
+      const resolved = resolveCountry(this.place.country);
+      this.place.countryCode = resolved ? resolved.code : 'XX';
+    }
+  }
+
+  if (typeof next === 'function') next();
+});
 
 module.exports = model('Post', postSchema);

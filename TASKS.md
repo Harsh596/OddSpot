@@ -55,7 +55,15 @@
   - [x] Task P5-T4: Implement `PATCH /comments/:id` and `DELETE /comments/:id` with counter decrement inside transaction. Upgrade `GET /posts/:id/comments` with cursor pagination (`?cursor=...&limit=20`, max 50).
   - [x] Task P5-T5: Create `backend/routes/users.js` mounted at `/api/v1/users` and `/api/users`. Implement `GET /users/:username` returning only public fields. Implement `GET /users/me/posts` and `GET /users/me/export` (JSON dump of caller's data with `Cache-Control: no-store`).
   - [x] Dedicated regression test suite: `backend/test/phase5.test.js` (17 tests covering mutations, RBAC, audit logging, profiles, and export).
-- [ ] **P6: Moderation & Automatic Content Fuzzing**
+- [x] **P6: Location Integrity & Privacy (HMAC Fuzz, feedLocation, Reveal & Anti-Trilateration)**
+  - [x] Task P6-T1 [SCHEMA]: Create `backend/utils/place.js` with `toCityKey()` and `resolveCountry()` (ISO 3166-1 alpha-2). Add `place.cityKey`, `place.countryCode`, and compound indexes to Post schema.
+  - [x] Task P6-T2 [SCHEMA]: Create `backend/utils/fuzzLocation.js` with HMAC polar fuzzing. Add `feedLocation` with 2dsphere index to Post schema. Sync `feedLocation` on post creation and report auto-fuzz threshold.
+  - [x] Task P6-T3: In `backend/routes/posts.js` `/nearby`, query `feedLocation` via `$geoNear` directly without `$limit: 100` truncation. Create `backend/utils/postSerializer.js` to replace location with `feedLocation` when `hideExact: true` and round distances to 500m increments.
+  - [x] Task P6-T4: Build idempotent `backend/scripts/backfillFeedLocation.js`.
+  - [x] Task P6-T5: Reject duplicate spots within 20m with title similarity >= 0.75 (409 CONFLICT).
+  - [x] Task P6-T6: Implement `POST /api/v1/posts/:id/reveal`: validates GPS within 300m of true location, enforces daily user limit of 10, returns exact location, and writes AuditLog.
+  - [x] Task P6-T7: Build `backend/utils/impossibleTravel.js` (flags speeds > 1000 km/h with `underReview: true`) and `backend/services/geocoder.js` interface (stub default, optional Nominatim).
+  - [x] Dedicated regression test suite: `backend/test/phase6.test.js` (16 tests including 3-point trilateration and boundary bisection).
 - [ ] **P7: Account Security, Banning & Role Enforcement**
 - [ ] **P8: Refresh Token Rotation & Session Hardening**
 - [ ] **P9: Password Lifecycle, Email Tokens & Tombstoning**

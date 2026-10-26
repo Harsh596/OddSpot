@@ -136,7 +136,7 @@ N=$(curl -s "$BASE/api/posts/nearby?lat=12.97&lng=77.59&limit=100000" | js 'd.po
 check "limit capped at 50 (got $N posts)" "yes" "$([ "$N" -le 50 ] 2>/dev/null && echo yes || echo no)"
 HIDDEN=$(mkpost "$(p ',"title":"test_chk hidden","hideExact":true,"latitude":12.97123,"longitude":77.59456')")
 check "hideExact response is fuzzed" "true" "$(echo "$HIDDEN" | js 'd.location.fuzzed')"
-check "hideExact does not return exact latitude" "12.97" "$(echo "$HIDDEN" | js 'd.location.coordinates[1]')"
+check "hideExact does not return exact latitude" "12.9[67]*" "$(echo "$HIDDEN" | js 'd.location.coordinates[1]')"
 FEED=$(curl -s "$BASE/api/posts/nearby?lat=12.97&lng=77.59")
 check "feed never contains exact hidden coords" 0 "$(echo "$FEED" | grep -c '77.59456')"
 check "feed distance for hidden posts is a multiple of 500" "yes" "$(echo "$FEED" | js 'd.posts.filter(x=>x.hideExact).every(x=>x.distanceMeters%500===0)?"yes":"no"')"

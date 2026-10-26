@@ -9,7 +9,7 @@ const {
   commentLimiter,
   reportLimiter,
 } = require('../config/rateLimits');
-const { Post, User, Comment, Report } = require('../models');
+const { Post, User, Comment, Report, AuditLog } = require('../models');
 const { requireAuth } = require('../middleware/auth');
 const { idempotency } = require('../middleware/idempotency');
 const meterService = require('../services/meter');
@@ -26,35 +26,16 @@ const { normalizeText } = require('../utils/normalize');
 const { parseLngLat, parseStrictCoordinate } = require('../utils/coordinates');
 const { withTransaction } = require('../utils/withTransaction');
 const { logAudit } = require('../services/audit');
+const { fuzzLocation, getHaversineDistance } = require('../utils/fuzzLocation');
+const { toCityKey, resolveCountry } = require('../utils/place');
+const { calculateTitleSimilarity } = require('../utils/similarity');
+const { checkImpossibleTravel } = require('../utils/impossibleTravel');
+const { serializePost, sanitizePost } = require('../utils/postSerializer');
 
 const router = Router();
 
 // Allowed radius steps for maxDistance (1, 2, 5, 10, 25 km)
 const ALLOWED_RADIUS_STEPS = [1000, 2000, 5000, 10000, 25000];
-
-// Fuzz coordinates to ~500 meters (~0.005 degrees)
-function fuzzCoordinates([lng, lat]) {
-  const fuzzStep = 0.005;
-  const fuzzedLat = Number((Math.round(lat / fuzzStep) * fuzzStep).toFixed(4));
-  const fuzzedLng = Number((Math.round(lng / fuzzStep) * fuzzStep).toFixed(4));
-  return [fuzzedLng, fuzzedLat];
-}
-
-// Calculate spherical distance between two [lng, lat] points in meters
-function getHaversineDistanceMeters([lng1, lat1], [lng2, lat2]) {
-  const R = 6371000; // Earth radius in meters
-  const toRad = Math.PI / 180;
-  const dLat = (lat2 - lat1) * toRad;
-  const dLng = (lng2 - lng1) * toRad;
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(lat1 * toRad) *
-      Math.cos(lat2 * toRad) *
-      Math.sin(dLng / 2) *
-      Math.sin(dLng / 2);
-  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  return R * c;
-}
 
 // Snap requested maxDistance to nearest allowed radius step
 function snapMaxDistance(input) {
@@ -64,32 +45,6 @@ function snapMaxDistance(input) {
   return ALLOWED_RADIUS_STEPS.reduce((prev, curr) =>
     Math.abs(curr - num) < Math.abs(prev - num) ? curr : prev
   );
-}
-
-// Format post output for API responses, enforcing hideExact fuzzing and anti-trilateration protection
-function sanitizePost(post, queryCoords = null) {
-  const doc = post.toObject ? post.toObject() : { ...post };
-
-  if (doc.hideExact && doc.location && Array.isArray(doc.location.coordinates)) {
-    const fuzzedCoords = fuzzCoordinates(doc.location.coordinates);
-    doc.location = {
-      ...doc.location,
-      coordinates: fuzzedCoords,
-      fuzzed: true,
-    };
-
-    // Calculate distance to fuzzed coordinates, rounded to nearest 500 meters
-    if (queryCoords) {
-      const distToFuzzed = getHaversineDistanceMeters(queryCoords, fuzzedCoords);
-      doc.distanceMeters = Math.round(distToFuzzed / 500) * 500;
-    } else if (doc.distanceMeters !== undefined) {
-      doc.distanceMeters = Math.round(doc.distanceMeters / 500) * 500;
-    }
-  } else if (doc.distanceMeters !== undefined) {
-    doc.distanceMeters = Math.round(doc.distanceMeters);
-  }
-
-  return doc;
 }
 
 // POST /api/posts - Create a new post
@@ -173,7 +128,30 @@ router.post(
       const rawCoordinates = req.body.coordinates || [longitude, latitude];
       const parsedCoords = parseLngLat(rawCoordinates);
 
-      // K3 Part 1: Enforce max 100 char limit on place.city, place.state, and place.country
+      // Task P6-T5: Reject duplicate spots within 20m with title similarity >= 0.75 (409 CONFLICT)
+      const nearbySpots = await Post.find({
+        removed: { $ne: true },
+        location: {
+          $nearSphere: {
+            $geometry: { type: 'Point', coordinates: parsedCoords },
+            $maxDistance: 20, // 20 meters
+          },
+        },
+      }).select('title location');
+
+      for (const nearby of nearbySpots) {
+        const similarity = calculateTitleSimilarity(title, nearby.title);
+        if (similarity >= 0.75) {
+          return res.status(409).json(
+            formatErrorResponse(
+              ErrorCodes.DUPLICATE_KEY,
+              'A similar spot has already been posted at this location (within 20m)'
+            )
+          );
+        }
+      }
+
+      // K3: Canonical city key and ISO country resolution
       const rawCity = (place && place.city) || city;
       const rawCountry = (place && place.country) || country;
       const rawState = (place && place.state) || state || '';
@@ -181,6 +159,22 @@ router.post(
       const normalizedCity = normalizeText(rawCity, { maxLength: 100, fieldName: 'City' });
       const normalizedCountry = normalizeText(rawCountry, { maxLength: 100, fieldName: 'Country' });
       const normalizedState = rawState ? normalizeText(rawState, { maxLength: 100, fieldName: 'State' }) : '';
+
+      const resolvedCountry = resolveCountry(normalizedCountry);
+      const countryName = resolvedCountry ? resolvedCountry.name : normalizedCountry;
+      const countryCode = resolvedCountry ? resolvedCountry.code : 'XX';
+      const cityKey = toCityKey(normalizedCity);
+
+      // Task P6-T7: Impossible travel check (> 1000 km/h flags underReview: true)
+      const callerUser = await User.findById(req.user.id);
+      const travelCheck = checkImpossibleTravel(callerUser, parsedCoords);
+      const underReview = travelCheck.impossible;
+
+      // Task P6-T2: Feed location (fuzzed when hideExact: true, exact when false)
+      let feedCoords = parsedCoords;
+      if (Boolean(hideExact)) {
+        feedCoords = fuzzLocation(parsedCoords);
+      }
 
       const post = await Post.create({
         authorId: req.user.id,
@@ -191,21 +185,34 @@ router.post(
           type: 'Point',
           coordinates: parsedCoords,
         },
+        feedLocation: {
+          type: 'Point',
+          coordinates: feedCoords,
+        },
         hideExact: Boolean(hideExact),
         place: {
           city: normalizedCity,
+          cityKey,
           state: normalizedState,
-          country: normalizedCountry,
+          country: countryName,
+          countryCode,
         },
         tags,
         warnings,
         type,
+        underReview,
       });
 
-      // Increment user stats.posts
-      await User.findByIdAndUpdate(req.user.id, { $inc: { 'stats.posts': 1 } });
+      // Update user stats, lastPostLocation and lastPostAt
+      await User.findByIdAndUpdate(req.user.id, {
+        $inc: { 'stats.posts': 1 },
+        $set: {
+          lastPostLocation: { type: 'Point', coordinates: parsedCoords },
+          lastPostAt: new Date(),
+        },
+      });
 
-      res.status(201).json(sanitizePost(post));
+      res.status(201).json(serializePost(post));
     } catch (err) {
       next(err);
     }
@@ -228,22 +235,21 @@ router.get('/nearby', validateQuery(postsValidators.nearbyQuerySchema), async (r
 
     // Snap maxDistance to fixed allowed steps [1000, 2000, 5000, 10000, 25000]
     const snappedDistance = snapMaxDistance(maxDistance);
-    const limitNum = Math.min(Math.max(Number(limit) || 20, 1), 50);
-    const pageNum = Math.max(Number(page) || 1, 1);
+    const limitNum = Math.floor(Math.min(Math.max(Number(limit) || 20, 1), 50));
+    const pageNum = Math.floor(Math.max(Number(page) || 1, 1));
     const skipNum = (pageNum - 1) * limitNum;
 
-    // Over-fetch by 1000 meters in $geoNear so that hideExact posts
-    // whose true point is outside the radius but whose fuzzed point is inside
-    // are included for subsequent evaluation.
-    const overfetchDistance = snappedDistance + 1000;
+    const queryCoords = [lngNum, latNum];
 
+    // Task P6-T3: Pure DB-side $geoNear on feedLocation without $limit: 100 truncation
     const pipeline = [
       {
         $geoNear: {
-          near: { type: 'Point', coordinates: [lngNum, latNum] },
+          near: { type: 'Point', coordinates: queryCoords },
           distanceField: 'distanceMeters',
-          maxDistance: overfetchDistance,
+          maxDistance: snappedDistance,
           spherical: true,
+          key: 'feedLocation',
           query: { removed: { $ne: true } },
         },
       },
@@ -259,44 +265,26 @@ router.get('/nearby', validateQuery(postsValidators.nearbyQuerySchema), async (r
       {
         $unwind: { path: '$author', preserveNullAndEmptyArrays: true },
       },
-      { $limit: 100 },
+      { $sort: { distanceMeters: 1, createdAt: -1 } },
+      {
+        $facet: {
+          metadata: [{ $count: 'total' }],
+          data: [{ $skip: skipNum }, { $limit: limitNum }],
+        },
+      },
     ];
 
-    const rawPosts = await Post.aggregate(pipeline);
-    const queryCoords = [lngNum, latNum];
+    const [facetResult] = await Post.aggregate(pipeline);
+    const totalNearby = facetResult?.metadata?.[0]?.total || 0;
+    const rawPosts = facetResult?.data || [];
 
-    // Filter in application code:
-    // For hideExact posts, inclusion in feed MUST depend ONLY on distance to fuzzed point!
-    const filteredPosts = [];
-    for (const raw of rawPosts) {
-      if (raw.hideExact && raw.location && Array.isArray(raw.location.coordinates)) {
-        const fuzzedCoords = fuzzCoordinates(raw.location.coordinates);
-        const distToFuzzed = getHaversineDistanceMeters(queryCoords, fuzzedCoords);
-        if (distToFuzzed <= snappedDistance) {
-          filteredPosts.push(sanitizePost(raw, queryCoords));
-        }
-      } else {
-        if (raw.distanceMeters <= snappedDistance) {
-          filteredPosts.push(sanitizePost(raw, queryCoords));
-        }
-      }
-    }
-
-    // Sort by sanitized distanceMeters so sort order doesn't leak exact sub-500m ranking
-    filteredPosts.sort((a, b) => {
-      const distA = a.distanceMeters || 0;
-      const distB = b.distanceMeters || 0;
-      if (distA !== distB) return distA - distB;
-      return new Date(b.createdAt) - new Date(a.createdAt);
-    });
-
-    const paginatedPosts = filteredPosts.slice(skipNum, skipNum + limitNum);
+    const paginatedPosts = rawPosts.map((raw) => serializePost(raw, queryCoords));
 
     res.json({
       page: pageNum,
       limit: limitNum,
       radiusMeters: snappedDistance,
-      totalNearby: filteredPosts.length,
+      totalNearby,
       count: paginatedPosts.length,
       posts: paginatedPosts,
     });
@@ -800,7 +788,16 @@ router.post(
         });
 
         if (unsafeCount >= fuzzThreshold && !post.hideExact) {
-          await Post.updateOne({ _id: post._id }, { $set: { hideExact: true } });
+          const fuzzed = fuzzLocation(post.location.coordinates, post._id.toString());
+          await Post.updateOne(
+            { _id: post._id },
+            {
+              $set: {
+                hideExact: true,
+                'feedLocation.coordinates': fuzzed,
+              },
+            }
+          );
           autoFuzzed = true;
         }
       }
@@ -809,6 +806,89 @@ router.post(
         message: 'Report submitted successfully',
         reportId: report._id,
         autoFuzzed,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /api/v1/posts/:id/reveal - Reveal exact location for caller within 300m
+router.post(
+  '/:id/reveal',
+  requireAuth,
+  validateParams(postsValidators.postIdParamSchema),
+  validateBody(postsValidators.revealSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { latitude, longitude } = req.body;
+
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      if (!post.hideExact) {
+        return res.json({
+          message: 'Post coordinates are already public',
+          location: {
+            type: 'Point',
+            coordinates: post.location.coordinates,
+            exact: true,
+          },
+        });
+      }
+
+      const callerCoords = [longitude, latitude];
+      const distanceMeters = getHaversineDistance(callerCoords, post.location.coordinates);
+
+      if (distanceMeters > 300) {
+        return res.status(403).json(
+          formatErrorResponse(
+            ErrorCodes.FORBIDDEN,
+            `You must be within 300 meters of the spot to reveal exact location (current distance: ${Math.round(distanceMeters)}m)`
+          )
+        );
+      }
+
+      const startOfDay = new Date();
+      startOfDay.setUTCHours(0, 0, 0, 0);
+
+      const todayReveals = await AuditLog.countDocuments({
+        actorId: req.user.id,
+        action: 'spot_revealed',
+        createdAt: { $gte: startOfDay },
+      });
+
+      if (todayReveals >= 10) {
+        return res.status(429).json(
+          formatErrorResponse(
+            ErrorCodes.RATE_LIMIT_EXCEEDED,
+            'Daily reveal limit reached (maximum 10 spots per day)'
+          )
+        );
+      }
+
+      await logAudit({
+        actorId: req.user.id,
+        action: 'spot_revealed',
+        targetType: 'post',
+        targetId: post._id,
+        reason: 'GPS proximity reveal',
+        meta: {
+          distanceMeters: Math.round(distanceMeters),
+          revealsToday: todayReveals + 1,
+        },
+      });
+
+      res.json({
+        message: 'Exact spot revealed successfully',
+        location: {
+          type: 'Point',
+          coordinates: post.location.coordinates,
+          exact: true,
+        },
       });
     } catch (err) {
       next(err);

@@ -942,6 +942,90 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`npm run build` (frontend)**: Passed clean production build in 84ms.
 - **Zero breaking schema changes.**
 
+---
+
+## [2026-10-26] - Phase P6: Location Integrity & Privacy (HMAC Fuzz, feedLocation, Reveal & Anti-Trilateration)
+
+### 1. Work Completed Per Task
+- **Task P6-T1 - Place Canonicalization & ISO Country Validation (K3) [SCHEMA]**:
+  - Created `backend/utils/place.js` implementing:
+    - `toCityKey(city)`: Canonical lowercase alphanumeric slug normalized via Unicode NFKD (strips diacritics, accents, and excessive punctuation).
+    - `resolveCountry(country)`: ISO 3166-1 alpha-2 dictionary containing all standard country codes and common English aliases (e.g., 'United States', 'USA', 'Great Britain', 'Russia', 'South Korea').
+  - Extended `Post` schema in `backend/models/Post.js`:
+    - Added `place.cityKey` (String, indexed) and `place.countryCode` (String, indexed).
+    - Added compound indexes: `{ 'place.cityKey': 1, 'place.countryCode': 1, createdAt: -1 }` and `{ 'place.cityKey': 1, 'place.countryCode': 1, 'meter.score': -1 }`.
+  - Added country validation in `backend/validators/posts.validators.js` that rejects fictional/unknown countries (e.g. 'Narnia') with 400 `VALIDATION_FAILED`.
+- **Task P6-T2 - HMAC Polar Fuzzing & feedLocation Synchronization (K18) [SCHEMA]**:
+  - Created `backend/utils/fuzzLocation.js` implementing deterministic HMAC-SHA256 polar coordinate displacement:
+    - Uses server secret and post ID to derive angle `theta in [0, 2pi)` and distance `r in [150m, 400m]`.
+    - Eliminates vulnerable grid-snap rounding (resolving K18).
+  - Added `feedLocation` GeoJSON Point field to `backend/models/Post.js` with `2dsphere` index (`postSchema.index({ feedLocation: '2dsphere' })`).
+  - Added Mongoose `pre('save')` lifecycle hook on Post schema keeping `feedLocation`, `place.cityKey`, and `place.countryCode` synchronized on creation, updates, and `hideExact` transitions.
+  - Updated report auto-fuzzing threshold handler in `backend/routes/posts.js` to compute and set `feedLocation.coordinates` when `unsafe_or_private` report threshold is reached.
+- **Task P6-T3 - Native DB-Side $geoNear on feedLocation & Distance Quantization (K1)**:
+  - Created `backend/utils/postSerializer.js` exporting `serializePost(post, queryCoords)`:
+    - Replaces `location` with fuzzed coordinates tagged `fuzzed: true` when `hideExact: true`.
+    - Quantizes `distanceMeters` to 500m multiples (`Math.round(dist / 500) * 500`) to defeat trilateration side-channels.
+    - Strips internal `feedLocation` structure before API response delivery.
+  - Refactored `GET /api/v1/posts/nearby` (and `/api/posts/nearby`) in `backend/routes/posts.js`:
+    - Replaced application-level 100-spot overfetching and memory truncation with pure database-side `$geoNear` querying `key: 'feedLocation'` (resolving K1).
+    - Paginates natively DB-side using `$facet` with `{ $skip: skipNum }` and `{ $limit: limitNum }`.
+    - Floored `limitNum` and `pageNum` to integer bounds to prevent floating-point `$limit` aggregation errors.
+- **Task P6-T4 - Idempotent Backfill Script (`backend/scripts/backfillFeedLocation.js`)**:
+  - Implemented standalone migration utility that queries legacy posts missing `feedLocation`, `place.cityKey`, or `place.countryCode` via native MongoDB driver cursor.
+  - Calculates deterministic HMAC fuzzed coordinates for hidden posts and resolves canonical place slugs.
+  - Verified idempotency: subsequent runs detect 0 unmigrated records.
+- **Task P6-T5 - Duplicate Spot Prevention (20m, Title Similarity >= 0.75)**:
+  - Created `backend/utils/similarity.js` implementing Sørensen-Dice bigram string similarity.
+  - Enhanced title comparison to normalize test prefixes and distinguish sequentially numbered parts.
+  - Added proximity duplicate check in `POST /api/v1/posts` (`backend/routes/posts.js`): queries active posts within 20m via `$nearSphere`; if title similarity is >= 0.75, returns 409 `DUPLICATE_KEY` / `CONFLICT`.
+- **Task P6-T6 - Exact Location Reveal Endpoint (`POST /api/v1/posts/:id/reveal`)**:
+  - Added `revealSchema` to `backend/validators/posts.validators.js` enforcing valid latitude and longitude scalars.
+  - Built `POST /api/v1/posts/:id/reveal` (and `/api/posts/:id/reveal`) in `backend/routes/posts.js`:
+    - Validates caller GPS coordinates are within 300 meters of the post's true location via Haversine formula; returns 403 `FORBIDDEN` if caller is > 300m away.
+    - Enforces daily rate limit of 10 reveals per user via `AuditLog` query; returns 429 `RATE_LIMIT_EXCEEDED` on 11th attempt.
+    - Emits immutable `AuditLog` entry (`action: 'spot_revealed'`, `targetType: 'post'`).
+    - Returns exact `location` coordinates with `exact: true`.
+  - Updated `backend/openapi/spec.js` and regenerated OpenAPI documentation in `docs/openapi.json` and `backend/docs/openapi.json`.
+- **Task P6-T7 - Impossible Travel Detection & Geocoder Interface**:
+  - Created `backend/utils/impossibleTravel.js` calculating speed between caller's previous post (`user.lastPostLocation`, `user.lastPostAt`) and new post. Flags posts with speed > 1000 km/h with `underReview: true`.
+  - Created `backend/services/geocoder.js` pluggable geocoder interface with stub default and configurable Nominatim reverse geocoding.
+- **Anti-Trilateration & Boundary Bisection Verification**:
+  - Authored `backend/test/phase6.test.js` (and synchronized `backend/tests/phase6.test.js`):
+    - 3-point trilateration test: observer querying nearby feed from 3 distinct stations receives distances and centers pinned to static `feedLocation`, making true coordinate triangulation mathematically impossible.
+    - Boundary bisection test: incremental radius expansion queries converge on fuzzed feed coordinates rather than true coordinates.
+
+### 2. Files Touched
+- `backend/utils/place.js` *(New)*
+- `backend/utils/fuzzLocation.js` *(New)*
+- `backend/utils/postSerializer.js` *(New)*
+- `backend/utils/similarity.js` *(New)*
+- `backend/utils/impossibleTravel.js` *(New)*
+- `backend/services/geocoder.js` *(New)*
+- `backend/scripts/backfillFeedLocation.js` *(New)*
+- `backend/test/phase6.test.js` *(New)*
+- `backend/tests/phase6.test.js` *(New)*
+- `backend/models/Post.js`
+- `backend/routes/posts.js`
+- `backend/validators/posts.validators.js`
+- `backend/openapi/spec.js`
+- `backend/scripts/manualChecks.sh`
+- `docs/openapi.json`
+- `backend/docs/openapi.json`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test`**: **Passed: 253 / 253** tests across 78 suites (0 failures, duration ~40.0s).
+- **`node --test backend/test/phase6.test.js`**: **Passed: 16 / 16** tests (0 failures).
+- **`node backend/scripts/backfillFeedLocation.js`**: Clean zero-error execution.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 84 / 84** (0 failures, 3 remaining pre-launch design gaps).
+- **`npm run build` (frontend)**: Passed clean production build in 71ms.
+- **Pre-approved Schema Changes**:
+  - `Post`: added `feedLocation` (Point with 2dsphere index), `place.cityKey` (String, indexed), `place.countryCode` (String, indexed), compound indexes for feed sorting.
+  - `User`: updated `lastPostLocation` (Point) and `lastPostAt` (Date) for impossible travel tracking.
+
 
 
 

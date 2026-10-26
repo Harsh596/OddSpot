@@ -992,6 +992,75 @@
         }
       }
     },
+    "/posts/{id}/reveal": {
+      "post": {
+        "summary": "Reveal exact coordinates for GPS within 300m (capped at 10/day)",
+        "tags": [
+          "Posts"
+        ],
+        "security": [
+          {
+            "BearerAuth": []
+          }
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "latitude",
+                  "longitude"
+                ],
+                "properties": {
+                  "latitude": {
+                    "type": "number",
+                    "minimum": -90,
+                    "maximum": 90
+                  },
+                  "longitude": {
+                    "type": "number",
+                    "minimum": -180,
+                    "maximum": 180
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Exact spot revealed"
+          },
+          "400": {
+            "description": "Validation error"
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "403": {
+            "description": "GPS not within 300m"
+          },
+          "404": {
+            "description": "Post not found"
+          },
+          "429": {
+            "description": "Daily reveal limit reached (10/day)"
+          }
+        }
+      }
+    },
     "/posts/{id}/comments": {
       "get": {
         "summary": "List comments for a post",

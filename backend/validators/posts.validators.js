@@ -9,6 +9,7 @@ const {
   longitudeSchema,
   normalizeText,
 } = require('./common');
+const { resolveCountry, toCityKey } = require('../utils/place');
 
 function isSecureImageUrl(url) {
   if (typeof url !== 'string') return false;
@@ -209,6 +210,12 @@ const createPostSchema = z
         path: ['country'],
         message: 'Country is required and must not contain null characters',
       });
+    } else if (!resolveCountry(effectiveCountry)) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['country'],
+        message: 'Unknown or invalid country name',
+      });
     }
   })
   .transform((data) => {
@@ -219,7 +226,11 @@ const createPostSchema = z
       lat = data.coordinates[1];
     }
     const city = data.place && data.place.city ? data.place.city : data.city;
-    const country = data.place && data.place.country ? data.place.country : data.country;
+    const rawCountry = data.place && data.place.country ? data.place.country : data.country;
+    const resolvedCountry = resolveCountry(rawCountry);
+    const country = resolvedCountry ? resolvedCountry.name : rawCountry;
+    const countryCode = resolvedCountry ? resolvedCountry.code : 'XX';
+    const cityKey = toCityKey(city);
     const state = data.place && data.place.state ? data.place.state : data.state;
 
     return {
@@ -228,7 +239,9 @@ const createPostSchema = z
       latitude: lat,
       longitude: lng,
       city,
+      cityKey,
       country,
+      countryCode,
       state: state || '',
       type: data.type,
       images: data.images,
@@ -449,6 +462,22 @@ const updateCommentSchema = z
   })
   .strip();
 
+// POST /api/v1/posts/:id/reveal
+const revealSchema = z
+  .object({
+    latitude: z.coerce
+      .number({ required_error: 'Latitude is required', invalid_type_error: 'Latitude must be a number' })
+      .refine((v) => Number.isFinite(v) && v >= -90 && v <= 90, {
+        message: 'Latitude must be between -90 and 90',
+      }),
+    longitude: z.coerce
+      .number({ required_error: 'Longitude is required', invalid_type_error: 'Longitude must be a number' })
+      .refine((v) => Number.isFinite(v) && v >= -180 && v <= 180, {
+        message: 'Longitude must be between -180 and 180',
+      }),
+  })
+  .strip();
+
 module.exports = {
   createPostSchema,
   updatePostSchema,
@@ -460,4 +489,5 @@ module.exports = {
   updateCommentSchema,
   commentsQuerySchema,
   reportSchema,
+  revealSchema,
 };
