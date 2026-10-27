@@ -4,24 +4,50 @@ const { Post, Vote } = require('../models');
 
 function computeScore(m) {
   const w = cfg.weights;
+  const commenters = m.commenters !== undefined ? m.commenters : (m.comments || 0);
   return (
-    (m.reactions || 0) * w.reaction +
-    (m.visits || 0) * w.visit +
-    (m.comments || 0) * w.comment +
-    (m.likes || 0) * w.like +
-    (m.dislikes || 0) * w.dislike
+    (m.reactions || 0) * (w.reaction ?? 5) +
+    (m.visits || 0) * (w.visit ?? 4) +
+    commenters * (w.comment ?? 3) +
+    (m.likes || 0) * (w.like ?? 1) +
+    (m.dislikes || 0) * (w.dislike ?? -0.5)
   );
 }
 
-function getCountryThreshold() {
-  return process.env.METER_COUNTRY_THRESHOLD
-    ? Number(process.env.METER_COUNTRY_THRESHOLD)
-    : (cfg.thresholds?.country ?? 50);
+function getCountryThreshold(countryCode) {
+  if (process.env.METER_COUNTRY_THRESHOLD) {
+    return Number(process.env.METER_COUNTRY_THRESHOLD);
+  }
+
+  if (!countryCode) {
+    return cfg.thresholds?.country ?? 50;
+  }
+
+  return (async () => {
+    const fourteenDaysAgo = new Date(Date.now() - 14 * 24 * 60 * 60 * 1000);
+    const posts = await Post.find({
+      'place.countryCode': countryCode,
+      removed: { $ne: true },
+      createdAt: { $gte: fourteenDaysAgo },
+    }).select('meter.score');
+
+    if (!posts || posts.length === 0) {
+      return cfg.thresholds?.country ?? 50;
+    }
+
+    const scores = posts.map((p) => p.meter?.score || 0).sort((a, b) => a - b);
+    const p80Index = Math.min(scores.length - 1, Math.floor(scores.length * 0.8));
+    const p80 = scores[p80Index];
+
+    return Math.min(500, Math.max(50, Math.round(p80 || 50)));
+  })();
 }
 
-function calculatePointsToNextTier(score = 0, tier = 'city') {
+function calculatePointsToNextTier(score = 0, tier = 'city', countryCode = null) {
   if (tier === 'country') return 0;
-  const threshold = getCountryThreshold();
+  const threshold = process.env.METER_COUNTRY_THRESHOLD
+    ? Number(process.env.METER_COUNTRY_THRESHOLD)
+    : (cfg.thresholds?.country ?? 50);
   return Math.max(0, threshold - (Number(score) || 0));
 }
 
@@ -71,24 +97,35 @@ function resetVelocityTracking(postId) {
 
 // Atomically bump counters, recalculate score, and update tier in a single update pipeline.
 // Supports passing an active Mongoose session for multi-document transaction atomicity.
-async function applyDelta(postId, delta, session = null, options = {}) {
+async function applyDelta(postId, deltaInput, session = null, options = {}) {
+  const delta = { ...deltaInput };
+  if (delta.comments !== undefined && delta.commenters === undefined) {
+    delta.commenters = delta.comments;
+  }
+
   const userId = options?.userId;
   const freezeScoreOpt = Boolean(options?.freezeScore);
   const velocityStatus = trackInteraction(postId, userId);
 
   const counterUpdates = {};
   for (const [k, v] of Object.entries(delta)) {
-    counterUpdates[`meter.${k}`] = { $add: [{ $ifNull: [`$meter.${k}`, 0] }, v] };
+    if (k === 'commenters') {
+      counterUpdates['meter.commenters'] = {
+        $add: [{ $ifNull: ['$meter.commenters', { $ifNull: ['$meter.comments', 0] }] }, v],
+      };
+    } else {
+      counterUpdates[`meter.${k}`] = { $add: [{ $ifNull: [`$meter.${k}`, 0] }, v] };
+    }
   }
 
   const w = cfg.weights;
   const scoreExpr = {
     $add: [
-      { $multiply: [{ $ifNull: ['$meter.reactions', 0] }, w.reaction] },
-      { $multiply: [{ $ifNull: ['$meter.visits', 0] }, w.visit] },
-      { $multiply: [{ $ifNull: ['$meter.comments', 0] }, w.comment] },
-      { $multiply: [{ $ifNull: ['$meter.likes', 0] }, w.like] },
-      { $multiply: [{ $ifNull: ['$meter.dislikes', 0] }, w.dislike] },
+      { $multiply: [{ $ifNull: ['$meter.reactions', 0] }, w.reaction ?? 5] },
+      { $multiply: [{ $ifNull: ['$meter.visits', 0] }, w.visit ?? 4] },
+      { $multiply: [{ $ifNull: ['$meter.commenters', { $ifNull: ['$meter.comments', 0] }] }, w.comment ?? 3] },
+      { $multiply: [{ $ifNull: ['$meter.likes', 0] }, w.like ?? 1] },
+      { $multiply: [{ $ifNull: ['$meter.dislikes', 0] }, w.dislike ?? -0.5] },
     ],
   };
 
@@ -102,9 +139,16 @@ async function applyDelta(postId, delta, session = null, options = {}) {
         },
       };
 
-  const countryThreshold = process.env.METER_COUNTRY_THRESHOLD
+  let countryThreshold = process.env.METER_COUNTRY_THRESHOLD
     ? Number(process.env.METER_COUNTRY_THRESHOLD)
     : cfg.thresholds.country;
+
+  if (!process.env.METER_COUNTRY_THRESHOLD) {
+    const postDoc = await Post.findById(postId).select('place.countryCode').session(session);
+    if (postDoc?.place?.countryCode) {
+      countryThreshold = await getCountryThreshold(postDoc.place.countryCode);
+    }
+  }
 
   // Tier ratchet: if already 'country', stay 'country'; otherwise transition if score >= threshold
   const tierExpr = {
@@ -150,6 +194,7 @@ async function applyDelta(postId, delta, session = null, options = {}) {
     likes: (postBefore.meter?.likes || 0) + (delta.likes || 0),
     dislikes: (postBefore.meter?.dislikes || 0) + (delta.dislikes || 0),
     comments: (postBefore.meter?.comments || 0) + (delta.comments || 0),
+    commenters: (postBefore.meter?.commenters ?? postBefore.meter?.comments ?? 0) + (delta.commenters || 0),
     visits: (postBefore.meter?.visits || 0) + (delta.visits || 0),
     reactions: (postBefore.meter?.reactions || 0) + (delta.reactions || 0),
   };

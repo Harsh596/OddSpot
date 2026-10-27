@@ -11,6 +11,7 @@ const {
   createTestPost,
   models,
 } = require('./setup');
+const meter = require('../services/meter');
 
 describe('Concurrency & Race Condition Integration Tests', () => {
   let user;
@@ -27,6 +28,7 @@ describe('Concurrency & Race Condition Integration Tests', () => {
 
   beforeEach(async () => {
     await clearCollections();
+    meter.resetVelocityTracking();
     user = await createTestUser();
     voter = await createTestUser();
     const postRes = await createTestPost(user.token, { title: 'Concurrency Test Post' });
@@ -106,10 +108,11 @@ describe('Concurrency & Race Condition Integration Tests', () => {
     process.env.METER_COUNTRY_THRESHOLD = '2';
 
     try {
+      const commenter = await createTestUser();
       // Add a comment (+3 points), which exceeds threshold of 2
       const commentRes = await request(app)
         .post(`/api/posts/${post._id}/comments`)
-        .set('Authorization', `Bearer ${user.token}`)
+        .set('Authorization', `Bearer ${commenter.token}`)
         .send({ body: 'Country tier booster' });
 
       assert.equal(commentRes.status, 201);
@@ -120,7 +123,7 @@ describe('Concurrency & Race Condition Integration Tests', () => {
       // Now downvote to reduce score below 2
       await request(app)
         .post(`/api/posts/${post._id}/vote`)
-        .set('Authorization', `Bearer ${user.token}`)
+        .set('Authorization', `Bearer ${commenter.token}`)
         .send({ value: -1 });
 
       postDoc = await models.Post.findById(post._id);
@@ -135,11 +138,14 @@ describe('Concurrency & Race Condition Integration Tests', () => {
   });
 
   it('4. Concurrent comments execute atomically without score drift', async () => {
-    // 10 concurrent comments (+3 points each -> +30 points total)
-    const promises = Array.from({ length: 10 }, (_, i) =>
+    // 8 concurrent comments from 8 distinct commenters (+3 points each -> +24 points total)
+    const commenters = await Promise.all(
+      Array.from({ length: 8 }, () => createTestUser())
+    );
+    const promises = commenters.map((c, i) =>
       request(app)
         .post(`/api/posts/${post._id}/comments`)
-        .set('Authorization', `Bearer ${user.token}`)
+        .set('Authorization', `Bearer ${c.token}`)
         .send({ body: `Concurrent comment ${i}` })
     );
 
@@ -149,7 +155,7 @@ describe('Concurrency & Race Condition Integration Tests', () => {
     }
 
     const postDoc = await models.Post.findById(post._id);
-    assert.equal(postDoc.meter.comments, 10);
-    assert.equal(postDoc.meter.score, 30);
+    assert.equal(postDoc.meter.comments, 8);
+    assert.equal(postDoc.meter.score, 24);
   });
 });

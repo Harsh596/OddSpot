@@ -3,7 +3,7 @@
 
 const express = require('express');
 const router = express.Router();
-const { Comment, Post } = require('../models');
+const { Comment, Post, PostCommenter } = require('../models');
 const { requireAuth } = require('../middleware/auth');
 const { validateBody, validateParams, ErrorCodes, formatErrorResponse } = require('../validators');
 const postsValidators = require('../validators/posts.validators');
@@ -70,7 +70,24 @@ router.delete(
         comment.removed = true;
         await comment.save({ session });
 
-        await meterService.applyDelta(comment.postId, { comments: -1 }, session);
+        const remainingCount = await Comment.countDocuments({
+          postId: comment.postId,
+          authorId: comment.authorId,
+          removed: { $ne: true },
+        }).session(session);
+
+        const delta = { comments: -1, commenters: 0 };
+        if (remainingCount === 0) {
+          const deleted = await PostCommenter.findOneAndDelete({
+            postId: comment.postId,
+            userId: comment.authorId,
+          }).session(session);
+          if (deleted) {
+            delta.commenters = -1;
+          }
+        }
+
+        await meterService.applyDelta(comment.postId, delta, session);
 
         if (!isAuthor && isStaff) {
           await logAudit({

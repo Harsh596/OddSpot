@@ -203,14 +203,14 @@ The Oddometer is the dynamic social vitality gauge ranking real-world discoverie
 
 The Oddometer score $S$ is calculated dynamically within an atomic MongoDB update pipeline (`backend/services/meter.js`):
 
-$$S = w_{\text{reaction}} R + w_{\text{visit}} V + w_{\text{comment}} C + w_{\text{like}} L - w_{\text{dislike}} D$$
+$$S = 1 \cdot L - 0.5 \cdot D + 3 \cdot C_{\text{unique}} + 4 \cdot V + 5 \cdot R$$
 
-Default weights:
-- $w_{\text{reaction}} = 1$
-- $w_{\text{visit}} = 2$ (Physical visits carry double weight)
-- $w_{\text{comment}} = 3$ (Discussions signal high curiosity)
+Exact weights:
 - $w_{\text{like}} = 1$
-- $w_{\text{dislike}} = 1$
+- $w_{\text{dislike}} = -0.5$
+- $w_{\text{comment}} = 3$ (per unique commenter $C_{\text{unique}}$ via `meter.commenters`)
+- $w_{\text{visit}} = 4$ (Physical verified visits)
+- $w_{\text{reaction}} = 5$ (Spot reactions)
 
 ### 7.2 Tier Progression & Ratchet Mechanism
 

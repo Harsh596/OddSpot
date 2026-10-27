@@ -2,17 +2,17 @@
 
 **Repository**: `OddSpot`  
 **Git Branch**: `antigravity/test-2`  
-**Execution Units Completed**: 32 (P0–P19, F1–F10, R1–R4)  
-**Verification Status**: 100% Passing (0 Test Failures, 0 Manual Check Failures)  
+**Execution Units Completed**: 33 (P0–P20, F1–F10, R1–R4)  
+**Verification Status**: 100% Passing (0 Test Failures, 0 Manual Check Failures, 0 Gaps)  
 **Date**: October 27, 2026  
 
 ---
 
 ## 1. Executive Summary of All Completed Execution Units
 
-The Master Build Brief for Oddspot (Run: test 2) has successfully completed across all 32 planned execution units spanning core backend infrastructure, enterprise security hardening, red-team penetration testing, rich frontend user experience, and admin moderation tooling:
+The Master Build Brief for Oddspot (Run: test 2) has successfully completed across all 33 planned execution units spanning core backend infrastructure, enterprise security hardening, red-team penetration testing, rich frontend user experience, admin moderation tooling, and post-build audit remediation:
 
-### Foundation & Backend Milestones (P0–P19)
+### Foundation & Backend Milestones (P0–P20)
 - **P0: Bootstrap, Test Safety & App Structure**
   - Configured git branch safety guardrails on `antigravity/test-2`.
   - Split `server.js` into clean `app.js` (Express factory) and `server.js` (HTTP lifecycle).
@@ -110,6 +110,16 @@ The Master Build Brief for Oddspot (Run: test 2) has successfully completed acro
   - React Admin Dashboard (`#/admin`) with Moderation Queue, Analytics, Meter Tuning, and Audit Log Trail.
   - Animated reaction bar on `PostDetail.jsx` with burst keyframes and `prefers-reduced-motion` accessibility support.
   - End-of-build `FINAL_REPORT.md`.
+- **P20: Post-Build Security & Spec Audit Remediation (Fixes 1–7)**
+  - `PostCommenter` unique non-author commenters collection with compound index `{ postId: 1, userId: 1 }`.
+  - Display comments increment +1, 1st non-author comment adds +3 score and +1 commenters, 2nd..10th add 0, soft-delete cleanup/decrements.
+  - Relative country threshold `getCountryThreshold(countryCode)` p80 clamped to `[50, 500]`.
+  - Unified Oddometer score formula: $S = 1 \cdot L - 0.5 \cdot D + 3 \cdot C_{\text{unique}} + 4 \cdot V + 5 \cdot R$.
+  - Fail-closed auth middleware returning 503 `SERVICE_UNAVAILABLE` on database lookup error (eliminating unsafe fallbacks).
+  - Standardized `FUZZ_SECRET` with production startup guard `validateFuzzConfig()`.
+  - Consolidated duplicate test directory: removed `backend/tests/` after validating 100% equivalence with `backend/test/`.
+  - Closed last 2 gaps in `manualChecks2.sh` (87 PASS, 0 FAIL, 0 GAP).
+  - Git hygiene check verifying no `.env` files tracked and updating `.gitignore` rules.
 
 ### Review & Hardening Phases (R1–R4)
 - **R1: Security Review & Audit Findings Remediations**
@@ -209,14 +219,14 @@ Every item in the backlog has been addressed and verified with dedicated test co
 ### Backend Test Suite (`npm test`)
 Executed via Node.js native test runner (`node --test test/*.test.js`):
 ```text
-ℹ tests 374
-ℹ suites 126
-ℹ pass 374
+ℹ tests 379
+ℹ suites 127
+ℹ pass 379
 ℹ fail 0
 ℹ cancelled 0
 ℹ skipped 0
 ℹ todo 0
-ℹ duration_ms 81769.2995
+ℹ duration_ms 82140.1120
 ```
 
 ### Frontend Production Build (`npm run build`)
@@ -228,7 +238,7 @@ rendering chunks (1)...computing gzip size...
 dist/index.html                   0.45 kB │ gzip:   0.29 kB
 dist/assets/index-Bh97uFAW.css  113.50 kB │ gzip:  24.40 kB
 dist/assets/index-ClH7bYC8.js   763.37 kB │ gzip: 219.97 kB
-✓ built in 134ms
+✓ built in 131ms
 ```
 
 ### Manual Check Script 1 (`backend/scripts/manualChecks.sh`)
@@ -244,12 +254,12 @@ manualChecks.sh exited with code: 0
 Executed against isolated replica set backend under `AUTH_HEAVY=1`:
 ```text
 ================================
-Passed: 85   Failed: 0   Gaps: 2
+Passed: 87   Failed: 0   Gaps: 0
 FAIL = fix now.  GAP = close before launch.
 Delete test_chk_* users and posts in Atlas, then restart the backend.
 manualChecks2.sh exited with code: 0
 ```
-*(Note on Gaps: The 2 flagged pre-launch gaps represent optional city-spelling synonym mapping and strict 400 rejection vs non-destructive stripping of whitespace control codes, both safely handled).*
+*(All 87 checks passing with 0 gaps: control characters \x1b rejected with 400, and city spelling variants mapped to canonical values).*
 
 ---
 
@@ -259,7 +269,7 @@ manualChecks2.sh exited with code: 0
 2. **[PLANNER DECISION] Dedicated IdempotencyKey Collection**: Prevents duplicate double-submits on `POST /posts` and `POST /comments` via `{ userId: 1, key: 1 }` unique indexing, 60-second execution locks, and 24-hour TTL expiration.
 3. **[PLANNER DECISION] Strict Zero-Role JWT Tokens**: Access tokens contain strictly `{ id, username }`. Privileged roles (`moderator`, `admin`) and account ban statuses are checked dynamically against MongoDB with a 30-second in-memory cache, ensuring privilege revocations take effect immediately.
 4. **[AGENT DECISION] Deterministic Polar Coordinate Fuzzing (P6)**: Employs HMAC-SHA256 keyed on `LOCATION_FUZZ_SALT` generating radius $r \in [150\text{m}, 400\text{m}]$ and angle $\theta \in [0, 2\pi)$. Stored permanently in indexed `feedLocation` to prevent boundary bisection and geometric trilateration attacks.
-5. **[AGENT DECISION] Oddometer Scoring Formula & Dynamic Ratchet (P8, P19)**: Dynamic scoring formula ($S = 3C + 1L - 1D + 2V + 5R$) implemented inside an atomic aggregation pipeline in `findOneAndUpdate` with `returnDocument: 'before'`, guaranteeing tier progression (`city` $\to$ `country`) never reverts down.
+5. **[AGENT DECISION] Oddometer Scoring Formula & Dynamic Ratchet (P8, P19, P20)**: Unified dynamic scoring formula ($S = 1 \cdot L - 0.5 \cdot D + 3 \cdot C_{\text{unique}} + 4 \cdot V + 5 \cdot R$) implemented across code, tests, and reconciler inside an atomic aggregation pipeline in `findOneAndUpdate` with `returnDocument: 'before'`, guaranteeing tier progression (`city` $\to$ `country`) never reverts down.
 6. **[AGENT DECISION] Eval-Free AST Feed Rule Interpreter (P14)**: Declarative JSON schema validated with Zod, compiling only allowlisted query operators (`$geoNear`, `$in`, `$nin`, `$gte`). Completely disallows `$where`, `$function`, `$expr`, `__proto__`, and `constructor`.
 7. **[AGENT DECISION] Zero-SSRF Safe Image URL Validator (P15, R4)**: Enforces HTTPS protocol, blocks embedded credentials, blocks all IPv4/IPv6 literals, hex/octal encodings, loopback (`127.0.0.1`), private RFC1918 ranges, and cloud metadata endpoints (`169.254.169.254`) across all user-supplied URLs with zero outbound server-side requests.
 8. **[AGENT DECISION] Constant-Time Metrics Authentication (P12, R3)**: Uses `crypto.timingSafeEqual` over pre-hashed SHA-256 buffers to eliminate timing side-channels on Prometheus `/metrics`.
@@ -282,7 +292,8 @@ The production environment must configure the following environment variable nam
 | `JWT_SECRET` | Required | High-entropy random secret (minimum 32 characters, recommended 64-char hex) for signing HS256 tokens. |
 | `JWT_SECRETS` | Optional | JSON string of key IDs to secrets (`{"k1":"...","k2":"..."}`) for zero-downtime key rotation. |
 | `JWT_CURRENT_KEY_ID` | Optional | Active Key ID (`kid`) matching an entry in `JWT_SECRETS`. |
-| `LOCATION_FUZZ_SALT` | Required | Cryptographic salt used for deterministic polar coordinate location fuzzing. |
+| `LOCATION_FUZZ_SALT` | Legacy Alias | Legacy alias for `FUZZ_SECRET` (supported for backward compatibility). |
+| `FUZZ_SECRET` | Required in prod | Cryptographic secret (minimum 32 characters) used for deterministic polar coordinate location fuzzing. |
 | `METRICS_TOKEN` | Required if metrics scraped | High-entropy secret token for authenticating Prometheus `/metrics` scrapes via Bearer token. |
 | `UPLOAD_PROVIDER` | Optional (default: allowlist) | Set to `'allowlist'`, `'cloudinary'`, or `'r2'`. |
 | `IMAGE_HOST_ALLOWLIST` | Optional | Comma-separated list of trusted image domains (e.g. `res.cloudinary.com,images.unsplash.com`). |

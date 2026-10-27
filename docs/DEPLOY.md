@@ -21,6 +21,9 @@ JWT_SECRET=your-secure-random-jwt-secret-min-32-chars-long!
 # Optional Keyring for key rotation:
 # JWT_KEYRING=[{"kid":"key-2026","secret":"...","status":"current"}]
 
+# Location Fuzzing Secret (Min 32 characters, enforced in production)
+FUZZ_SECRET=your-secure-random-fuzz-secret-min-32-chars-long!
+
 # Security & Network
 TRUST_PROXY=1
 FRONTEND_URL=https://oddspot.app,https://staging.oddspot.app

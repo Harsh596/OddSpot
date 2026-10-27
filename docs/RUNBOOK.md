@@ -85,17 +85,17 @@ Use this procedure for scheduled key rotations without forcing immediate user lo
 
 ---
 
-### 1.2 Incident: Leaked `LOCATION_FUZZ_SALT` (Severity: P2 High)
+### 1.2 Incident: Leaked `FUZZ_SECRET` / `LOCATION_FUZZ_SALT` (Severity: P2 High)
 
-**Impact:** An attacker who possesses the fuzz salt and an exported database dump could theoretically invert polar coordinate fuzzing to narrow down the true locations of `hideExact: true` spots.
+**Impact:** An attacker who possesses the fuzz secret and an exported database dump could theoretically invert polar coordinate fuzzing to narrow down the true locations of `hideExact: true` spots. In production, `validateFuzzConfig()` requires `FUZZ_SECRET` (or `LOCATION_FUZZ_SALT`) to be at least 32 characters long.
 
 1. **Generate a New Random Salt**:
    ```bash
-   NEW_FUZZ_SALT=$(openssl rand -hex 32)
+   NEW_FUZZ_SECRET=$(openssl rand -hex 32)
    ```
 
 2. **Update Environment**:
-   Update `LOCATION_FUZZ_SALT` in the backend environment.
+   Update `FUZZ_SECRET` (or `LOCATION_FUZZ_SALT`) in the backend environment. Must be at least 32 characters long.
 
 3. **Execute Feed Location Backfill Migration**:
    Run the tested migration script to re-fuzz all spots with `hideExact: true` using the new salt:

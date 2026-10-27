@@ -12,6 +12,9 @@ function normalizedString({ min = 1, max = 255, multiLine = false, fieldName = '
     .refine((val) => !val.includes('\0') && !val.includes('\u0000'), {
       message: `${fieldName} must not contain null characters`,
     })
+    .refine((val) => !val.includes('\x1b') && !val.includes('\u001b'), {
+      message: `${fieldName} must not contain escape or invalid control characters`,
+    })
     .transform((val) => normalizeText(val, { maxLength: max, allowNewlines: multiLine, fieldName }))
     .refine((val) => val.length >= min, {
       message: `${fieldName} cannot be empty or contain only whitespace and control characters`,

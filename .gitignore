@@ -4,7 +4,10 @@ node_modules/
 # Secrets (never commit these)
 .env
 .env.*
+**/.env
+**/.env.*
 !.env.example
+!**/.env.example
 
 # Build output
 dist/

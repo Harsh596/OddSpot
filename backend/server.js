@@ -3,6 +3,7 @@ const http = require('http');
 const { app, createApp, errorHandler } = require('./app');
 const { connect, mongoose } = require('./db');
 const { validateJwtConfig } = require('./services/token');
+const { validateFuzzConfig } = require('./utils/fuzzLocation');
 
 const PORT = process.env.PORT || 5001;
 
@@ -70,6 +71,7 @@ function setupGracefulShutdown(server) {
 async function start() {
   try {
     validateJwtConfig();
+    validateFuzzConfig();
     await connect();
     console.log('MongoDB connected successfully.');
     const server = createConfiguredServer(app);

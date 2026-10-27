@@ -1,6 +1,7 @@
 const { verifyAccessToken } = require('../services/token');
 const { User } = require('../models');
 const { ErrorCodes, formatErrorResponse } = require('../validators/errorCodes');
+const { logger } = require('../utils/logger');
 
 // In-memory cache (30s max) to prevent database exhaustion on rapid requests
 const userCache = new Map();
@@ -36,10 +37,10 @@ async function requireAuth(req, res, next) {
     );
   }
 
+  let user;
   try {
     const now = Date.now();
     const cached = userCache.get(decoded.id);
-    let user;
 
     if (cached && now - cached.timestamp < CACHE_TTL_MS) {
       user = cached.user;
@@ -51,7 +52,19 @@ async function requireAuth(req, res, next) {
         userCache.set(decoded.id, { user, timestamp: now });
       }
     }
+  } catch (dbErr) {
+    logger.error({ err: dbErr }, 'Database lookup failed during authentication');
+    if (dbErr.name === 'CastError') {
+      return res.status(401).json(
+        formatErrorResponse(ErrorCodes.AUTH_INVALID_TOKEN, 'Invalid user ID in token')
+      );
+    }
+    return res.status(503).json(
+      formatErrorResponse('SERVICE_UNAVAILABLE', 'Authentication service temporarily unavailable')
+    );
+  }
 
+  try {
     if (!user) {
       return res.status(401).json(
         formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found')

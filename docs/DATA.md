@@ -102,10 +102,11 @@ The system manages **17 collections**:
 | `tags` | `[String]` | No | `[]` | — | Exploration tags (e.g. `'neon'`, `'statue'`) |
 | `warnings` | `[String]` | No | `[]` | — | Safety warnings (`'private_property'`, etc.) |
 | `tier` | `String` | Yes | `'city'` | Index | Enum: `'city'`, `'state'`, `'country'` |
-| `meter.score` | `Number` | Yes | `0` | Index | Calculated Oddometer score |
+| `meter.score` | `Number` | Yes | `0` | Index | Calculated Oddometer score: $S = 1 \cdot L - 0.5 \cdot D + 3 \cdot C_{\text{unique}} + 4 \cdot V + 5 \cdot R$ |
 | `meter.likes` | `Number` | Yes | `0` | — | Denormalized upvote count |
 | `meter.dislikes` | `Number` | Yes | `0` | — | Denormalized downvote count |
 | `meter.comments` | `Number` | Yes | `0` | — | Denormalized comment count |
+| `meter.commenters` | `Number` | Yes | `0` | — | Denormalized unique non-author commenter count ($C_{\text{unique}}$) |
 | `meter.visits` | `Number` | Yes | `0` | — | Denormalized verified visit count |
 | `meter.reactions` | `Number` | Yes | `0` | — | Denormalized total reaction count |
 | `lastEngagedAt` | `Date` | Yes | `Date.now` | — | Timestamp of most recent interaction |
@@ -177,14 +178,19 @@ The system manages **17 collections**:
 ---
 
 ### 2.5 Collection: `postcommenters` (Distinct Commenter Ledger)
+**Model:** `PostCommenter` (`backend/models/PostCommenter.js`)  
 **Logical Structure & Compound Abstraction:**  
-To prevent Sybil spam networks from inflating the Oddometer comment count by having a single account post 50 comments, the system tracks distinct commenters. This is maintained via the compound index `{ postId: 1, authorId: 1 }` and distinct aggregator pipelines.
+To prevent Sybil spam networks from inflating the Oddometer comment count by having a single account post 50 comments, the system tracks distinct commenters. Only the first non-removed comment by a non-author user contributes to `meter.commenters` (+1) and `meter.score` (+3). Subsequent comments by the same user do not inflate the score.
 
 | Field | Type | Description |
 |---|---|---|
 | `postId` | `ObjectId` | The post receiving comments |
-| `authorId` | `ObjectId` | The distinct commenter |
-| `firstCommentedAt`| `Date` | Timestamp of first contribution |
+| `userId` | `ObjectId` | The distinct non-author commenter |
+| `weightApplied` | `Number` | Account weight applied to score (e.g. 1.0) |
+| `createdAt` | `Date` | Timestamp of first contribution |
+
+**Indexes:**
+- `{ postId: 1, userId: 1 }` (unique)
 
 ---
 

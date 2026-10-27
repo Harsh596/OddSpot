@@ -9,6 +9,16 @@ const EARTH_RADIUS_METERS = 6371000;
 const MIN_FUZZ_DISTANCE = 150; // 150 meters minimum offset
 const MAX_FUZZ_DISTANCE = 400; // 400 meters maximum offset
 
+function validateFuzzConfig() {
+  const secret = process.env.FUZZ_SECRET || process.env.LOCATION_FUZZ_SALT;
+  if (process.env.NODE_ENV === 'production') {
+    if (!secret || typeof secret !== 'string' || secret.length < 32) {
+      throw new Error('FATAL: FUZZ_SECRET must be configured and contain at least 32 characters in production');
+    }
+  }
+  return true;
+}
+
 /**
  * Deterministically fuzzes geographic coordinates using HMAC-SHA256 polar coordinates.
  * Displaces the original coordinates by a distance r in [150m, 400m] at an angle theta in [0, 2*PI).
@@ -27,6 +37,7 @@ function fuzzLocation(coordinates, seed = '') {
   }
 
   const salt =
+    process.env.FUZZ_SECRET ||
     process.env.LOCATION_FUZZ_SALT ||
     'oddspot-default-location-fuzz-salt-2026';
 
@@ -88,4 +99,5 @@ module.exports = {
   getHaversineDistance,
   MIN_FUZZ_DISTANCE,
   MAX_FUZZ_DISTANCE,
+  validateFuzzConfig,
 };

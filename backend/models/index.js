@@ -16,4 +16,5 @@ module.exports = {
   RateLimit: require('./RateLimit'),
   JobLock: require('./JobLock'),
   Reaction: require('./Reaction'),
+  PostCommenter: require('./PostCommenter'),
 };

@@ -63,6 +63,7 @@ const postSchema = new Schema(
       likes: { type: Number, default: 0 },
       dislikes: { type: Number, default: 0 },
       comments: { type: Number, default: 0 },
+      commenters: { type: Number, default: 0 },
       visits: { type: Number, default: 0 },
       reactions: { type: Number, default: 0 },
     },
@@ -154,6 +155,12 @@ postSchema.pre('save', function (next) {
     if (this.place.country && (!this.place.countryCode || this.isModified('place.country'))) {
       const resolved = resolveCountry(this.place.country);
       this.place.countryCode = resolved ? resolved.code : 'XX';
+    }
+  }
+
+  if (this.meter) {
+    if (this.meter.comments && !this.meter.commenters) {
+      this.meter.commenters = this.meter.comments;
     }
   }
 

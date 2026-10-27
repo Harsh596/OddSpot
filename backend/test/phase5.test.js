@@ -301,9 +301,10 @@ describe('Phase 5: Post/Comment Mutations, User Profiles, RBAC & Audit Logs', ()
     });
 
     it('12. DELETE /comments/:id soft-deletes comment and decrements post meter inside transaction', async () => {
+      const commenter = await createTestUser();
       const commentRes = await request(app)
         .post(`/api/posts/${testPost._id}/comments`)
-        .set('Authorization', `Bearer ${user1.token}`)
+        .set('Authorization', `Bearer ${commenter.token}`)
         .send({ body: 'Comment to remove' });
       const commentId = commentRes.body.comment._id;
 
@@ -314,7 +315,7 @@ describe('Phase 5: Post/Comment Mutations, User Profiles, RBAC & Audit Logs', ()
 
       const delRes = await request(app)
         .delete(`/api/comments/${commentId}`)
-        .set('Authorization', `Bearer ${user1.token}`);
+        .set('Authorization', `Bearer ${commenter.token}`);
 
       assert.equal(delRes.status, 200);
 

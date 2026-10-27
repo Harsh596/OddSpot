@@ -155,7 +155,7 @@ wait
 POSTJSON=$(curl -s "$BASE/api/posts/$CP")
 echo "post meter now: $(echo "$POSTJSON" | grep -o '"meter":{[^}]*}' | head -1)"
 check "comments counter is 10 (skip if you saw 429s)" '"comments":10' "$(echo "$POSTJSON" | grep -o '"comments":[0-9]*' | head -1)"
-check "score = 10 comments x3 + 1 like = 31 (skip if you saw 429s)" '"score":31' "$(echo "$POSTJSON" | grep -o '"score":[0-9.-]*' | head -1)"
+check "score = 1 like and author comments add 0 under P7 spec" '"score":1' "$(echo "$POSTJSON" | grep -o '"score":[0-9.-]*' | head -1)"
 
 # ---------------------------------------------------------------- rate limit (last on purpose)
 section "RATE LIMITING (restart backend afterwards)"

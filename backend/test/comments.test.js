@@ -14,6 +14,7 @@ const {
 
 describe('Comments Integration Tests', () => {
   let user;
+  let commenter;
   let post;
 
   before(async () => {
@@ -27,6 +28,7 @@ describe('Comments Integration Tests', () => {
   beforeEach(async () => {
     await clearCollections();
     user = await createTestUser();
+    commenter = await createTestUser();
     const postRes = await createTestPost(user.token);
     post = postRes.body;
   });
@@ -44,13 +46,13 @@ describe('Comments Integration Tests', () => {
 
     const res = await request(app)
       .post(`/api/posts/${post._id}/comments`)
-      .set('Authorization', `Bearer ${user.token}`)
+      .set('Authorization', `Bearer ${commenter.token}`)
       .send({ body: 'Smoke test comment verifying applyDelta!' });
 
     assert.equal(res.status, 201);
     assert.ok(res.body.comment?._id);
     assert.equal(res.body.comment.body, 'Smoke test comment verifying applyDelta!');
-    assert.equal(res.body.comment.authorId.username, user.username);
+    assert.equal(res.body.comment.authorId.username, commenter.username);
 
     // Verify post meter updated (+1 comment, +3 score)
     const updatedPost = await models.Post.findById(post._id);

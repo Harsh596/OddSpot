@@ -166,12 +166,14 @@ describe('Red-Team Pass 2: Location Privacy, Meter Brigading & Query Exhaustion'
         assert.equal(res.status, 201);
       }
 
-      // Check victim post meter: comments from Sybil 1 are capped at 3 score increments (9 pts max)
+      // Check victim post meter: comments from Sybil 1 are capped at 1 unique commenter (3 pts max)
       const postAfterSingleSybil = await Post.findById(postId);
       assert.equal(postAfterSingleSybil.meter.comments, 8, 'Stored raw comments count is preserved');
-      assert.ok(
-        postAfterSingleSybil.meter.score <= 9,
-        `One user's 8 comments must add at most 9 meter points (got ${postAfterSingleSybil.meter.score})`
+      assert.equal(postAfterSingleSybil.meter.commenters, 1, 'Only 1 unique commenter counted');
+      assert.equal(
+        postAfterSingleSybil.meter.score,
+        3,
+        `One user's 8 comments must add only 3 meter points (got ${postAfterSingleSybil.meter.score})`
       );
 
       // 4. Sybils 2 through 10 spam interactions in rapid succession (triggering >= 10 interactions surge)

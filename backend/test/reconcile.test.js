@@ -50,10 +50,12 @@ describe('Wave 1: Counter Reconciliation Integration Tests', () => {
       { userId: (await createTestUser()).id, postId: post._id, value: -1 },
     ]);
 
+    const commenter1 = await createTestUser();
+    const commenter2 = await createTestUser();
     // Create 2 real comments
     await models.Comment.create([
-      { postId: post._id, authorId: user.id, body: 'Comment 1' },
-      { postId: post._id, authorId: user.id, body: 'Comment 2' },
+      { postId: post._id, authorId: commenter1.id, body: 'Comment 1' },
+      { postId: post._id, authorId: commenter2.id, body: 'Comment 2' },
     ]);
 
     // Artificially corrupt the post meter
@@ -98,11 +100,12 @@ describe('Wave 1: Counter Reconciliation Integration Tests', () => {
     const uDislike = await createTestUser();
     await models.Vote.create({ userId: uDislike.id, postId: post._id, value: -1 });
 
-    // Create 4 real comments (each worth +3) -> 3*1 + (-2) + 4*3 = 13 score
+    // Create 4 real comments (each by a unique non-author, worth +3)
     for (let i = 0; i < 4; i++) {
+      const uCommenter = await createTestUser();
       await models.Comment.create({
         postId: post._id,
-        authorId: user.id,
+        authorId: uCommenter.id,
         body: `Comment ${i}`,
       });
     }
@@ -142,9 +145,10 @@ describe('Wave 1: Counter Reconciliation Integration Tests', () => {
     // Now add enough comments to cross country threshold (score >= cfg.thresholds.country)
     const neededComments = Math.ceil((cfg.thresholds.country - fixedPost.meter.score) / cfg.weights.comment) + 1;
     for (let i = 0; i < neededComments; i++) {
+      const uExtra = await createTestUser();
       await models.Comment.create({
         postId: post._id,
-        authorId: user.id,
+        authorId: uExtra.id,
         body: `Extra comment ${i}`,
       });
     }
@@ -160,16 +164,18 @@ describe('Wave 1: Counter Reconciliation Integration Tests', () => {
     const postRes = await createTestPost(user.token);
     const post = postRes.body;
 
+    const commenterA = await createTestUser();
+    const commenterB = await createTestUser();
     // 2 active comments
     await models.Comment.create([
-      { postId: post._id, authorId: user.id, body: 'Active comment 1', removed: false },
-      { postId: post._id, authorId: user.id, body: 'Active comment 2' },
+      { postId: post._id, authorId: commenterA.id, body: 'Active comment 1', removed: false },
+      { postId: post._id, authorId: commenterB.id, body: 'Active comment 2' },
     ]);
 
     // 2 soft-deleted comments
     await models.Comment.create([
-      { postId: post._id, authorId: user.id, body: 'Removed comment 1', removed: true },
-      { postId: post._id, authorId: user.id, body: 'Removed comment 2', removed: true },
+      { postId: post._id, authorId: (await createTestUser()).id, body: 'Removed comment 1', removed: true },
+      { postId: post._id, authorId: (await createTestUser()).id, body: 'Removed comment 2', removed: true },
     ]);
 
     // Apply reconciliation

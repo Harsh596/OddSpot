@@ -8,7 +8,7 @@
 
 require('dotenv').config();
 const { connect, disconnect } = require('../db');
-const { Post, Vote, Comment, Visit, Reaction } = require('../models');
+const { Post, Vote, Comment, Visit, Reaction, PostCommenter } = require('../models');
 const cfg = require('../config/meter');
 const { calculateHotScore } = require('../services/meter');
 
@@ -34,20 +34,30 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
     totalInspected++;
 
     // Recount source truth
-    const [actualLikes, actualDislikes, actualComments, actualVisits, actualReactions] = await Promise.all([
+    const [actualLikes, actualDislikes, actualComments, actualVisits, actualReactions, activeNonAuthorComments] = await Promise.all([
       Vote.countDocuments({ postId: post._id, value: 1 }),
       Vote.countDocuments({ postId: post._id, value: -1 }),
       Comment.countDocuments({ postId: post._id, removed: { $ne: true } }),
       Visit.countDocuments({ postId: post._id }),
       Reaction.countDocuments({ postId: post._id }),
+      Comment.find({
+        postId: post._id,
+        removed: { $ne: true },
+        authorId: { $ne: post.authorId },
+      }).select('authorId'),
     ]);
 
+    const distinctCommenterIds = Array.from(
+      new Set(activeNonAuthorComments.map((c) => c.authorId.toString()))
+    );
+    const actualCommenters = distinctCommenterIds.length;
+
     const expectedScore =
-      actualReactions * cfg.weights.reaction +
-      actualVisits * cfg.weights.visit +
-      actualComments * cfg.weights.comment +
-      actualLikes * cfg.weights.like +
-      actualDislikes * cfg.weights.dislike;
+      actualLikes * 1 +
+      actualDislikes * -0.5 +
+      actualCommenters * 3 +
+      actualVisits * 4 +
+      actualReactions * 5;
 
     // Preserve tier ratchet: if already country, stay country; transition if score crosses threshold
     let expectedTier = post.tier || 'city';
@@ -58,6 +68,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
     const currentLikes = post.meter?.likes || 0;
     const currentDislikes = post.meter?.dislikes || 0;
     const currentComments = post.meter?.comments || 0;
+    const currentCommenters = post.meter?.commenters || 0;
     const currentVisits = post.meter?.visits || 0;
     const currentReactions = post.meter?.reactions || 0;
     const currentScore = post.meter?.score || 0;
@@ -67,6 +78,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
       currentLikes !== actualLikes ||
       currentDislikes !== actualDislikes ||
       currentComments !== actualComments ||
+      currentCommenters !== actualCommenters ||
       currentVisits !== actualVisits ||
       currentReactions !== actualReactions ||
       currentScore !== expectedScore ||
@@ -80,6 +92,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
         likes: { current: currentLikes, expected: actualLikes },
         dislikes: { current: currentDislikes, expected: actualDislikes },
         comments: { current: currentComments, expected: actualComments },
+        commenters: { current: currentCommenters, expected: actualCommenters },
         visits: { current: currentVisits, expected: actualVisits },
         reactions: { current: currentReactions, expected: actualReactions },
         score: { current: currentScore, expected: expectedScore },
@@ -92,6 +105,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
           ` likes: ${currentLikes} -> ${actualLikes},` +
           ` dislikes: ${currentDislikes} -> ${actualDislikes},` +
           ` comments: ${currentComments} -> ${actualComments},` +
+          ` commenters: ${currentCommenters} -> ${actualCommenters},` +
           ` visits: ${currentVisits} -> ${actualVisits},` +
           ` reactions: ${currentReactions} -> ${actualReactions},` +
           ` score: ${currentScore} -> ${expectedScore},` +
@@ -99,6 +113,19 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
       );
 
       if (apply) {
+        // Sync PostCommenter collection for this post
+        await PostCommenter.deleteMany({
+          postId: post._id,
+          userId: { $nin: distinctCommenterIds },
+        });
+        for (const commenterId of distinctCommenterIds) {
+          await PostCommenter.updateOne(
+            { postId: post._id, userId: commenterId },
+            { $setOnInsert: { postId: post._id, userId: commenterId, weightApplied: 1, createdAt: new Date() } },
+            { upsert: true }
+          );
+        }
+
         await Post.updateOne(
           { _id: post._id },
           {
@@ -106,6 +133,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
               'meter.likes': actualLikes,
               'meter.dislikes': actualDislikes,
               'meter.comments': actualComments,
+              'meter.commenters': actualCommenters,
               'meter.visits': actualVisits,
               'meter.reactions': actualReactions,
               'meter.score': expectedScore,
