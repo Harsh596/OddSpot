@@ -64,7 +64,7 @@
   - [x] Task P6-T6: Implement `POST /api/v1/posts/:id/reveal`: validates GPS within 300m of true location, enforces daily user limit of 10, returns exact location, and writes AuditLog.
   - [x] Task P6-T7: Build `backend/utils/impossibleTravel.js` (flags speeds > 1000 km/h with `underReview: true`) and `backend/services/geocoder.js` interface (stub default, optional Nominatim).
   - [x] Dedicated regression test suite: `backend/test/phase6.test.js` (16 tests including 3-point trilateration and boundary bisection).
-- [ ] **P7: Account Security, Banning & Role Enforcement**
+- [x] **P7: Account Security, Banning & Role Enforcement**
 - [x] **P8: Regional Feeds (city, country, random), Caching, 50k Seed & Load Test**
   - [x] Task P8-T1: Installed `autocannon` as devDependency in `backend/package.json`.
   - [x] Task P8-T2: Implemented `/feed/city` (canonical cityKey & countryCode filters), `/feed/country` (tier='country' & countryCode), and `/feed/random` ($sample on country tier with optional country teleport). Added weak ETag and `Cache-Control: public, max-age=15, stale-while-revalidate=30` for anonymous callers, returning 304 on `If-None-Match` match.
@@ -111,8 +111,8 @@
   - [x] Task P15-T1: Upload Provider Interface & POST /api/v1/uploads/sign (`backend/services/uploadProvider.js`, `backend/routes/uploads.js`, `backend/validators/uploads.validators.js`, mounted at `/api/v1/uploads` and `/api/uploads`). Allowed MIME types (`image/jpeg`, `image/png`, `image/webp`), max size 5 MB (5242880 bytes, 413 error), per-user hourly rate limit (20/hour via `uploadSignLimiter`). Returns 501 `UPLOAD_PROVIDER_DISABLED` in allowlist mode; generates short-lived HMAC-SHA1 signatures with `fl_strip_profile` EXIF stripping when Cloudinary env vars are set; supports R2/S3 presigned stub; documents EXIF stripping and moderation hooks.
   - [x] Task P15-T2: Strict IMAGE_HOST_ALLOWLIST Validation & Zero SSRF (`backend/utils/imageUrlValidator.js`, integrated into `backend/validators/posts.validators.js` and `backend/routes/posts.js`). Enforces HTTPS protocol, blocks embedded credentials, blocks all IP literals (IPv4, IPv6, hex/octal/integer encodings), RFC1918 private ranges, loopback (`127.0.0.1`, `localhost`), link-local metadata (`169.254.169.254`), and enforces `IMAGE_HOST_ALLOWLIST` when set. Zero server-side fetch or DNS probing against user-supplied URLs.
   - [x] Dedicated regression test suite: `backend/test/phase15.test.js` (and mirror `backend/tests/phase15.test.js` passing 4/4 comprehensive test suites across MIME rejection, 5MB file cap, allowlist mode 501, Cloudinary HMAC signature, and SSRF/allowlist blocking).
-- [ ] **P16: Input Normalization & Payload Size Caps**
-- [ ] **P17: OpenAPI Specification & API Routing**
+- [x] **P16: Input Normalization & Payload Size Caps**
+- [x] **P17: OpenAPI Specification & API Routing**
 - [x] **P18: Complete Documentation Suite (API.md, SECURITY.md, DATA.md, RUNBOOK.md, ARCHITECTURE.md, README.md)**
   - [x] Task P18-T1: `docs/API.md` documenting every endpoint across `/api/v1/*` with auth, rate limits, schemas, error codes, and copy-pasteable curl examples.
   - [x] Task P18-T2: `docs/SECURITY.md` documenting location privacy threat model, exact HMAC polar fuzzing math, feedLocation architecture, reveal-on-arrival protections (<= 300m, 10/day quota), anti-trilateration analysis, residual limitations, auth/token rotation security, and pre-deploy security checklist.
