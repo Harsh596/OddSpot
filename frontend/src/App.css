@@ -6130,4 +6130,211 @@ details.odd-collapsible summary:hover {
   color: var(--accent, #00f0ff);
 }
 
+/* ==========================================================================
+   Phase 19: Animated Reactions & Admin Dashboard Styles
+   ========================================================================== */
+
+/* Reaction Bar Keyframes */
+@keyframes reactionBurst {
+  0% {
+    transform: scale(0.85);
+  }
+  45% {
+    transform: scale(1.35) rotate(-6deg);
+  }
+  75% {
+    transform: scale(1.1) rotate(3deg);
+  }
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+}
+
+@keyframes reactionGlow {
+  0% {
+    box-shadow: 0 0 0 rgba(0, 240, 255, 0);
+  }
+  50% {
+    box-shadow: 0 0 16px var(--accent-glow, rgba(0, 240, 255, 0.45));
+  }
+  100% {
+    box-shadow: 0 0 0 rgba(0, 240, 255, 0);
+  }
+}
+
+.reaction-bar-container {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px 16px;
+  background: var(--bg-surface, #111726);
+  border: 1px solid var(--border-subtle, #1e2638);
+  border-radius: var(--radius-lg, 12px);
+  margin-top: 16px;
+}
+
+.reaction-bar-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--text-muted, #64748b);
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.reaction-pills-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.btn-reaction-pill {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border-subtle, #253046);
+  background: var(--bg-elevated, #161e30);
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1),
+              background 0.15s ease,
+              border-color 0.15s ease,
+              color 0.15s ease;
+  user-select: none;
+}
+
+.btn-reaction-pill:hover:not(:disabled) {
+  transform: translateY(-2px);
+  border-color: var(--accent, #00f0ff);
+  color: var(--text-primary, #fff);
+  background: rgba(0, 240, 255, 0.08);
+}
+
+.btn-reaction-pill:active:not(:disabled) {
+  transform: scale(0.95);
+}
+
+.btn-reaction-pill.active {
+  background: var(--accent-subtle, rgba(0, 240, 255, 0.16));
+  border-color: var(--accent, #00f0ff);
+  color: var(--accent, #00f0ff);
+  box-shadow: 0 0 12px rgba(0, 240, 255, 0.25);
+}
+
+.btn-reaction-pill.burst .reaction-emoji {
+  animation: reactionBurst 0.45s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.btn-reaction-pill:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none !important;
+}
+
+.reaction-count {
+  font-size: var(--text-xs, 0.75rem);
+  font-weight: 700;
+  min-width: 16px;
+  text-align: center;
+}
+
+/* Reduced Motion Override for Accessibility */
+@media (prefers-reduced-motion: reduce) {
+  .btn-reaction-pill.burst .reaction-emoji,
+  .btn-reaction-pill {
+    animation: none !important;
+    transform: none !important;
+    transition: none !important;
+  }
+}
+
+/* Admin Panel Page Styles */
+.admin-page-container {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 24px 16px 64px;
+}
+
+.admin-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border-subtle, #1e2638);
+}
+
+.admin-tabs-nav {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-subtle, #202b3e);
+  margin-bottom: 24px;
+  overflow-x: auto;
+}
+
+.admin-tab-btn {
+  padding: 10px 18px;
+  background: transparent;
+  border: none;
+  border-bottom: 2px solid transparent;
+  color: var(--text-secondary, #94a3b8);
+  font-size: var(--text-sm, 0.875rem);
+  font-weight: 600;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+}
+
+.admin-tab-btn:hover {
+  color: var(--text-primary, #fff);
+}
+
+.admin-tab-btn.active {
+  color: var(--accent, #00f0ff);
+  border-bottom-color: var(--accent, #00f0ff);
+}
+
+.admin-stat-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.admin-stat-card {
+  background: var(--bg-surface, #121724);
+  border: 1px solid var(--border-subtle, #1e273a);
+  border-radius: var(--radius-lg, 12px);
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.admin-stat-card .stat-label {
+  font-size: var(--text-xs, 0.75rem);
+  color: var(--text-muted, #64748b);
+  text-transform: uppercase;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+}
+
+.admin-stat-card .stat-value {
+  font-size: 1.8rem;
+  font-weight: 800;
+  color: var(--text-primary, #fff);
+  letter-spacing: -0.5px;
+}
+
 

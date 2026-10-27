@@ -8,7 +8,7 @@
 
 require('dotenv').config();
 const { connect, disconnect } = require('../db');
-const { Post, Vote, Comment, Visit } = require('../models');
+const { Post, Vote, Comment, Visit, Reaction } = require('../models');
 const cfg = require('../config/meter');
 const { calculateHotScore } = require('../services/meter');
 
@@ -34,17 +34,16 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
     totalInspected++;
 
     // Recount source truth
-    const [actualLikes, actualDislikes, actualComments, actualVisits] = await Promise.all([
+    const [actualLikes, actualDislikes, actualComments, actualVisits, actualReactions] = await Promise.all([
       Vote.countDocuments({ postId: post._id, value: 1 }),
       Vote.countDocuments({ postId: post._id, value: -1 }),
       Comment.countDocuments({ postId: post._id, removed: { $ne: true } }),
       Visit.countDocuments({ postId: post._id }),
+      Reaction.countDocuments({ postId: post._id }),
     ]);
 
-    const reactions = post.meter?.reactions || 0;
-
     const expectedScore =
-      reactions * cfg.weights.reaction +
+      actualReactions * cfg.weights.reaction +
       actualVisits * cfg.weights.visit +
       actualComments * cfg.weights.comment +
       actualLikes * cfg.weights.like +
@@ -60,6 +59,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
     const currentDislikes = post.meter?.dislikes || 0;
     const currentComments = post.meter?.comments || 0;
     const currentVisits = post.meter?.visits || 0;
+    const currentReactions = post.meter?.reactions || 0;
     const currentScore = post.meter?.score || 0;
     const currentTier = post.tier || 'city';
 
@@ -68,6 +68,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
       currentDislikes !== actualDislikes ||
       currentComments !== actualComments ||
       currentVisits !== actualVisits ||
+      currentReactions !== actualReactions ||
       currentScore !== expectedScore ||
       currentTier !== expectedTier;
 
@@ -80,6 +81,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
         dislikes: { current: currentDislikes, expected: actualDislikes },
         comments: { current: currentComments, expected: actualComments },
         visits: { current: currentVisits, expected: actualVisits },
+        reactions: { current: currentReactions, expected: actualReactions },
         score: { current: currentScore, expected: expectedScore },
         tier: { current: currentTier, expected: expectedTier },
       };
@@ -91,6 +93,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
           ` dislikes: ${currentDislikes} -> ${actualDislikes},` +
           ` comments: ${currentComments} -> ${actualComments},` +
           ` visits: ${currentVisits} -> ${actualVisits},` +
+          ` reactions: ${currentReactions} -> ${actualReactions},` +
           ` score: ${currentScore} -> ${expectedScore},` +
           ` tier: ${currentTier} -> ${expectedTier}`
       );
@@ -104,6 +107,7 @@ async function reconcileCounters({ apply = false, quiet = false } = {}) {
               'meter.dislikes': actualDislikes,
               'meter.comments': actualComments,
               'meter.visits': actualVisits,
+              'meter.reactions': actualReactions,
               'meter.score': expectedScore,
               tier: expectedTier,
               hotScore: calculateHotScore(expectedScore, post.createdAt),

@@ -1,8 +1,7 @@
-// All tunable numbers live here. Change after you see real engagement.
-module.exports = {
+const cfg = {
   label: process.env.METER_LABEL || 'Oddometer',
   weights: {
-    reaction: 5,   // animated reactions (later)
+    reaction: 5,   // animated reactions (weight: 5)
     visit: 4,      // verified visits
     comment: 3,
     like: 1,
@@ -19,3 +18,43 @@ module.exports = {
   duplicateRadiusMeters: 20,
   visitRadiusMeters: 50,
 };
+
+function updateMeterConfig(newConfig = {}) {
+  if (newConfig.countryThreshold !== undefined) {
+    const val = Number(newConfig.countryThreshold);
+    if (!Number.isNaN(val) && val >= 1) {
+      cfg.thresholds.country = val;
+    }
+  }
+  if (newConfig.countryThresholdMin !== undefined) {
+    const val = Number(newConfig.countryThresholdMin);
+    if (!Number.isNaN(val) && val >= 1) {
+      cfg.thresholds.country = val;
+    }
+  }
+  if (newConfig.reportFuzzThreshold !== undefined) {
+    const val = Number(newConfig.reportFuzzThreshold);
+    if (!Number.isNaN(val) && val >= 1) {
+      cfg.reportFuzzThreshold = val;
+    }
+  }
+  if (newConfig.weights && typeof newConfig.weights === 'object') {
+    for (const [k, v] of Object.entries(newConfig.weights)) {
+      const num = Number(v);
+      if (!Number.isNaN(num)) {
+        cfg.weights[k] = num;
+      }
+    }
+  }
+  return { ...cfg };
+}
+
+function getMeterConfig() {
+  return { ...cfg };
+}
+
+cfg.updateMeterConfig = updateMeterConfig;
+cfg.getMeterConfig = getMeterConfig;
+
+module.exports = cfg;
+

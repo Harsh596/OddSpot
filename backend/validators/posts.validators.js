@@ -515,6 +515,13 @@ const postUpdateSchema = z
   })
   .strip();
 
+// POST /api/v1/posts/:id/react
+const reactSchema = z
+  .object({
+    type: z.enum(['mind_blown', 'eyebrow_raise', 'cursed', 'legendary']).nullable(),
+  })
+  .strip();
+
 module.exports = {
   createPostSchema,
   updatePostSchema,
@@ -530,4 +537,5 @@ module.exports = {
   recordVisitSchema,
   solvePostSchema,
   postUpdateSchema,
+  reactSchema,
 };

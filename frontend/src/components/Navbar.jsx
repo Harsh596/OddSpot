@@ -74,8 +74,11 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
   const isCreateActive = currentRoute === '#/create';
   const isGuideActive = currentRoute.startsWith('#/guide');
   const isSettingsActive = currentRoute.startsWith('#/settings');
+  const isAdminActive = currentRoute.startsWith('#/admin');
   const isLoginActive = currentRoute === '#/login';
   const isSignupActive = currentRoute === '#/signup';
+
+  const isStaff = user && (user.role === 'admin' || user.role === 'moderator');
 
   return (
     <header className="navbar-header" style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky, 100)' }}>
@@ -494,6 +497,31 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
                   <span>Settings</span>
                 </button>
 
+                {isStaff && (
+                  <button
+                    type="button"
+                    className={`nav-admin-btn ${isAdminActive ? 'active' : ''}`}
+                    onClick={() => handleNav('#/admin')}
+                    title={user.role === 'admin' ? 'Admin Command Center' : 'Moderator Queue'}
+                    style={{
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      background: isAdminActive ? 'var(--accent-subtle, rgba(0,240,255,0.18))' : 'rgba(239, 68, 68, 0.12)',
+                      color: isAdminActive ? 'var(--accent, #00f0ff)' : '#f87171',
+                      border: isAdminActive ? '1px solid var(--accent, #00f0ff)' : '1px solid rgba(239, 68, 68, 0.35)',
+                      borderRadius: 'var(--radius-md, 8px)',
+                      padding: '6px 10px',
+                      fontSize: 'var(--text-xs, 0.75rem)',
+                      fontWeight: 700,
+                    }}
+                  >
+                    <span>🛡️</span>
+                    <span>{user.role === 'admin' ? 'Admin' : 'Mod Queue'}</span>
+                  </button>
+                )}
+
                 <button
                   type="button"
                   className="btn-secondary"
@@ -774,6 +802,26 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
             >
               ⚙️ Settings & Customizer
             </button>
+            {isStaff && (
+              <button
+                type="button"
+                className={`nav-btn ${isAdminActive ? 'active' : ''}`}
+                onClick={() => handleNav('#/admin')}
+                style={{
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  padding: 'var(--space-3, 12px)',
+                  background: isAdminActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'rgba(239, 68, 68, 0.1)',
+                  color: isAdminActive ? 'var(--accent, #00f0ff)' : '#f87171',
+                  border: '1px solid rgba(239, 68, 68, 0.3)',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  fontSize: 'var(--text-sm, 0.875rem)',
+                  fontWeight: 700,
+                }}
+              >
+                🛡️ {user.role === 'admin' ? 'Admin Command Center' : 'Moderation Queue'}
+              </button>
+            )}
           </div>
 
           {/* Theme selector in mobile drawer */}

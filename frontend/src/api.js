@@ -497,5 +497,68 @@ export const api = {
     const query = params.toString() ? `?${params.toString()}` : '';
     return apiRequest(`/communities/${encodeURIComponent(slug)}/posts${query}`);
   },
+
+  // Animated Reactions (weight: 5)
+  reactToPost: (id, type) =>
+    apiRequest(`/posts/${id}/react`, {
+      method: 'POST',
+      body: JSON.stringify({ type }),
+    }),
+  getPostReactions: (id) => apiRequest(`/posts/${id}/reactions`),
+
+  // Moderation
+  getModReports: ({ status, reason, targetType, limit = 30 } = {}) => {
+    const params = new URLSearchParams();
+    if (status) params.append('status', status);
+    if (reason) params.append('reason', reason);
+    if (targetType) params.append('targetType', targetType);
+    if (limit) params.append('limit', limit);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/mod/reports${query}`);
+  },
+  actionModReport: (id, payload) =>
+    apiRequest(`/mod/reports/${id}/action`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  banUser: (id, { reason, shadow = false } = {}) =>
+    apiRequest(`/mod/users/${id}/ban`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, shadow }),
+    }),
+  unbanUser: (id, { reason, shadow = false } = {}) =>
+    apiRequest(`/mod/users/${id}/unban`, {
+      method: 'POST',
+      body: JSON.stringify({ reason, shadow }),
+    }),
+
+  // Admin Dashboard & Runtime Tuning
+  getAdminAnalytics: () => apiRequest('/admin/analytics'),
+  getAdminConfigMeter: () => apiRequest('/admin/config/meter'),
+  updateAdminConfigMeter: (payload) =>
+    apiRequest('/admin/config/meter', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
+  getAdminAuditLogs: ({ limit = 30, action, targetType } = {}) => {
+    const params = new URLSearchParams();
+    if (limit) params.append('limit', limit);
+    if (action) params.append('action', action);
+    if (targetType) params.append('targetType', targetType);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/admin/audit-logs${query}`);
+  },
+  getAdminUsers: ({ q, limit = 20 } = {}) => {
+    const params = new URLSearchParams();
+    if (q) params.append('q', q);
+    if (limit) params.append('limit', limit);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/admin/users${query}`);
+  },
+  updateUserRole: (id, { role, reason } = {}) =>
+    apiRequest(`/admin/users/${id}/role`, {
+      method: 'PATCH',
+      body: JSON.stringify({ role, reason }),
+    }),
 };
 

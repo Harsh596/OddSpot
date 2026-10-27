@@ -7,7 +7,7 @@ const auditLogSchema = new Schema(
   {
     actorId: { type: Schema.Types.ObjectId, ref: 'User', required: true, index: true },
     action: { type: String, required: true, index: true },
-    targetType: { type: String, required: true, enum: ['post', 'comment', 'user', 'report'] },
+    targetType: { type: String, required: true, enum: ['post', 'comment', 'user', 'report', 'config'] },
     targetId: { type: Schema.Types.ObjectId, required: true, index: true },
     reason: { type: String, trim: true },
     meta: { type: Schema.Types.Mixed, default: {} },

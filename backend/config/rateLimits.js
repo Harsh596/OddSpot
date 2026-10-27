@@ -65,6 +65,14 @@ const uploadSignLimiter = createRateLimiter({
   message: 'Upload signing limit reached (maximum 20 per hour), please try again later',
 });
 
+const reactLimiter = createRateLimiter({
+  prefix: 'react',
+  windowMs: 15 * 60 * 1000, // 15 mins
+  max: () => getWriteRateLimitMax(60),
+  scaleByTrust: true,
+  message: 'Too many reactions submitted, please slow down',
+});
+
 module.exports = {
   getAuthRateLimitMax,
   getWriteRateLimitMax,
@@ -74,6 +82,7 @@ module.exports = {
   commentLimiter,
   reportLimiter,
   uploadSignLimiter,
+  reactLimiter,
   createRateLimiter,
 };
 

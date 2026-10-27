@@ -8,8 +8,9 @@ const {
   voteLimiter,
   commentLimiter,
   reportLimiter,
+  reactLimiter,
 } = require('../config/rateLimits');
-const { Post, User, Comment, Report, AuditLog, Visit, Membership } = require('../models');
+const { Post, User, Comment, Report, AuditLog, Visit, Membership, Reaction } = require('../models');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { getReporterWeight, recomputeUserTrust } = require('../services/trust');
 const { idempotency } = require('../middleware/idempotency');
@@ -352,7 +353,33 @@ router.get('/:id', optionalAuth, validateParams(postsValidators.postIdParamSchem
       }
     }
 
-    res.json(sanitizePost(post));
+    const [counts, userReaction] = await Promise.all([
+      Reaction.aggregate([
+        { $match: { postId: post._id } },
+        { $group: { _id: '$type', count: { $sum: 1 } } },
+      ]),
+      req.user
+        ? Reaction.findOne({ postId: post._id, userId: req.user.id }).select('type')
+        : null,
+    ]);
+
+    const reactionBreakdown = {
+      mind_blown: 0,
+      eyebrow_raise: 0,
+      cursed: 0,
+      legendary: 0,
+    };
+    for (const c of counts) {
+      if (reactionBreakdown[c._id] !== undefined) {
+        reactionBreakdown[c._id] = c.count;
+      }
+    }
+
+    const sanitized = sanitizePost(post);
+    sanitized.reactions = reactionBreakdown;
+    sanitized.myReaction = userReaction ? userReaction.type : null;
+
+    res.json(sanitized);
   } catch (err) {
     next(err);
   }
@@ -524,6 +551,149 @@ router.post(
         meter: updatedPost ? updatedPost.meter : result.meter,
         tier: updatedPost ? updatedPost.tier : result.tier,
         tieredUp: result.tieredUp,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// POST /api/posts/:id/react - Animated reactions (weight: 5)
+router.post(
+  '/:id/react',
+  requireAuth,
+  reactLimiter,
+  validateParams(postsValidators.postIdParamSchema),
+  validateBody(postsValidators.reactSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const { type } = req.body;
+
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } });
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      // K6: Forbid self-reactions: return 403 if user is post author
+      if (post.authorId.toString() === req.user.id.toString()) {
+        return res.status(403).json(
+          formatErrorResponse(
+            ErrorCodes.AUTH_FORBIDDEN || ErrorCodes.FORBIDDEN,
+            'Authors cannot react to their own post'
+          )
+        );
+      }
+
+      const result = await withTransaction(async (session) => {
+        const existing = await Reaction.findOne({
+          userId: req.user.id,
+          postId: post._id,
+        }).session(session);
+
+        let deltaReactions = 0;
+
+        if (!type) {
+          // Remove reaction if exists
+          if (existing) {
+            await Reaction.deleteOne({ _id: existing._id }, { session });
+            deltaReactions = -1;
+          }
+        } else {
+          // Add or switch reaction
+          if (existing) {
+            if (existing.type !== type) {
+              existing.type = type;
+              await existing.save({ session });
+              deltaReactions = 0; // Type switch: net reaction count unchanged
+            } else {
+              deltaReactions = 0; // Same reaction: idempotent
+            }
+          } else {
+            await Reaction.create(
+              [{ userId: req.user.id, postId: post._id, type, weight: 1 }],
+              { session }
+            );
+            deltaReactions = 1; // New reaction: +1
+          }
+        }
+
+        let meterResult = null;
+        if (deltaReactions !== 0) {
+          meterResult = await meterService.applyDelta(
+            post._id,
+            { reactions: deltaReactions },
+            session,
+            {
+              userId: req.user.id,
+              shadowBanned: Boolean(req.user.shadowBanned),
+            }
+          );
+        }
+
+        const updatedPost = await Post.findById(post._id)
+          .select('meter tier')
+          .session(session);
+
+        return {
+          type: type || null,
+          meter: updatedPost ? updatedPost.meter : post.meter,
+          score: updatedPost ? updatedPost.meter.score : post.meter.score,
+          tier: updatedPost ? updatedPost.tier : post.tier,
+          tieredUp: meterResult ? meterResult.tieredUp : false,
+        };
+      });
+
+      res.json({
+        message: type ? 'Reaction recorded successfully' : 'Reaction removed successfully',
+        ...result,
+      });
+    } catch (err) {
+      next(err);
+    }
+  }
+);
+
+// GET /api/posts/:id/reactions - Get reaction counts and caller's reaction
+router.get(
+  '/:id/reactions',
+  optionalAuth,
+  validateParams(postsValidators.postIdParamSchema),
+  async (req, res, next) => {
+    try {
+      const { id } = req.params;
+      const post = await Post.findOne({ _id: id, removed: { $ne: true } }).select('_id meter');
+      if (!post) {
+        return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Post not found'));
+      }
+
+      const [counts, userReaction] = await Promise.all([
+        Reaction.aggregate([
+          { $match: { postId: post._id } },
+          { $group: { _id: '$type', count: { $sum: 1 } } },
+        ]),
+        req.user
+          ? Reaction.findOne({ postId: post._id, userId: req.user.id }).select('type')
+          : null,
+      ]);
+
+      const breakdown = {
+        mind_blown: 0,
+        eyebrow_raise: 0,
+        cursed: 0,
+        legendary: 0,
+      };
+      for (const c of counts) {
+        if (breakdown[c._id] !== undefined) {
+          breakdown[c._id] = c.count;
+        }
+      }
+
+      res.json({
+        postId: post._id,
+        reactions: breakdown,
+        total: post.meter?.reactions || 0,
+        myReaction: userReaction ? userReaction.type : null,
       });
     } catch (err) {
       next(err);

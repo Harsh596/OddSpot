@@ -15,6 +15,7 @@ const modRoutes = require('./routes/mod');
 const notificationsRoutes = require('./routes/notifications');
 const communitiesRoutes = require('./routes/communities');
 const uploadsRoutes = require('./routes/uploads');
+const adminRoutes = require('./routes/admin');
 const errorHandler = require('./middleware/errorHandler');
 const requestLogger = require('./middleware/requestLogger');
 const { metricsMiddleware, metricsHandler } = require('./services/metrics');
@@ -296,6 +297,7 @@ function createApp() {
   apiRouter.use('/notifications', notificationsRoutes);
   apiRouter.use('/communities', communitiesRoutes);
   apiRouter.use('/uploads', uploadsRoutes);
+  apiRouter.use('/admin', adminRoutes);
 
   // 404 handler for unmatched /api routes
   apiRouter.use((req, res) => {

@@ -15,6 +15,7 @@ import { VisitActionPanel } from '../components/visits/VisitActionPanel';
 import { ThenAndNowGallery } from '../components/visits/ThenAndNowGallery';
 import { SafeVisitBanner } from '../components/safety/SafeVisitBanner';
 import { ReportModal } from '../components/safety/ReportModal';
+import { ReactionBar } from '../components/posts/ReactionBar';
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
@@ -118,6 +119,16 @@ export function PostDetail({ postId, navigate }) {
         revealed: true,
       },
     }));
+  };
+
+  const handleReactionChange = (update) => {
+    if (update.meter) {
+      setPost((prev) => ({
+        ...prev,
+        meter: update.meter,
+        tier: update.tier || prev.tier,
+      }));
+    }
   };
 
   const isAuthor =
@@ -488,6 +499,16 @@ export function PostDetail({ postId, navigate }) {
 
       {/* Signature Oddometer Radial SVG Gauge & Next-Tier Progress Bar */}
       <OddometerGauge post={post} isAuthor={isAuthor} />
+
+      {/* Animated Reaction Bar (weight: 5) */}
+      <ReactionBar
+        postId={post._id || post.id}
+        initialReactions={post.reactions}
+        initialMyReaction={post.myReaction}
+        isAuthor={isAuthor}
+        user={user}
+        onReactionChange={handleReactionChange}
+      />
 
       {/* Engagement & Voting Bar */}
       <div className="detail-engagement">

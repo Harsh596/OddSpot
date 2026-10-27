@@ -15,4 +15,5 @@ module.exports = {
   SchemaVersion: require('./SchemaVersion'),
   RateLimit: require('./RateLimit'),
   JobLock: require('./JobLock'),
+  Reaction: require('./Reaction'),
 };
