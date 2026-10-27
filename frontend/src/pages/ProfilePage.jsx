@@ -14,19 +14,19 @@ const BADGE_DEFINITIONS = {
     title: 'Founding Scout',
     icon: '🧭',
     desc: 'Registered explorer in the OddSpot field network.',
-    color: '#00f0ff',
+    color: '#FF6F00',
   },
   first_visit: {
     title: 'First Encounter',
     icon: '🎯',
     desc: 'Recorded first verified GPS visit on location.',
-    color: '#10b981',
+    color: '#FFB300',
   },
   '10_visits': {
     title: 'Master Explorer',
     icon: '🏆',
     desc: '10+ verified field visits to strange real-world spots.',
-    color: '#f59e0b',
+    color: '#E65100',
   },
 };
 
@@ -228,7 +228,7 @@ export function ProfilePage({ username: propUsername, navigate }) {
                   title: bKey.replace('_', ' '),
                   icon: '🏅',
                   desc: 'Special contribution accreditation.',
-                  color: '#00f0ff',
+                  color: '#FF6F00',
                 };
                 return (
                   <div

@@ -1,7 +1,7 @@
 /* ==========================================================================
-   Oddspot Design System Tokens
-   Themes: neon-night (default), paper-zine, terminal, vaporwave
-   Accessibility: prefers-reduced-motion overrides & WCAG AA contrast
+   Oddspot Bespoke Design System Tokens
+   Palette: Vibrant Sunset Orange (#FF6F00), Warm Marigold Yellow (#FFB300),
+   Crisp Editorial White Paper (#FFFDF9), and Charcoal Ink (#1A1814).
    ========================================================================== */
 
 :root {
@@ -18,10 +18,13 @@
   --space-16: 4rem;    /* 64px */
 
   /* --- Typography Stacks --- */
-  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+  --font-sans: 'Plus Jakarta Sans', 'Inter', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
   --font-serif: Georgia, Cambria, 'Times New Roman', Times, serif;
   --font-mono: 'JetBrains Mono', 'Fira Code', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
   --font-zine: 'Courier New', Courier, monospace;
+
+  --font-heading: var(--font-sans);
+  --font-body: var(--font-sans);
 
   /* --- Type Scale --- */
   --text-2xs: 0.6875rem; /* 11px */
@@ -58,264 +61,214 @@
   --z-modal: 500;
   --z-toast: 1000;
   --z-skip-link: 9999;
-}
 
-/* ==========================================================================
-   THEME 1: Neon Night (Default Dark Cyberpunk)
-   Deep dark slate canvas with radiant cyan and vivid magenta neon punch
-   ========================================================================== */
-:root,
-[data-theme='neon-night'] {
-  --theme-name: 'neon-night';
+  /* ==========================================================================
+     DEFAULT THEME: SUNBURST (ORANGE, YELLOW, WHITE INDIE EXPLORATION)
+     ========================================================================== */
+  --theme-name: 'sunburst';
 
   /* Backgrounds */
-  --bg-primary: #0b0e14;
-  --bg-surface: #121722;
-  --bg-elevated: #1a2030;
-  --bg-highlight: #232b40;
-  --bg-glass: rgba(18, 23, 34, 0.85);
-  --bg-overlay: rgba(5, 7, 10, 0.75);
+  --bg-primary: #FFFDF9;     /* Crisp off-white / editorial paper */
+  --bg-surface: #FFFFFF;     /* Pure white card surfaces with subtle borders */
+  --bg-elevated: #FFF3E0;    /* Warm soft yellow-cream tint */
+  --bg-highlight: #FFF8E1;   /* Soft glowing yellow container background */
+  --bg-glass: rgba(255, 253, 249, 0.94);
+  --bg-overlay: rgba(26, 24, 20, 0.65);
 
-  /* Borders */
-  --border-subtle: #202738;
-  --border-strong: #2f3b54;
-  --border-focus: #00f0ff;
-
-  /* Typography */
-  --font-heading: var(--font-sans);
-  --font-body: var(--font-sans);
-  --text-primary: #f0f4fc;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --text-inverse: #0b0e14;
+  /* Typography Colors */
+  --text-primary: #1A1814;   /* Deep charcoal ink, highly legible */
+  --text-secondary: #6E675F; /* Muted warm gray */
+  --text-muted: #8E877F;     /* Subtle warm caption */
+  --text-inverse: #FFFFFF;   /* Crisp white text for buttons & vibrant tags */
 
   /* Accent & Action Colors */
-  --accent: #00f0ff;
-  --accent-hover: #33f3ff;
-  --accent-active: #00c7d4;
-  --accent-subtle: rgba(0, 240, 255, 0.12);
-  --accent-border: rgba(0, 240, 255, 0.35);
-  --accent-glow: 0 0 15px rgba(0, 240, 255, 0.45);
-  --accent-secondary: #ff007f;
-  --accent-secondary-subtle: rgba(255, 0, 127, 0.12);
+  --accent-primary: #FF6F00;   /* Vibrant striking sunset orange */
+  --accent-secondary: #FFB300; /* Warm amber / marigold yellow */
+  --accent-highlight: #FFF8E1; /* Soft glowing yellow container background */
+  --accent: #FF6F00;           /* Primary alias */
+  --accent-hover: #E65100;     /* Rich deep orange hover */
+  --accent-active: #BF360C;    /* Burned orange active */
+  --accent-subtle: #FFF3E0;    /* Warm creamy chip background */
+  --accent-border: #FFCC80;    /* Warm amber border */
+  --accent-glow: 0 4px 18px rgba(255, 111, 0, 0.28);
 
-  /* Feedback Colors */
-  --color-success: #10b981;
-  --color-success-bg: rgba(16, 185, 129, 0.12);
-  --color-warning: #f59e0b;
-  --color-warning-bg: rgba(245, 158, 11, 0.12);
-  --color-danger: #ef4444;
-  --color-danger-bg: rgba(239, 68, 68, 0.12);
-  --color-info: #3b82f6;
-  --color-info-bg: rgba(59, 130, 246, 0.12);
-
-  /* Radius */
-  --radius-sm: 6px;
-  --radius-md: 10px;
-  --radius-lg: 14px;
-  --radius-xl: 20px;
-  --radius-full: 9999px;
-
-  /* Elevation & Shadows */
-  --shadow-sm: 0 2px 4px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.65);
-  --shadow-card: 0 0 0 1px var(--border-subtle), 0 4px 16px rgba(0, 0, 0, 0.5);
-  --shadow-focus: 0 0 0 3px rgba(0, 240, 255, 0.35);
-}
-
-/* ==========================================================================
-   THEME 2: Paper Zine (DIY Tactile Indie Newsprint)
-   Warm newsprint cream, raw photocopy ink, stark brutalist borders
-   ========================================================================== */
-[data-theme='paper-zine'] {
-  --theme-name: 'paper-zine';
-
-  /* Backgrounds */
-  --bg-primary: #f5f2e9;
-  --bg-surface: #ffffff;
-  --bg-elevated: #eae5d7;
-  --bg-highlight: #dfd9c7;
-  --bg-glass: rgba(255, 255, 255, 0.92);
-  --bg-overlay: rgba(30, 27, 22, 0.65);
+  --accent-secondary-hover: #FFA000;
+  --accent-secondary-subtle: #FFF8E1;
 
   /* Borders */
-  --border-subtle: #d6ceba;
-  --border-strong: #1e1b16;
-  --border-focus: #e11d48;
+  --border-color: #E6DFD5;   /* Warm editorial border lines */
+  --border-subtle: #E6DFD5;  /* Editorial line default */
+  --border-strong: #D1C7BA;  /* Stronger card edge */
+  --border-focus: #FF6F00;   /* Sunset orange focus ring */
 
-  /* Typography */
-  --font-heading: var(--font-zine);
-  --font-body: var(--font-serif);
-  --text-primary: #1e1b16;
-  --text-secondary: #4a4539;
-  --text-muted: #787160;
-  --text-inverse: #f5f2e9;
-
-  /* Accent & Action Colors */
-  --accent: #e11d48;
-  --accent-hover: #be123c;
-  --accent-active: #9f1239;
-  --accent-subtle: rgba(225, 29, 72, 0.1);
-  --accent-border: #e11d48;
-  --accent-glow: none;
-  --accent-secondary: #ea580c;
-  --accent-secondary-subtle: rgba(234, 88, 12, 0.1);
-
-  /* Feedback Colors */
-  --color-success: #15803d;
-  --color-success-bg: #dcfce7;
-  --color-warning: #b45309;
-  --color-warning-bg: #fef3c7;
-  --color-danger: #b91c1c;
-  --color-danger-bg: #fee2e2;
-  --color-info: #1d4ed8;
-  --color-info-bg: #dbeafe;
-
-  /* Radius (Brutalist Sharp/Subtle) */
-  --radius-sm: 2px;
-  --radius-md: 4px;
-  --radius-lg: 6px;
-  --radius-xl: 8px;
-  --radius-full: 9999px;
-
-  /* Elevation (Offset Solid Ink Shadows) */
-  --shadow-sm: 2px 2px 0 #1e1b16;
-  --shadow-md: 4px 4px 0 #1e1b16;
-  --shadow-lg: 6px 6px 0 #1e1b16;
-  --shadow-card: 3px 3px 0 #1e1b16;
-  --shadow-focus: 0 0 0 2px #1e1b16, 0 0 0 4px #e11d48;
-}
-
-/* ==========================================================================
-   THEME 3: Terminal (CRT Hacker Phosphor Green)
-   Pitch black matrix canvas, CRT scanline aesthetic, monospaced purity
-   ========================================================================== */
-[data-theme='terminal'] {
-  --theme-name: 'terminal';
-
-  /* Backgrounds */
-  --bg-primary: #050a06;
-  --bg-surface: #0a140d;
-  --bg-elevated: #0f1f14;
-  --bg-highlight: #162c1c;
-  --bg-glass: rgba(10, 20, 13, 0.9);
-  --bg-overlay: rgba(2, 6, 3, 0.85);
-
-  /* Borders */
-  --border-subtle: #17371f;
-  --border-strong: #22532f;
-  --border-focus: #00ff66;
-
-  /* Typography */
-  --font-heading: var(--font-mono);
-  --font-body: var(--font-mono);
-  --text-primary: #4af626;
-  --text-secondary: #2db317;
-  --text-muted: #1c7a0e;
-  --text-inverse: #050a06;
-
-  /* Accent & Action Colors */
-  --accent: #00ff66;
-  --accent-hover: #33ff85;
-  --accent-active: #00cc52;
-  --accent-subtle: rgba(0, 255, 102, 0.12);
-  --accent-border: rgba(0, 255, 102, 0.4);
-  --accent-glow: 0 0 10px rgba(0, 255, 102, 0.5);
-  --accent-secondary: #ffb000;
-  --accent-secondary-subtle: rgba(255, 176, 0, 0.12);
-
-  /* Feedback Colors */
-  --color-success: #00ff66;
-  --color-success-bg: rgba(0, 255, 102, 0.1);
-  --color-warning: #ffb000;
-  --color-warning-bg: rgba(255, 176, 0, 0.1);
-  --color-danger: #ff3333;
-  --color-danger-bg: rgba(255, 51, 51, 0.1);
-  --color-info: #00d4ff;
-  --color-info-bg: rgba(0, 212, 255, 0.1);
-
-  /* Radius (Blocky Terminal Shell) */
-  --radius-sm: 0px;
-  --radius-md: 2px;
-  --radius-lg: 3px;
-  --radius-xl: 4px;
-  --radius-full: 9999px;
-
-  /* Elevation */
-  --shadow-sm: 0 0 4px rgba(0, 255, 102, 0.15);
-  --shadow-md: 0 0 10px rgba(0, 255, 102, 0.25);
-  --shadow-lg: 0 0 20px rgba(0, 255, 102, 0.35);
-  --shadow-card: 0 0 0 1px var(--border-subtle), 0 0 8px rgba(0, 255, 102, 0.12);
-  --shadow-focus: 0 0 0 2px rgba(0, 255, 102, 0.6);
-}
-
-/* ==========================================================================
-   THEME 4: Vaporwave (Aesthetic 80s/90s Pastel Sunset)
-   Dusky indigo horizon with pastel neon pink and sky blue nostalgia
-   ========================================================================== */
-[data-theme='vaporwave'] {
-  --theme-name: 'vaporwave';
-
-  /* Backgrounds */
-  --bg-primary: #19102e;
-  --bg-surface: #241742;
-  --bg-elevated: #32215a;
-  --bg-highlight: #412b74;
-  --bg-glass: rgba(36, 23, 66, 0.88);
-  --bg-overlay: rgba(15, 8, 30, 0.78);
-
-  /* Borders */
-  --border-subtle: #4a347c;
-  --border-strong: #6c4ca8;
-  --border-focus: #ff71ce;
-
-  /* Typography */
-  --font-heading: var(--font-sans);
-  --font-body: var(--font-sans);
-  --text-primary: #fcf1ff;
-  --text-secondary: #c9b3e6;
-  --text-muted: #8b74ab;
-  --text-inverse: #19102e;
-
-  /* Accent & Action Colors */
-  --accent: #ff71ce;
-  --accent-hover: #ff8cdc;
-  --accent-active: #e655b3;
-  --accent-subtle: rgba(255, 113, 206, 0.15);
-  --accent-border: rgba(255, 113, 206, 0.4);
-  --accent-glow: 0 0 16px rgba(255, 113, 206, 0.45);
-  --accent-secondary: #01cdfe;
-  --accent-secondary-subtle: rgba(1, 205, 254, 0.15);
-
-  /* Feedback Colors */
-  --color-success: #05ffa1;
-  --color-success-bg: rgba(5, 255, 161, 0.15);
-  --color-warning: #fffb96;
-  --color-warning-bg: rgba(255, 251, 150, 0.15);
-  --color-danger: #ff5277;
-  --color-danger-bg: rgba(255, 82, 119, 0.15);
-  --color-info: #01cdfe;
-  --color-info-bg: rgba(1, 205, 254, 0.15);
-
-  /* Radius */
+  /* Radius (Modern organic pill / card rounding) */
   --radius-sm: 8px;
   --radius-md: 12px;
-  --radius-lg: 18px;
+  --radius-lg: 16px;
+  --radius-card: 16px;       /* Modern organic card rounding */
   --radius-xl: 24px;
   --radius-full: 9999px;
 
-  /* Elevation */
-  --shadow-sm: 0 2px 8px rgba(0, 0, 0, 0.3);
-  --shadow-md: 0 6px 18px rgba(0, 0, 0, 0.45);
-  --shadow-lg: 0 12px 36px rgba(0, 0, 0, 0.65);
-  --shadow-card: 0 0 0 1px var(--border-subtle), 0 4px 20px rgba(0, 0, 0, 0.5);
-  --shadow-focus: 0 0 0 3px rgba(255, 113, 206, 0.4);
+  /* Elevation & Shadows */
+  --shadow-card: 0 4px 20px -2px rgba(255, 111, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+  --shadow-sm: 0 2px 8px -1px rgba(255, 111, 0, 0.06), 0 1px 3px rgba(0, 0, 0, 0.04);
+  --shadow-md: 0 6px 20px -2px rgba(255, 111, 0, 0.12), 0 2px 8px rgba(0, 0, 0, 0.04);
+  --shadow-lg: 0 14px 34px -4px rgba(255, 111, 0, 0.16), 0 4px 14px rgba(0, 0, 0, 0.06);
+  --shadow-focus: 0 0 0 3px rgba(255, 111, 0, 0.25);
+
+  /* Status Colors (Tailored warm harmonious) */
+  --color-success: #15803D;
+  --color-success-bg: #F0FDF4;
+  --color-warning: #D97706;
+  --color-warning-bg: #FFFBEB;
+  --color-danger: #DC2626;
+  --color-danger-bg: #FEF2F2;
+  --color-info: #D97706;
+  --color-info-bg: #FFF8E1;
+}
+
+/* ==========================================================================
+   THEME 1: Sunburst (Default Warm Orange/Yellow/White)
+   ========================================================================== */
+[data-theme='sunburst'] {
+  --theme-name: 'sunburst';
+  --bg-primary: #FFFDF9;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #FFF3E0;
+  --bg-highlight: #FFF8E1;
+  --bg-glass: rgba(255, 253, 249, 0.94);
+  --bg-overlay: rgba(26, 24, 20, 0.65);
+
+  --text-primary: #1A1814;
+  --text-secondary: #6E675F;
+  --text-muted: #8E877F;
+  --text-inverse: #FFFFFF;
+
+  --accent-primary: #FF6F00;
+  --accent-secondary: #FFB300;
+  --accent-highlight: #FFF8E1;
+  --accent: #FF6F00;
+  --accent-hover: #E65100;
+  --accent-active: #BF360C;
+  --accent-subtle: #FFF3E0;
+  --accent-border: #FFCC80;
+  --accent-glow: 0 4px 18px rgba(255, 111, 0, 0.28);
+
+  --border-color: #E6DFD5;
+  --border-subtle: #E6DFD5;
+  --border-strong: #D1C7BA;
+  --border-focus: #FF6F00;
+
+  --shadow-card: 0 4px 20px -2px rgba(255, 111, 0, 0.08), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+/* ==========================================================================
+   THEME 2: Golden Hour (Amber, Honey & Soft Cream)
+   ========================================================================== */
+[data-theme='golden-hour'] {
+  --theme-name: 'golden-hour';
+  --bg-primary: #FFF8E7;
+  --bg-surface: #FFFDF9;
+  --bg-elevated: #FFECC7;
+  --bg-highlight: #FFF3D0;
+  --bg-glass: rgba(255, 248, 231, 0.94);
+  --bg-overlay: rgba(38, 28, 18, 0.65);
+
+  --text-primary: #261C12;
+  --text-secondary: #7A6452;
+  --text-muted: #9C8573;
+  --text-inverse: #FFFFFF;
+
+  --accent-primary: #F57C00;
+  --accent-secondary: #FFA000;
+  --accent-highlight: #FFF3D0;
+  --accent: #F57C00;
+  --accent-hover: #E65100;
+  --accent-active: #BF360C;
+  --accent-subtle: #FFECC7;
+  --accent-border: #FFD54F;
+  --accent-glow: 0 4px 18px rgba(245, 124, 0, 0.3);
+
+  --border-color: #E8DBC9;
+  --border-subtle: #E8DBC9;
+  --border-strong: #D4C3AC;
+  --border-focus: #F57C00;
+
+  --shadow-card: 0 4px 20px -2px rgba(245, 124, 0, 0.09), 0 2px 6px -1px rgba(0, 0, 0, 0.04);
+}
+
+/* ==========================================================================
+   THEME 3: Field Journal (Paper Zine / Explorer Notebook)
+   ========================================================================== */
+[data-theme='paper-zine'] {
+  --theme-name: 'paper-zine';
+  --bg-primary: #F7F4EB;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #EBE4D3;
+  --bg-highlight: #FEF3C7;
+  --bg-glass: rgba(247, 244, 235, 0.94);
+  --bg-overlay: rgba(28, 25, 23, 0.65);
+
+  --text-primary: #1C1917;
+  --text-secondary: #57534E;
+  --text-muted: #78716C;
+  --text-inverse: #FFFFFF;
+
+  --accent-primary: #D95D00;
+  --accent-secondary: #D97706;
+  --accent-highlight: #FEF3C7;
+  --accent: #D95D00;
+  --accent-hover: #B45309;
+  --accent-active: #92400E;
+  --accent-subtle: #FEF3C7;
+  --accent-border: #FCD34D;
+  --accent-glow: none;
+
+  --border-color: #D6CEBE;
+  --border-subtle: #D6CEBE;
+  --border-strong: #1C1917;
+  --border-focus: #D95D00;
+
+  --shadow-card: 3px 3px 0 #1C1917;
+}
+
+/* ==========================================================================
+   THEME 4: Obsidian Ember (Nocturnal Dark Mode with Warm Orange Embers)
+   ========================================================================== */
+[data-theme='obsidian-ember'] {
+  --theme-name: 'obsidian-ember';
+  --bg-primary: #12100E;
+  --bg-surface: #1C1916;
+  --bg-elevated: #29241E;
+  --bg-highlight: #2A1D0E;
+  --bg-glass: rgba(28, 25, 22, 0.92);
+  --bg-overlay: rgba(8, 7, 6, 0.82);
+
+  --text-primary: #FFF9F2;
+  --text-secondary: #A89F91;
+  --text-muted: #787063;
+  --text-inverse: #12100E;
+
+  --accent-primary: #FF7A00;
+  --accent-secondary: #FFB800;
+  --accent-highlight: #2A1D0E;
+  --accent: #FF7A00;
+  --accent-hover: #FF9433;
+  --accent-active: #E66A00;
+  --accent-subtle: rgba(255, 122, 0, 0.16);
+  --accent-border: rgba(255, 122, 0, 0.4);
+  --accent-glow: 0 0 20px rgba(255, 122, 0, 0.45);
+
+  --border-color: #383127;
+  --border-subtle: #2B251D;
+  --border-strong: #4A4032;
+  --border-focus: #FF7A00;
+
+  --shadow-card: 0 4px 20px -2px rgba(0, 0, 0, 0.6), 0 0 0 1px var(--border-subtle);
 }
 
 /* ==========================================================================
    Prefers-Reduced-Motion Overrides (Accessibility First)
-   Zero animations, instant transitions, instant scrolling
    ========================================================================== */
 @media (prefers-reduced-motion: reduce) {
   *,

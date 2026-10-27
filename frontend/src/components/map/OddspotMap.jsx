@@ -22,17 +22,19 @@ function createClusterIcon(count) {
       <div class="oddspot-cluster-badge ${sizeClass}" style="
         width: ${size}px;
         height: ${size}px;
-        line-height: ${size}px;
         border-radius: 50%;
-        background: var(--bg-surface, #121722);
-        color: var(--accent, #00f0ff);
-        border: 2px solid var(--accent, #00f0ff);
-        box-shadow: 0 0 12px rgba(0, 240, 255, 0.45);
+        background: #FF6F00;
+        color: #FFFFFF;
+        border: 2px solid #FFB300;
+        box-shadow: 0 4px 14px rgba(255, 111, 0, 0.38);
         font-weight: 800;
         font-family: var(--font-mono, monospace);
         text-align: center;
         font-size: 13px;
         user-select: none;
+        display: flex;
+        align-items: center;
+        justify-content: center;
       ">
         ${count}
       </div>
@@ -47,9 +49,9 @@ function createClusterIcon(count) {
  * Creates custom HTML divIcon for exact spot pins
  */
 function createSpotPinIcon(post, isSelected = false) {
-  const score = post.meter?.score ?? 0;
-  const borderColor = isSelected ? 'var(--accent, #00f0ff)' : 'var(--border-strong, #2f3b54)';
-  const glow = isSelected ? '0 0 14px var(--accent, #00f0ff)' : '0 2px 8px rgba(0,0,0,0.4)';
+  const borderColor = isSelected ? '#FF6F00' : '#E6DFD5';
+  const bg = isSelected ? '#FFF8E1' : '#FFFFFF';
+  const glow = isSelected ? '0 0 16px rgba(255, 111, 0, 0.55)' : '0 3px 10px rgba(0,0,0,0.1)';
 
   return L.divIcon({
     html: `
@@ -59,12 +61,13 @@ function createSpotPinIcon(post, isSelected = false) {
         justify-content: center;
         width: 32px;
         height: 32px;
-        background: var(--bg-surface, #121722);
-        border: 2px solid ${borderColor};
+        background: ${bg};
+        border: 2.5px solid ${borderColor};
         border-radius: 50% 50% 50% 0;
         transform: rotate(-45deg);
         box-shadow: ${glow};
         cursor: pointer;
+        transition: transform 0.15s ease;
       ">
         <span style="
           transform: rotate(45deg);
@@ -92,9 +95,9 @@ function createPrivacyCenterIcon(isSelected = false) {
         width: 14px;
         height: 14px;
         border-radius: 50%;
-        background: var(--accent-secondary, #ff007f);
-        border: 2px solid #ffffff;
-        box-shadow: 0 0 8px rgba(255, 0, 127, 0.6);
+        background: #FF6F00;
+        border: 2px solid #FFFFFF;
+        box-shadow: 0 0 10px rgba(255, 111, 0, 0.6);
         cursor: pointer;
       "></div>
     `,
@@ -290,14 +293,14 @@ export function OddspotMap({
         if (isHidden) {
           // Task F2-T2 Requirement: If post.hideExact === true or post.fuzzed === true,
           // render a 400m dashed circle labeled "Approximate Area" instead of an exact pin.
-          const circleColor = isSelected ? '#00f0ff' : '#d946ef';
+          const circleColor = isSelected ? '#FF6F00' : '#FFB300';
           const privacyCircle = L.circle([item.lat, item.lng], {
             radius: 400, // 400m radius as specified
             color: circleColor,
             dashArray: '6, 8',
             weight: 2,
-            fillColor: circleColor,
-            fillOpacity: 0.16,
+            fillColor: '#FFF8E1',
+            fillOpacity: 0.35,
           });
 
           privacyCircle.bindPopup(buildPopupContent(post, true));

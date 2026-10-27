@@ -3,88 +3,108 @@ import { api } from '../api';
 
 export const THEMES = [
   {
-    id: 'neon-night',
-    name: 'Neon Night',
-    icon: '⚡',
-    description: 'Cyberpunk dark mode with cyan and magenta neon accents',
+    id: 'sunburst',
+    name: 'Sunburst (Default)',
+    icon: '☀️',
+    description: 'Crisp editorial white, sunset orange, and warm marigold yellow',
+  },
+  {
+    id: 'golden-hour',
+    name: 'Golden Hour',
+    icon: '🌅',
+    description: 'Warm honey amber tones and rich glowing marigold',
   },
   {
     id: 'paper-zine',
-    name: 'Paper Zine',
-    icon: '📰',
-    description: 'Warm tactile newsprint, ink textures, and raw DIY brutalism',
+    name: 'Field Journal',
+    icon: '📓',
+    description: 'Tactile explorer notebook with ink notes and raw field marks',
   },
   {
-    id: 'terminal',
-    name: 'Terminal',
-    icon: '📟',
-    description: 'Phosphor green CRT hacker terminal with monospaced precision',
-  },
-  {
-    id: 'vaporwave',
-    name: 'Vaporwave',
-    icon: '🌴',
-    description: 'Pastel magenta and dusky indigo 80s retro-futurism',
+    id: 'obsidian-ember',
+    name: 'Obsidian Ember',
+    icon: '🔥',
+    description: 'Rich nocturnal dark mode illuminated by warm amber embers',
   },
 ];
 
 export const THEME_PRESETS = {
-  'neon-night': {
-    id: 'neon-night',
-    name: 'Neon Night',
-    icon: '⚡',
-    description: 'Cyberpunk dark mode with cyan and magenta neon accents',
+  sunburst: {
+    id: 'sunburst',
+    name: 'Sunburst',
+    icon: '☀️',
+    description: 'Crisp editorial white, sunset orange, and warm marigold yellow',
     colors: {
-      '--bg-primary': '#0b0e14',
-      '--bg-surface': '#121722',
-      '--text-primary': '#f0f4fc',
-      '--accent-primary': '#00f0ff',
-      '--accent-secondary': '#ff0055',
+      '--bg-primary': '#FFFDF9',
+      '--bg-surface': '#FFFFFF',
+      '--bg-elevated': '#FFF3E0',
+      '--bg-highlight': '#FFF8E1',
+      '--text-primary': '#1A1814',
+      '--text-secondary': '#6E675F',
+      '--accent-primary': '#FF6F00',
+      '--accent-secondary': '#FFB300',
+      '--accent-highlight': '#FFF8E1',
+      '--border-color': '#E6DFD5',
     },
     font: 'sans',
-    neonGlow: true,
+    neonGlow: false,
+  },
+  'golden-hour': {
+    id: 'golden-hour',
+    name: 'Golden Hour',
+    icon: '🌅',
+    description: 'Warm honey amber tones and rich glowing marigold',
+    colors: {
+      '--bg-primary': '#FFF8E7',
+      '--bg-surface': '#FFFDF9',
+      '--bg-elevated': '#FFECC7',
+      '--bg-highlight': '#FFF3D0',
+      '--text-primary': '#261C12',
+      '--text-secondary': '#7A6452',
+      '--accent-primary': '#F57C00',
+      '--accent-secondary': '#FFA000',
+      '--accent-highlight': '#FFF3D0',
+      '--border-color': '#E8DBC9',
+    },
+    font: 'sans',
+    neonGlow: false,
   },
   'paper-zine': {
     id: 'paper-zine',
-    name: 'Paper Zine',
-    icon: '📰',
-    description: 'Warm tactile newsprint, ink textures, and raw DIY brutalism',
+    name: 'Field Journal',
+    icon: '📓',
+    description: 'Tactile explorer notebook with ink notes and raw field marks',
     colors: {
-      '--bg-primary': '#f5f0e6',
-      '--bg-surface': '#ebe5d8',
-      '--text-primary': '#1c1917',
-      '--accent-primary': '#dc2626',
-      '--accent-secondary': '#ea580c',
+      '--bg-primary': '#F7F4EB',
+      '--bg-surface': '#FFFFFF',
+      '--bg-elevated': '#EBE4D3',
+      '--bg-highlight': '#FEF3C7',
+      '--text-primary': '#1C1917',
+      '--text-secondary': '#57534E',
+      '--accent-primary': '#D95D00',
+      '--accent-secondary': '#D97706',
+      '--accent-highlight': '#FEF3C7',
+      '--border-color': '#D6CEBE',
     },
     font: 'zine',
     neonGlow: false,
   },
-  terminal: {
-    id: 'terminal',
-    name: 'Terminal',
-    icon: '📟',
-    description: 'Phosphor green CRT hacker terminal with monospaced precision',
+  'obsidian-ember': {
+    id: 'obsidian-ember',
+    name: 'Obsidian Ember',
+    icon: '🔥',
+    description: 'Rich nocturnal dark mode illuminated by warm amber embers',
     colors: {
-      '--bg-primary': '#050805',
-      '--bg-surface': '#0a120a',
-      '--text-primary': '#00ff66',
-      '--accent-primary': '#39ff14',
-      '--accent-secondary': '#00cc55',
-    },
-    font: 'mono',
-    neonGlow: true,
-  },
-  vaporwave: {
-    id: 'vaporwave',
-    name: 'Vaporwave',
-    icon: '🌴',
-    description: 'Pastel magenta and dusky indigo 80s retro-futurism',
-    colors: {
-      '--bg-primary': '#18122b',
-      '--bg-surface': '#251b3e',
-      '--text-primary': '#f5e6ff',
-      '--accent-primary': '#ff71ce',
-      '--accent-secondary': '#01cdfe',
+      '--bg-primary': '#12100E',
+      '--bg-surface': '#1C1916',
+      '--bg-elevated': '#29241E',
+      '--bg-highlight': '#2A1D0E',
+      '--text-primary': '#FFF9F2',
+      '--text-secondary': '#A89F91',
+      '--accent-primary': '#FF7A00',
+      '--accent-secondary': '#FFB800',
+      '--accent-highlight': '#2A1D0E',
+      '--border-color': '#383127',
     },
     font: 'sans',
     neonGlow: true,
@@ -92,13 +112,13 @@ export const THEME_PRESETS = {
 };
 
 export const FONT_OPTIONS = [
-  { id: 'sans', name: 'Modern Sans', stack: 'var(--font-sans, sans-serif)' },
-  { id: 'mono', name: 'Hacker Mono', stack: 'var(--font-mono, monospace)' },
-  { id: 'zine', name: 'Typewriter Zine', stack: 'var(--font-zine, monospace)' },
+  { id: 'sans', name: 'Plus Jakarta Sans', stack: 'var(--font-sans, "Plus Jakarta Sans", sans-serif)' },
+  { id: 'mono', name: 'JetBrains Mono', stack: 'var(--font-mono, monospace)' },
+  { id: 'zine', name: 'Field Notes', stack: 'var(--font-zine, monospace)' },
   { id: 'serif', name: 'Editorial Serif', stack: 'var(--font-serif, serif)' },
 ];
 
-const STORAGE_KEY_V1 = 'oddspot_theme_v1';
+const STORAGE_KEY_V1 = 'oddspot_theme_v2';
 const LEGACY_STORAGE_KEY = 'oddspot_theme';
 
 export {
@@ -139,14 +159,14 @@ export function ThemeProvider({ children }) {
       // Fallback
     }
     return {
-      preset: 'neon-night',
+      preset: 'sunburst',
       overrides: {},
       font: 'sans',
-      neonGlow: true,
+      neonGlow: false,
     };
   });
 
-  const activePreset = THEME_PRESETS[themeState.preset] || THEME_PRESETS['neon-night'];
+  const activePreset = THEME_PRESETS[themeState.preset] || THEME_PRESETS.sunburst;
 
   // Compute effective colors merging preset with validated user overrides
   const effectiveColors = useMemo(() => {

@@ -6,7 +6,7 @@
   --bg: var(--bg-primary);
   --border: var(--border-subtle);
   --code-bg: var(--bg-elevated);
-  --accent: var(--accent);
+  --accent: var(--accent-primary);
   --accent-bg: var(--accent-subtle);
   --accent-border: var(--accent-border);
   --sans: var(--font-body);
@@ -15,7 +15,7 @@
   --shadow: var(--shadow-card);
 
   font: 16px/150% var(--font-body);
-  color-scheme: dark light;
+  color-scheme: light dark;
   color: var(--text-primary);
   background: var(--bg-primary);
   font-synthesis: none;
@@ -24,12 +24,18 @@
   -moz-osx-font-smoothing: grayscale;
 }
 
+::selection {
+  background: #FFE082;
+  color: #1A1814;
+}
+
 body {
   margin: 0;
   padding: 0;
   background-color: var(--bg-primary);
   color: var(--text-primary);
   min-height: 100vh;
+  font-family: var(--font-sans);
   transition: background-color var(--transition-normal), color var(--transition-normal);
 }
 

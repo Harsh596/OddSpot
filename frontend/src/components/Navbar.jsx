@@ -1,21 +1,25 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { NotificationsDrawer } from './notifications/NotificationsDrawer';
 
 /**
- * Navbar - Accessible responsive navigation shell with desktop links,
- * mobile drawer/accordion, skip-to-content accessibility anchor,
- * active route indicators, scout authentication controls, and theme preset selector.
+ * Navbar - Bespoke top navigation bar with distinct orange brand badge,
+ * tactile quick links, notification bell with unread counter, and profile dropdown.
  */
-export function Navbar({ currentRoute = '#/feed', navigate }) {
+export function Navbar({ currentRoute = '#/home', navigate }) {
   const { user, logout } = useAuth();
   const { theme, setTheme, themes, currentThemeMeta } = useTheme();
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
+
+  const profileRef = useRef(null);
+  const themeRef = useRef(null);
 
   // Poll notifications unread count when user is logged in
   useEffect(() => {
@@ -42,34 +46,50 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
     };
   }, [user]);
 
-  // Close mobile menu on route change
+  // Close menus on route change
   useEffect(() => {
     setMobileMenuOpen(false);
     setThemeDropdownOpen(false);
+    setProfileDropdownOpen(false);
   }, [currentRoute]);
 
-  // Close on Escape key
+  // Close on outside click or Escape key
   useEffect(() => {
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
         setMobileMenuOpen(false);
         setThemeDropdownOpen(false);
+        setProfileDropdownOpen(false);
       }
     };
+
+    const handleClickOutside = (e) => {
+      if (profileRef.current && !profileRef.current.contains(e.target)) {
+        setProfileDropdownOpen(false);
+      }
+      if (themeRef.current && !themeRef.current.contains(e.target)) {
+        setThemeDropdownOpen(false);
+      }
+    };
+
     window.addEventListener('keydown', handleKeyDown);
-    return () => window.removeEventListener('keydown', handleKeyDown);
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown);
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
   }, []);
 
   const handleNav = (targetRoute) => {
     navigate(targetRoute);
     setMobileMenuOpen(false);
+    setProfileDropdownOpen(false);
+    setThemeDropdownOpen(false);
   };
 
   const isHomeActive = currentRoute === '#/home' || currentRoute === '#/' || !currentRoute;
-  const isExploreActive =
-    currentRoute.startsWith('#/explore') || currentRoute.startsWith('#/feed');
-  const isCommunitiesActive =
-    currentRoute.startsWith('#/communities') || currentRoute.startsWith('#/c/');
+  const isExploreActive = currentRoute.startsWith('#/explore') || currentRoute.startsWith('#/feed');
+  const isCommunitiesActive = currentRoute.startsWith('#/communities') || currentRoute.startsWith('#/c/');
   const isRandomActive = currentRoute.startsWith('#/random');
   const isCreateActive = currentRoute === '#/create';
   const isGuideActive = currentRoute.startsWith('#/guide');
@@ -82,7 +102,7 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
 
   return (
     <header className="navbar-header" style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky, 100)' }}>
-      {/* Accessibility: Skip directly to main content for screen readers and keyboard users */}
+      {/* Accessibility: Skip directly to main content */}
       <a href="#main-content" className="skip-to-content">
         Skip to main content
       </a>
@@ -95,243 +115,183 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'space-between',
-          padding: 'var(--space-3, 12px) var(--space-6, 24px)',
-          background: 'var(--bg-glass, rgba(18, 23, 34, 0.85))',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
-          borderBottom: '1px solid var(--border-subtle, #202738)',
-          boxShadow: 'var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.25))',
-          position: 'relative',
+          padding: '0.75rem 1.75rem',
+          background: 'var(--bg-glass, rgba(255, 253, 249, 0.94))',
+          backdropFilter: 'blur(16px)',
+          WebkitBackdropFilter: 'blur(16px)',
+          borderBottom: '1px solid var(--border-color, #E6DFD5)',
+          boxShadow: 'var(--shadow-sm, 0 2px 8px -1px rgba(255, 111, 0, 0.06))',
         }}
       >
-        {/* Brand identity */}
-        <div
-          className="nav-brand"
-          onClick={() => handleNav('#/home')}
-          tabIndex={0}
-          role="button"
-          aria-label="Oddspot Home"
-          onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNav('#/home')}
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2, 8px)',
-            cursor: 'pointer',
-            fontWeight: 800,
-            fontSize: 'var(--text-xl, 1.25rem)',
-            color: 'var(--text-primary, #f0f4fc)',
-            fontFamily: 'var(--font-heading, sans-serif)',
-            letterSpacing: '-0.5px',
-            userSelect: 'none',
-          }}
-        >
-          <span
-            className="brand-logo"
+        {/* Left Cluster: Brand Badge */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+          <div
+            className="nav-brand"
+            onClick={() => handleNav('#/home')}
+            tabIndex={0}
+            role="button"
+            aria-label="Oddspot Home"
+            onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNav('#/home')}
             style={{
-              fontSize: '1.5rem',
-              lineHeight: 1,
-              filter: 'drop-shadow(var(--accent-glow, 0 0 10px rgba(0,240,255,0.4)))',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '0.5rem',
+              cursor: 'pointer',
+              textDecoration: 'none',
+              userSelect: 'none',
             }}
           >
-            👁️
-          </span>
-          <span className="brand-title">
-            Oddspot<span style={{ color: 'var(--accent, #00f0ff)' }}>.</span>
-          </span>
+            {/* Distinct Orange Brand Badge */}
+            <span
+              style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.45rem',
+                background: 'linear-gradient(135deg, #FF6F00 0%, #FF8F00 100%)',
+                color: '#FFFFFF',
+                padding: '0.35rem 0.85rem',
+                borderRadius: 'var(--radius-full, 9999px)',
+                boxShadow: '0 3px 12px rgba(255, 111, 0, 0.35)',
+                fontWeight: 800,
+                fontSize: '1.05rem',
+                letterSpacing: '-0.3px',
+              }}
+            >
+              <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>👁️</span>
+              <span>Oddspot</span>
+            </span>
+            <span
+              style={{
+                fontSize: '0.72rem',
+                fontWeight: 700,
+                textTransform: 'uppercase',
+                letterSpacing: '0.08em',
+                color: 'var(--text-secondary, #6E675F)',
+                background: 'var(--bg-elevated, #FFF3E0)',
+                padding: '2px 8px',
+                borderRadius: '6px',
+                border: '1px solid var(--border-color, #E6DFD5)',
+              }}
+              className="desktop-only"
+            >
+              Field Log
+            </span>
+          </div>
+
+          {/* Desktop Navigation Links */}
+          <div
+            className="nav-links desktop-only"
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '0.35rem',
+            }}
+          >
+            <button
+              type="button"
+              className={`nav-btn ${isHomeActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/home')}
+              aria-current={isHomeActive ? 'page' : undefined}
+            >
+              🏠 Dispatch
+            </button>
+
+            <button
+              type="button"
+              className={`nav-btn ${isExploreActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/explore')}
+              aria-current={isExploreActive ? 'page' : undefined}
+            >
+              🧭 Radar
+            </button>
+
+            <button
+              type="button"
+              className={`nav-btn ${isRandomActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/random')}
+              aria-current={isRandomActive ? 'page' : undefined}
+            >
+              🎲 Random
+            </button>
+
+            <button
+              type="button"
+              className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/communities')}
+              aria-current={isCommunitiesActive ? 'page' : undefined}
+            >
+              🌐 Chapters
+            </button>
+
+            <button
+              type="button"
+              className={`nav-btn ${isGuideActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/guide')}
+              aria-current={isGuideActive ? 'page' : undefined}
+            >
+              📖 Field Manual
+            </button>
+          </div>
         </div>
 
-        {/* Desktop Navigation Links */}
-        <div
-          className="nav-links desktop-only"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-2, 8px)',
-          }}
-        >
+        {/* Right Cluster: Action Buttons & User Controls */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
+          {/* Post a Find Action Button */}
           <button
             type="button"
-            className={`nav-btn ${isHomeActive ? 'active' : ''}`}
-            onClick={() => handleNav('#/home')}
-            aria-current={isHomeActive ? 'page' : undefined}
-            style={{
-              cursor: 'pointer',
-              background: isHomeActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-              color: isHomeActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-              border: isHomeActive
-                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
-                : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-              fontSize: 'var(--text-sm, 0.875rem)',
-              fontWeight: 600,
-              borderRadius: 'var(--radius-md, 8px)',
-              transition: 'all var(--transition-fast, 150ms ease)',
-            }}
-          >
-            🏠 Home
-          </button>
-
-          <button
-            type="button"
-            className={`nav-btn ${isExploreActive ? 'active' : ''}`}
-            onClick={() => handleNav('#/explore')}
-            aria-current={isExploreActive ? 'page' : undefined}
-            style={{
-              cursor: 'pointer',
-              background: isExploreActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-              color: isExploreActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-              border: isExploreActive
-                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
-                : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-              fontSize: 'var(--text-sm, 0.875rem)',
-              fontWeight: 600,
-              borderRadius: 'var(--radius-md, 8px)',
-              transition: 'all var(--transition-fast, 150ms ease)',
-            }}
-          >
-            🧭 Explore Radar
-          </button>
-
-          <button
-            type="button"
-            className={`nav-btn ${isRandomActive ? 'active' : ''}`}
-            onClick={() => handleNav('#/random')}
-            aria-current={isRandomActive ? 'page' : undefined}
-            style={{
-              cursor: 'pointer',
-              background: isRandomActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-              color: isRandomActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-              border: isRandomActive
-                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
-                : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-              fontSize: 'var(--text-sm, 0.875rem)',
-              fontWeight: 600,
-              borderRadius: 'var(--radius-md, 8px)',
-              transition: 'all var(--transition-fast, 150ms ease)',
-            }}
-          >
-            🎲 Random
-          </button>
-
-          <button
-            type="button"
-            className={`nav-btn ${isCreateActive ? 'active' : ''}`}
+            className="btn-primary desktop-only"
             onClick={() => handleNav('#/create')}
             aria-current={isCreateActive ? 'page' : undefined}
             style={{
-              cursor: 'pointer',
-              background: isCreateActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-              color: isCreateActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-              border: isCreateActive
-                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
-                : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-              fontSize: 'var(--text-sm, 0.875rem)',
-              fontWeight: 600,
-              borderRadius: 'var(--radius-md, 8px)',
-              transition: 'all var(--transition-fast, 150ms ease)',
+              padding: '0.45rem 1rem',
+              fontSize: '0.85rem',
+              fontWeight: 700,
             }}
           >
-            + Post a Find
+            <span>+</span> Post a Find
           </button>
 
-          <button
-            type="button"
-            className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
-            onClick={() => handleNav('#/communities')}
-            aria-current={isCommunitiesActive ? 'page' : undefined}
-            style={{
-              cursor: 'pointer',
-              background: isCommunitiesActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-              color: isCommunitiesActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-              border: isCommunitiesActive
-                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
-                : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-              fontSize: 'var(--text-sm, 0.875rem)',
-              fontWeight: 600,
-              borderRadius: 'var(--radius-md, 8px)',
-              transition: 'all var(--transition-fast, 150ms ease)',
-            }}
-          >
-            🌐 Communities
-          </button>
-
-          <button
-            type="button"
-            className={`nav-btn ${isGuideActive ? 'active' : ''}`}
-            onClick={() => handleNav('#/guide')}
-            aria-current={isGuideActive ? 'page' : undefined}
-            style={{
-              cursor: 'pointer',
-              background: isGuideActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-              color: isGuideActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-              border: isGuideActive
-                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
-                : '1px solid transparent',
-              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-              fontSize: 'var(--text-sm, 0.875rem)',
-              fontWeight: 600,
-              borderRadius: 'var(--radius-md, 8px)',
-              transition: 'all var(--transition-fast, 150ms ease)',
-            }}
-          >
-            📖 Guide
-          </button>
-        </div>
-
-        {/* Right Action Cluster: Theme Preset Selector + Auth / User controls */}
-        <div
-          className="nav-actions desktop-only"
-          style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: 'var(--space-3, 12px)',
-          }}
-        >
-          {/* Theme Preset Selector Dropdown */}
-          <div className="theme-selector-container" style={{ position: 'relative' }}>
+          {/* Theme Preset Selector */}
+          <div ref={themeRef} style={{ position: 'relative' }}>
             <button
               type="button"
-              className="theme-toggle-btn"
               onClick={() => setThemeDropdownOpen((prev) => !prev)}
-              aria-label="Change theme preset"
+              aria-label="Change theme palette"
               aria-expanded={themeDropdownOpen}
               style={{
                 cursor: 'pointer',
                 display: 'flex',
                 alignItems: 'center',
-                gap: 'var(--space-2, 8px)',
-                background: 'var(--bg-elevated, #1a2030)',
-                color: 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-xs, 0.75rem)',
+                gap: '0.35rem',
+                background: 'var(--bg-elevated, #FFF3E0)',
+                color: 'var(--text-primary, #1A1814)',
+                border: '1px solid var(--border-color, #E6DFD5)',
+                padding: '0.45rem 0.75rem',
+                borderRadius: 'var(--radius-full, 9999px)',
+                fontSize: '0.8rem',
                 fontWeight: 600,
+                transition: 'all var(--transition-fast)',
               }}
             >
-              <span>{currentThemeMeta?.icon || '⚡'}</span>
-              <span className="theme-label-text">{currentThemeMeta?.name || 'Theme'}</span>
-              <span style={{ fontSize: '10px', opacity: 0.7 }}>▾</span>
+              <span>{currentThemeMeta?.icon || '☀️'}</span>
+              <span className="desktop-only">{currentThemeMeta?.name || 'Theme'}</span>
+              <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
             </button>
 
             {themeDropdownOpen && (
               <div
                 role="menu"
-                aria-label="Select Theme Preset"
+                aria-label="Select Theme Palette"
                 style={{
                   position: 'absolute',
-                  top: 'calc(100% + 6px)',
+                  top: 'calc(100% + 8px)',
                   right: 0,
-                  width: '210px',
-                  background: 'var(--bg-surface, #121722)',
-                  border: '1px solid var(--border-strong, #2f3b54)',
-                  borderRadius: 'var(--radius-lg, 12px)',
-                  boxShadow: 'var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.65))',
-                  padding: 'var(--space-2, 8px)',
+                  width: '230px',
+                  background: 'var(--bg-surface, #FFFFFF)',
+                  border: '1px solid var(--border-color, #E6DFD5)',
+                  borderRadius: 'var(--radius-card, 16px)',
+                  boxShadow: 'var(--shadow-md, 0 6px 20px -2px rgba(255, 111, 0, 0.12))',
+                  padding: '0.5rem',
                   zIndex: 'var(--z-dropdown, 200)',
                   display: 'flex',
                   flexDirection: 'column',
@@ -340,15 +300,15 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
               >
                 <div
                   style={{
-                    padding: '4px 8px',
-                    fontSize: 'var(--text-2xs, 11px)',
-                    fontWeight: 700,
+                    padding: '6px 8px',
+                    fontSize: '0.7rem',
+                    fontWeight: 800,
                     textTransform: 'uppercase',
-                    color: 'var(--text-muted, #64748b)',
+                    color: 'var(--text-secondary, #6E675F)',
                     letterSpacing: '0.5px',
                   }}
                 >
-                  Theme Presets
+                  Indie Color Palettes
                 </div>
                 {themes.map((t) => (
                   <button
@@ -363,609 +323,465 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
                       cursor: 'pointer',
                       display: 'flex',
                       alignItems: 'center',
-                      gap: 'var(--space-2, 8px)',
-                      padding: 'var(--space-2, 8px)',
-                      borderRadius: 'var(--radius-sm, 6px)',
-                      background: theme === t.id ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                      color: theme === t.id ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                      border: 'none',
+                      gap: '0.5rem',
+                      padding: '0.5rem 0.65rem',
+                      borderRadius: '8px',
+                      background: theme === t.id ? 'var(--accent-highlight, #FFF8E1)' : 'transparent',
+                      color: theme === t.id ? 'var(--accent-primary, #FF6F00)' : 'var(--text-primary, #1A1814)',
+                      border: theme === t.id ? '1px solid var(--accent-border, #FFCC80)' : '1px solid transparent',
                       textAlign: 'left',
-                      fontSize: 'var(--text-xs, 0.75rem)',
+                      fontSize: '0.8rem',
                       fontWeight: theme === t.id ? 700 : 500,
+                      width: '100%',
                     }}
                   >
                     <span>{t.icon}</span>
                     <div style={{ flexGrow: 1 }}>
                       <div>{t.name}</div>
                     </div>
-                    {theme === t.id && <span style={{ fontSize: '12px' }}>✓</span>}
+                    {theme === t.id && <span style={{ fontSize: '11px', color: 'var(--accent-primary)' }}>✓</span>}
                   </button>
                 ))}
 
-                <div style={{ height: '1px', background: 'var(--border-subtle, #202738)', margin: '4px 0' }} />
+                <div style={{ height: '1px', background: 'var(--border-color, #E6DFD5)', margin: '4px 0' }} />
 
                 <button
                   type="button"
-                  onClick={() => {
-                    setThemeDropdownOpen(false);
-                    handleNav('#/settings');
-                  }}
+                  onClick={() => handleNav('#/settings')}
                   style={{
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '8px',
-                    padding: '8px',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    border: '1px solid var(--border-accent, rgba(0,240,255,0.2))',
-                    background: 'rgba(0, 240, 255, 0.08)',
-                    color: 'var(--accent, #00f0ff)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
+                    gap: '6px',
+                    padding: '6px 8px',
+                    borderRadius: '8px',
+                    border: 'none',
+                    background: 'var(--bg-elevated, #FFF3E0)',
+                    color: 'var(--accent-primary, #FF6F00)',
+                    fontSize: '0.78rem',
                     fontWeight: 700,
+                    width: '100%',
+                    justifyContent: 'center',
                   }}
                 >
                   <span>🎨</span>
-                  <span>Customizer & Rules</span>
+                  <span>Palette Customizer</span>
                 </button>
               </div>
             )}
           </div>
 
           {/* Auth State Cluster */}
-          <div className="nav-auth">
-            {user ? (
-              <div
-                className="user-section"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-3, 12px)',
-                }}
-              >
-                {/* Notification Bell Button */}
-                <button
-                  type="button"
-                  className="nav-bell-btn"
-                  onClick={() => setNotificationsOpen(true)}
-                  title="Field Transmissions (Notifications)"
-                  style={{
-                    position: 'relative',
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    background: notificationsOpen ? 'var(--accent-subtle, rgba(0,240,255,0.15))' : 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    padding: '6px 10px',
-                    fontSize: '0.95rem',
-                  }}
-                  aria-label={`Notifications, ${unreadCount} unread`}
-                >
-                  <span>🔔</span>
-                  {unreadCount > 0 && (
-                    <span className="nav-unread-badge">
-                      {unreadCount > 99 ? '99+' : unreadCount}
-                    </span>
-                  )}
-                </button>
-
-                <button
-                  type="button"
-                  className="nav-profile-btn"
-                  onClick={() => handleNav('#/profile')}
-                  title="View your Scout Profile, Verified Visits Map & Badges"
-                  style={{
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    background: 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    padding: '6px 10px',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 600,
-                  }}
-                >
-                  <span>🧭</span>
-                  <span>{user.username}</span>
-                </button>
-
-                <button
-                  type="button"
-                  className={`nav-settings-btn ${isSettingsActive ? 'active' : ''}`}
-                  onClick={() => handleNav('#/settings')}
-                  title="Theme Customizer & Feed Discovery Rules"
-                  style={{
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    background: isSettingsActive ? 'var(--accent-subtle, rgba(0,240,255,0.15))' : 'var(--bg-elevated, #1a2030)',
-                    color: isSettingsActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                    border: isSettingsActive ? '1px solid var(--accent, #00f0ff)' : '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    padding: '6px 10px',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 600,
-                  }}
-                >
-                  <span>⚙️</span>
-                  <span>Settings</span>
-                </button>
-
-                {isStaff && (
-                  <button
-                    type="button"
-                    className={`nav-admin-btn ${isAdminActive ? 'active' : ''}`}
-                    onClick={() => handleNav('#/admin')}
-                    title={user.role === 'admin' ? 'Admin Command Center' : 'Moderator Queue'}
-                    style={{
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                      background: isAdminActive ? 'var(--accent-subtle, rgba(0,240,255,0.18))' : 'rgba(239, 68, 68, 0.12)',
-                      color: isAdminActive ? 'var(--accent, #00f0ff)' : '#f87171',
-                      border: isAdminActive ? '1px solid var(--accent, #00f0ff)' : '1px solid rgba(239, 68, 68, 0.35)',
-                      borderRadius: 'var(--radius-md, 8px)',
-                      padding: '6px 10px',
-                      fontSize: 'var(--text-xs, 0.75rem)',
-                      fontWeight: 700,
-                    }}
-                  >
-                    <span>🛡️</span>
-                    <span>{user.role === 'admin' ? 'Admin' : 'Mod Queue'}</span>
-                  </button>
-                )}
-
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={logout}
-                  style={{
-                    cursor: 'pointer',
-                    padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-                    background: 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-secondary, #94a3b8)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 600,
-                  }}
-                >
-                  Log Out
-                </button>
-              </div>
-            ) : (
-              <div
-                className="auth-buttons"
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: 'var(--space-2, 8px)',
-                }}
-              >
-                <button
-                  type="button"
-                  className={`btn-secondary ${isLoginActive ? 'active' : ''}`}
-                  onClick={() => handleNav('#/login')}
-                  style={{
-                    cursor: 'pointer',
-                    padding: 'var(--space-2, 8px) var(--space-4, 16px)',
-                    background: 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 600,
-                  }}
-                >
-                  Log In
-                </button>
-                <button
-                  type="button"
-                  className={`btn-primary ${isSignupActive ? 'active' : ''}`}
-                  onClick={() => handleNav('#/signup')}
-                  style={{
-                    cursor: 'pointer',
-                    padding: 'var(--space-2, 8px) var(--space-4, 16px)',
-                    background: 'var(--accent, #00f0ff)',
-                    color: 'var(--text-inverse, #0b0e14)',
-                    border: 'none',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 700,
-                    boxShadow: 'var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.3))',
-                  }}
-                >
-                  Sign Up
-                </button>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Mobile Hamburger Toggle Button */}
-        <button
-          type="button"
-          className="mobile-toggle-btn mobile-only"
-          onClick={() => setMobileMenuOpen((prev) => !prev)}
-          aria-label={mobileMenuOpen ? 'Close navigation menu' : 'Open navigation menu'}
-          aria-expanded={mobileMenuOpen}
-          aria-controls="mobile-navigation-drawer"
-          style={{
-            display: 'none', // Handled via CSS media query below
-            cursor: 'pointer',
-            background: 'var(--bg-elevated, #1a2030)',
-            border: '1px solid var(--border-subtle, #202738)',
-            borderRadius: 'var(--radius-md, 8px)',
-            color: 'var(--text-primary, #f0f4fc)',
-            padding: 'var(--space-2, 8px) var(--space-3, 12px)',
-            fontSize: '1.25rem',
-            lineHeight: 1,
-          }}
-        >
-          {mobileMenuOpen ? '✕' : '☰'}
-        </button>
-      </nav>
-
-      {/* Mobile Drawer Navigation Menu */}
-      {mobileMenuOpen && (
-        <div
-          id="mobile-navigation-drawer"
-          className="mobile-drawer"
-          role="region"
-          aria-label="Mobile Navigation Menu"
-          style={{
-            position: 'absolute',
-            top: '100%',
-            left: 0,
-            right: 0,
-            background: 'var(--bg-surface, #121722)',
-            borderBottom: '2px solid var(--border-strong, #2f3b54)',
-            padding: 'var(--space-5, 20px) var(--space-6, 24px)',
-            display: 'flex',
-            flexDirection: 'column',
-            gap: 'var(--space-4, 16px)',
-            boxShadow: 'var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.65))',
-            zIndex: 'var(--z-dropdown, 200)',
-          }}
-        >
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-2, 8px)' }}>
-            <button
-              type="button"
-              className={`nav-btn ${isHomeActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/home')}
-              style={{
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 'var(--space-3, 12px)',
-                background: isHomeActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isHomeActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                fontWeight: 600,
-              }}
-            >
-              🏠 Home
-            </button>
-            <button
-              type="button"
-              className={`nav-btn ${isExploreActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/explore')}
-              style={{
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 'var(--space-3, 12px)',
-                background: isExploreActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isExploreActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                fontWeight: 600,
-              }}
-            >
-              🧭 Explore Radar
-            </button>
-            <button
-              type="button"
-              className={`nav-btn ${isRandomActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/random')}
-              style={{
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 'var(--space-3, 12px)',
-                background: isRandomActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isRandomActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                fontWeight: 600,
-              }}
-            >
-              🎲 Random
-            </button>
-            <button
-              type="button"
-              className={`nav-btn ${isCreateActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/create')}
-              style={{
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 'var(--space-3, 12px)',
-                background: isCreateActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isCreateActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                fontWeight: 600,
-              }}
-            >
-              + Post a Find
-            </button>
-            <button
-              type="button"
-              className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/communities')}
-              style={{
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 'var(--space-3, 12px)',
-                background: isCommunitiesActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isCommunitiesActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                fontWeight: 600,
-              }}
-            >
-              🌐 Communities Hub
-            </button>
-            {user && (
+          {user ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* Notification Bell Button */}
               <button
                 type="button"
-                className="nav-btn"
-                onClick={() => {
-                  setMobileMenuOpen(false);
-                  setNotificationsOpen(true);
-                }}
+                className="nav-bell-btn"
+                onClick={() => setNotificationsOpen(true)}
+                title="Field Transmissions (Notifications)"
+                aria-label={`Notifications, ${unreadCount} unread`}
                 style={{
+                  position: 'relative',
                   cursor: 'pointer',
-                  textAlign: 'left',
-                  padding: 'var(--space-3, 12px)',
-                  background: 'transparent',
-                  color: 'var(--text-primary, #f0f4fc)',
-                  border: '1px solid var(--border-subtle, #202738)',
-                  borderRadius: 'var(--radius-md, 8px)',
-                  fontSize: 'var(--text-sm, 0.875rem)',
-                  fontWeight: 600,
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'space-between',
+                  justifyContent: 'center',
+                  background: notificationsOpen ? 'var(--accent-highlight, #FFF8E1)' : 'var(--bg-elevated, #FFF3E0)',
+                  color: 'var(--text-primary, #1A1814)',
+                  border: '1px solid var(--border-color, #E6DFD5)',
+                  borderRadius: 'var(--radius-full, 9999px)',
+                  width: '36px',
+                  height: '36px',
+                  fontSize: '1rem',
+                  transition: 'all var(--transition-fast)',
                 }}
               >
-                <span>🔔 Transmissions / Notifications</span>
+                <span>🔔</span>
                 {unreadCount > 0 && (
                   <span
                     style={{
-                      background: 'var(--accent, #00f0ff)',
-                      color: '#0a0d14',
-                      fontSize: '11px',
-                      fontWeight: 700,
-                      padding: '2px 8px',
-                      borderRadius: '999px',
+                      position: 'absolute',
+                      top: '-4px',
+                      right: '-4px',
+                      background: '#FF6F00',
+                      color: '#FFFFFF',
+                      fontSize: '0.65rem',
+                      fontWeight: 800,
+                      padding: '2px 5px',
+                      borderRadius: '9999px',
+                      border: '2px solid var(--bg-surface, #FFFFFF)',
+                      lineHeight: 1,
+                      minWidth: '18px',
+                      textAlign: 'center',
+                      boxShadow: '0 2px 6px rgba(255, 111, 0, 0.4)',
                     }}
                   >
-                    {unreadCount}
+                    {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </button>
-            )}
-            <button
-              type="button"
-              className={`nav-btn ${isGuideActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/guide')}
-              style={{
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 'var(--space-3, 12px)',
-                background: isGuideActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isGuideActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                fontWeight: 600,
-              }}
-            >
-              📖 Field Guide
-            </button>
-            <button
-              type="button"
-              className={`nav-btn ${isSettingsActive ? 'active' : ''}`}
-              onClick={() => handleNav('#/settings')}
-              style={{
-                cursor: 'pointer',
-                textAlign: 'left',
-                padding: 'var(--space-3, 12px)',
-                background: isSettingsActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
-                color: isSettingsActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                borderRadius: 'var(--radius-md, 8px)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                fontWeight: 600,
-              }}
-            >
-              ⚙️ Settings & Customizer
-            </button>
-            {isStaff && (
-              <button
-                type="button"
-                className={`nav-btn ${isAdminActive ? 'active' : ''}`}
-                onClick={() => handleNav('#/admin')}
-                style={{
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                  padding: 'var(--space-3, 12px)',
-                  background: isAdminActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'rgba(239, 68, 68, 0.1)',
-                  color: isAdminActive ? 'var(--accent, #00f0ff)' : '#f87171',
-                  border: '1px solid rgba(239, 68, 68, 0.3)',
-                  borderRadius: 'var(--radius-md, 8px)',
-                  fontSize: 'var(--text-sm, 0.875rem)',
-                  fontWeight: 700,
-                }}
-              >
-                🛡️ {user.role === 'admin' ? 'Admin Command Center' : 'Moderation Queue'}
-              </button>
-            )}
-          </div>
 
-          {/* Theme selector in mobile drawer */}
-          <div
-            style={{
-              paddingTop: 'var(--space-3, 12px)',
-              borderTop: '1px solid var(--border-subtle, #202738)',
-            }}
-          >
-            <div
-              style={{
-                fontSize: 'var(--text-xs, 0.75rem)',
-                color: 'var(--text-muted, #64748b)',
-                marginBottom: 'var(--space-2, 8px)',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-              }}
-            >
-              Theme Preset:
-            </div>
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-2, 8px)' }}>
-              {themes.map((t) => (
+              {/* Profile Dropdown Trigger */}
+              <div ref={profileRef} style={{ position: 'relative' }}>
                 <button
-                  key={t.id}
                   type="button"
-                  onClick={() => setTheme(t.id)}
+                  className="nav-profile-btn"
+                  onClick={() => setProfileDropdownOpen((prev) => !prev)}
+                  aria-expanded={profileDropdownOpen}
+                  aria-label="Open scout account menu"
                   style={{
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px',
-                    padding: 'var(--space-2, 8px)',
-                    background: theme === t.id ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'var(--bg-elevated, #1a2030)',
-                    color: theme === t.id ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
-                    border: theme === t.id ? '1px solid var(--accent, #00f0ff)' : '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 600,
+                    gap: '0.45rem',
+                    background: profileDropdownOpen ? 'var(--accent-highlight, #FFF8E1)' : 'var(--bg-elevated, #FFF3E0)',
+                    color: 'var(--text-primary, #1A1814)',
+                    border: profileDropdownOpen ? '1px solid var(--accent-border, #FFCC80)' : '1px solid var(--border-color, #E6DFD5)',
+                    borderRadius: 'var(--radius-full, 9999px)',
+                    padding: '0.35rem 0.75rem',
+                    fontSize: '0.82rem',
+                    fontWeight: 700,
+                    transition: 'all var(--transition-fast)',
                   }}
                 >
-                  <span>{t.icon}</span>
-                  <span>{t.name}</span>
+                  <span
+                    style={{
+                      width: '22px',
+                      height: '22px',
+                      borderRadius: '50%',
+                      background: '#FF6F00',
+                      color: '#FFFFFF',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      fontSize: '11px',
+                    }}
+                  >
+                    🧭
+                  </span>
+                  <span>{user.username}</span>
+                  <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
                 </button>
-              ))}
-            </div>
-          </div>
 
-          {/* Mobile Auth actions */}
-          <div
+                {/* Profile Dropdown Menu */}
+                {profileDropdownOpen && (
+                  <div
+                    role="menu"
+                    aria-label="Scout Profile Menu"
+                    style={{
+                      position: 'absolute',
+                      top: 'calc(100% + 8px)',
+                      right: 0,
+                      width: '240px',
+                      background: 'var(--bg-surface, #FFFFFF)',
+                      border: '1px solid var(--border-color, #E6DFD5)',
+                      borderRadius: 'var(--radius-card, 16px)',
+                      boxShadow: 'var(--shadow-md, 0 6px 20px -2px rgba(255, 111, 0, 0.12))',
+                      padding: '0.65rem',
+                      zIndex: 'var(--z-dropdown, 200)',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '4px',
+                    }}
+                  >
+                    {/* User Header */}
+                    <div
+                      style={{
+                        padding: '0.5rem 0.65rem 0.75rem',
+                        borderBottom: '1px solid var(--border-color, #E6DFD5)',
+                        marginBottom: '4px',
+                      }}
+                    >
+                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
+                        {user.username}
+                      </div>
+                      <div style={{ display: 'flex', gap: '6px', marginTop: '4px', alignItems: 'center' }}>
+                        <span
+                          style={{
+                            fontSize: '0.68rem',
+                            fontWeight: 700,
+                            padding: '1px 6px',
+                            borderRadius: '4px',
+                            background: '#FFF3E0',
+                            color: '#E65100',
+                            border: '1px solid #FFE0B2',
+                            textTransform: 'uppercase',
+                          }}
+                        >
+                          {user.role || 'Scout'}
+                        </span>
+                        {user.score !== undefined && (
+                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                            · {user.score} pts
+                          </span>
+                        )}
+                      </div>
+                    </div>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('#/profile')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.55rem 0.65rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        width: '100%',
+                      }}
+                    >
+                      <span>🧭</span>
+                      <span>My Scout Dossier & Visits</span>
+                    </button>
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={() => handleNav('#/settings')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.55rem 0.65rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--text-primary)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        width: '100%',
+                      }}
+                    >
+                      <span>⚙️</span>
+                      <span>Discovery Settings & Theme</span>
+                    </button>
+
+                    {isStaff && (
+                      <button
+                        type="button"
+                        role="menuitem"
+                        onClick={() => handleNav('#/admin')}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.5rem',
+                          padding: '0.55rem 0.65rem',
+                          borderRadius: '8px',
+                          border: 'none',
+                          background: 'var(--bg-highlight, #FFF8E1)',
+                          color: '#E65100',
+                          fontSize: '0.85rem',
+                          fontWeight: 700,
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          width: '100%',
+                        }}
+                      >
+                        <span>🛡️</span>
+                        <span>{user.role === 'admin' ? 'Admin Dashboard' : 'Moderation Queue'}</span>
+                      </button>
+                    )}
+
+                    <div style={{ height: '1px', background: 'var(--border-color, #E6DFD5)', margin: '4px 0' }} />
+
+                    <button
+                      type="button"
+                      role="menuitem"
+                      onClick={logout}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        padding: '0.55rem 0.65rem',
+                        borderRadius: '8px',
+                        border: 'none',
+                        background: 'transparent',
+                        color: 'var(--color-danger, #DC2626)',
+                        fontSize: '0.85rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        width: '100%',
+                      }}
+                    >
+                      <span>🚪</span>
+                      <span>Log Out</span>
+                    </button>
+                  </div>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+              <button
+                type="button"
+                className={`btn-secondary ${isLoginActive ? 'active' : ''}`}
+                onClick={() => handleNav('#/login')}
+                style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem' }}
+              >
+                Log In
+              </button>
+              <button
+                type="button"
+                className={`btn-primary ${isSignupActive ? 'active' : ''}`}
+                onClick={() => handleNav('#/signup')}
+                style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+              >
+                Sign Up
+              </button>
+            </div>
+          )}
+
+          {/* Mobile Menu Hamburger */}
+          <button
+            type="button"
+            className="mobile-only"
+            onClick={() => setMobileMenuOpen((prev) => !prev)}
+            aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
+            aria-expanded={mobileMenuOpen}
             style={{
-              paddingTop: 'var(--space-3, 12px)',
-              borderTop: '1px solid var(--border-subtle, #202738)',
+              cursor: 'pointer',
+              background: 'var(--bg-elevated, #FFF3E0)',
+              color: 'var(--text-primary)',
+              border: '1px solid var(--border-color, #E6DFD5)',
+              borderRadius: '8px',
+              padding: '6px 10px',
+              fontSize: '1.1rem',
+              display: 'none',
             }}
           >
-            {user ? (
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ fontSize: 'var(--text-sm, 0.875rem)', color: 'var(--text-secondary, #94a3b8)' }}>
-                  Scout: <strong style={{ color: 'var(--text-primary, #f0f4fc)' }}>{user.username}</strong>
-                </span>
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+        </div>
+      </nav>
+
+      {/* Mobile Menu Drawer */}
+      {mobileMenuOpen && (
+        <div
+          className="mobile-drawer"
+          style={{
+            background: 'var(--bg-surface, #FFFFFF)',
+            borderBottom: '1px solid var(--border-color, #E6DFD5)',
+            padding: '1rem 1.5rem',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '0.65rem',
+            boxShadow: 'var(--shadow-md)',
+          }}
+        >
+          <button
+            type="button"
+            className="btn-primary"
+            onClick={() => handleNav('#/create')}
+            style={{ width: '100%', marginBottom: '0.5rem' }}
+          >
+            + Post a Find
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isHomeActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/home')}
+            style={{ width: '100%', textAlign: 'left' }}
+          >
+            🏠 Dispatch Feed
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isExploreActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/explore')}
+            style={{ width: '100%', textAlign: 'left' }}
+          >
+            🧭 Explore Radar
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isRandomActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/random')}
+            style={{ width: '100%', textAlign: 'left' }}
+          >
+            🎲 Random Oddity
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/communities')}
+            style={{ width: '100%', textAlign: 'left' }}
+          >
+            🌐 Communities Hub
+          </button>
+
+          <button
+            type="button"
+            className={`nav-btn ${isGuideActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/guide')}
+            style={{ width: '100%', textAlign: 'left' }}
+          >
+            📖 Field Manual
+          </button>
+
+          {user && (
+            <>
+              <div style={{ height: '1px', background: 'var(--border-color, #E6DFD5)', margin: '4px 0' }} />
+              <button
+                type="button"
+                className="nav-btn"
+                onClick={() => handleNav('#/profile')}
+                style={{ width: '100%', textAlign: 'left' }}
+              >
+                🧭 Scout Profile ({user.username})
+              </button>
+              <button
+                type="button"
+                className="nav-btn"
+                onClick={() => handleNav('#/settings')}
+                style={{ width: '100%', textAlign: 'left' }}
+              >
+                ⚙️ Settings & Theme
+              </button>
+              {isStaff && (
                 <button
                   type="button"
-                  className="btn-secondary"
-                  onClick={logout}
-                  style={{
-                    cursor: 'pointer',
-                    padding: 'var(--space-2, 8px) var(--space-4, 16px)',
-                    background: 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-sm, 0.875rem)',
-                    fontWeight: 600,
-                  }}
+                  className="nav-btn"
+                  onClick={() => handleNav('#/admin')}
+                  style={{ width: '100%', textAlign: 'left', color: '#E65100' }}
                 >
-                  Log Out
+                  🛡️ Admin Panel
                 </button>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', gap: 'var(--space-2, 8px)' }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => handleNav('#/login')}
-                  style={{
-                    flex: 1,
-                    cursor: 'pointer',
-                    padding: 'var(--space-2, 8px)',
-                    background: 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-sm, 0.875rem)',
-                    fontWeight: 600,
-                  }}
-                >
-                  Log In
-                </button>
-                <button
-                  type="button"
-                  className="btn-primary"
-                  onClick={() => handleNav('#/signup')}
-                  style={{
-                    flex: 1,
-                    cursor: 'pointer',
-                    padding: 'var(--space-2, 8px)',
-                    background: 'var(--accent, #00f0ff)',
-                    color: 'var(--text-inverse, #0b0e14)',
-                    border: 'none',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-sm, 0.875rem)',
-                    fontWeight: 700,
-                  }}
-                >
-                  Sign Up
-                </button>
-              </div>
-            )}
-          </div>
+              )}
+              <button
+                type="button"
+                className="nav-btn"
+                onClick={logout}
+                style={{ width: '100%', textAlign: 'left', color: 'var(--color-danger)' }}
+              >
+                🚪 Log Out
+              </button>
+            </>
+          )}
         </div>
       )}
-
-      {/* Responsive media query adjustments */}
-      <style>{`
-        @media (max-width: 768px) {
-          .desktop-only {
-            display: none !important;
-          }
-          .mobile-only {
-            display: inline-flex !important;
-          }
-        }
-        @media (min-width: 769px) {
-          .mobile-only {
-            display: none !important;
-          }
-        }
-      `}</style>
 
       {/* Notifications Drawer */}
       <NotificationsDrawer
         isOpen={notificationsOpen}
         onClose={() => setNotificationsOpen(false)}
-        navigate={handleNav}
-        onUnreadCountUpdate={setUnreadCount}
+        navigate={navigate}
+        onUnreadCountUpdate={(cnt) => setUnreadCount(cnt)}
       />
     </header>
   );

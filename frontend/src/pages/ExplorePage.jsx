@@ -261,10 +261,10 @@ export function ExplorePage({ navigate }) {
             aria-label="Feed Mode"
             style={{
               display: 'flex',
-              background: 'var(--bg-surface, #121722)',
+              background: 'var(--bg-elevated, #FFF3E0)',
               padding: '4px',
-              borderRadius: 'var(--radius-lg, 12px)',
-              border: '1px solid var(--border-subtle, #202738)',
+              borderRadius: 'var(--radius-full, 9999px)',
+              border: '1px solid var(--border-color, #E6DFD5)',
             }}
           >
             <button
@@ -275,13 +275,14 @@ export function ExplorePage({ navigate }) {
               onClick={() => setFeedMode('nearby')}
               style={{
                 cursor: 'pointer',
-                padding: 'var(--space-2, 8px) var(--space-4, 16px)',
-                borderRadius: 'var(--radius-md, 8px)',
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full, 9999px)',
                 border: 'none',
-                background: feedMode === 'nearby' ? 'var(--accent, #00f0ff)' : 'transparent',
-                color: feedMode === 'nearby' ? 'var(--text-inverse, #0b0e14)' : 'var(--text-secondary, #94a3b8)',
+                background: feedMode === 'nearby' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
+                color: feedMode === 'nearby' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
                 fontWeight: 700,
-                fontSize: 'var(--text-xs, 0.75rem)',
+                fontSize: '0.8rem',
+                boxShadow: feedMode === 'nearby' ? '0 2px 8px rgba(255, 111, 0, 0.3)' : 'none',
                 transition: 'all var(--transition-fast, 150ms ease)',
               }}
             >
@@ -295,13 +296,14 @@ export function ExplorePage({ navigate }) {
               onClick={() => setFeedMode('city')}
               style={{
                 cursor: 'pointer',
-                padding: 'var(--space-2, 8px) var(--space-4, 16px)',
-                borderRadius: 'var(--radius-md, 8px)',
+                padding: '6px 14px',
+                borderRadius: 'var(--radius-full, 9999px)',
                 border: 'none',
-                background: feedMode === 'city' ? 'var(--accent, #00f0ff)' : 'transparent',
-                color: feedMode === 'city' ? 'var(--text-inverse, #0b0e14)' : 'var(--text-secondary, #94a3b8)',
+                background: feedMode === 'city' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
+                color: feedMode === 'city' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
                 fontWeight: 700,
-                fontSize: 'var(--text-xs, 0.75rem)',
+                fontSize: '0.8rem',
+                boxShadow: feedMode === 'city' ? '0 2px 8px rgba(255, 111, 0, 0.3)' : 'none',
                 transition: 'all var(--transition-fast, 150ms ease)',
               }}
             >
@@ -315,15 +317,15 @@ export function ExplorePage({ navigate }) {
           <div
             className="geo-alert-box"
             style={{
-              padding: 'var(--space-3, 12px) var(--space-4, 16px)',
-              background: 'var(--color-warning-bg, rgba(245, 158, 11, 0.12))',
-              border: '1px solid var(--color-warning, #f59e0b)',
-              borderRadius: 'var(--radius-md, 8px)',
-              fontSize: 'var(--text-xs, 0.75rem)',
-              color: 'var(--text-primary, #f0f4fc)',
+              padding: '12px 16px',
+              background: 'var(--color-warning-bg, #FFFBEB)',
+              border: '1px solid var(--accent-secondary, #FFB300)',
+              borderRadius: 'var(--radius-md, 12px)',
+              fontSize: '0.8rem',
+              color: 'var(--text-primary, #1A1814)',
             }}
           >
-            <p style={{ margin: '0 0 var(--space-2, 8px)' }}>{geoError}</p>
+            <p style={{ margin: '0 0 8px', fontWeight: 500 }}>{geoError}</p>
             <form onSubmit={handleManualCoordsSubmit} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
               <input
                 type="number"
@@ -332,11 +334,12 @@ export function ExplorePage({ navigate }) {
                 value={manualLat}
                 onChange={(e) => setManualLat(e.target.value)}
                 style={{
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm, 4px)',
-                  border: '1px solid var(--border-subtle, #202738)',
-                  background: 'var(--bg-elevated, #1a2030)',
-                  color: 'var(--text-primary, #f0f4fc)',
+                  padding: '5px 10px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color, #E6DFD5)',
+                  background: 'var(--bg-surface, #FFFFFF)',
+                  color: 'var(--text-primary, #1A1814)',
+                  fontSize: '0.85rem',
                 }}
                 required
               />
@@ -347,24 +350,21 @@ export function ExplorePage({ navigate }) {
                 value={manualLng}
                 onChange={(e) => setManualLng(e.target.value)}
                 style={{
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm, 4px)',
-                  border: '1px solid var(--border-subtle, #202738)',
-                  background: 'var(--bg-elevated, #1a2030)',
-                  color: 'var(--text-primary, #f0f4fc)',
+                  padding: '5px 10px',
+                  borderRadius: '8px',
+                  border: '1px solid var(--border-color, #E6DFD5)',
+                  background: 'var(--bg-surface, #FFFFFF)',
+                  color: 'var(--text-primary, #1A1814)',
+                  fontSize: '0.85rem',
                 }}
                 required
               />
               <button
                 type="submit"
+                className="btn-primary"
                 style={{
-                  padding: '4px 12px',
-                  borderRadius: 'var(--radius-sm, 4px)',
-                  border: 'none',
-                  background: 'var(--accent, #00f0ff)',
-                  color: 'var(--text-inverse, #0b0e14)',
-                  fontWeight: 600,
-                  cursor: 'pointer',
+                  padding: '5px 14px',
+                  fontSize: '0.8rem',
                 }}
               >
                 Set Coordinates
@@ -373,7 +373,7 @@ export function ExplorePage({ navigate }) {
           </div>
         )}
 
-        {/* Global Control Bar: Radius/City + Sort + Search + View Switcher */}
+        {/* Global Control Bar: Radius Chips/City + Sort + Search + View Switcher */}
         <div
           className="controls-bar"
           style={{
@@ -381,42 +381,47 @@ export function ExplorePage({ navigate }) {
             flexWrap: 'wrap',
             alignItems: 'center',
             justifyContent: 'space-between',
-            gap: 'var(--space-3, 12px)',
-            padding: 'var(--space-3, 12px) var(--space-4, 16px)',
-            background: 'var(--bg-surface, #121722)',
-            border: '1px solid var(--border-subtle, #202738)',
-            borderRadius: 'var(--radius-lg, 12px)',
+            gap: '12px',
+            padding: '12px 16px',
+            background: 'var(--bg-surface, #FFFFFF)',
+            border: '1px solid var(--border-color, #E6DFD5)',
+            borderRadius: 'var(--radius-card, 16px)',
+            boxShadow: 'var(--shadow-card)',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3, 12px)', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
             {feedMode === 'nearby' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs, 0.75rem)' }}>
-                <label htmlFor="radius-select" style={{ color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
+                <span style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700, fontSize: '0.8rem' }}>
                   Radar Radius:
-                </label>
-                <select
-                  id="radius-select"
-                  value={radius}
-                  onChange={(e) => setRadius(Number(e.target.value))}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: 'var(--radius-sm, 4px)',
-                    background: 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                  }}
-                >
+                </span>
+                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
                   {RADIUS_OPTIONS.map((opt) => (
-                    <option key={opt.value} value={opt.value}>
+                    <button
+                      key={opt.value}
+                      type="button"
+                      onClick={() => setRadius(opt.value)}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: 'var(--radius-full, 9999px)',
+                        border: radius === opt.value ? '1px solid var(--accent-primary, #FF6F00)' : '1px solid var(--border-color, #E6DFD5)',
+                        background: radius === opt.value ? 'var(--accent-primary, #FF6F00)' : 'var(--bg-elevated, #FFF3E0)',
+                        color: radius === opt.value ? '#FFFFFF' : 'var(--text-primary, #1A1814)',
+                        fontWeight: radius === opt.value ? 700 : 600,
+                        fontSize: '0.75rem',
+                        cursor: 'pointer',
+                        transition: 'all 0.15s ease',
+                        boxShadow: radius === opt.value ? '0 2px 8px rgba(255, 111, 0, 0.3)' : 'none',
+                      }}
+                    >
                       {opt.label}
-                    </option>
+                    </button>
                   ))}
-                </select>
+                </div>
               </div>
             ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs, 0.75rem)' }}>
-                <label htmlFor="city-select" style={{ color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
+                <label htmlFor="city-select" style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700 }}>
                   Sector City:
                 </label>
                 <select
@@ -427,12 +432,13 @@ export function ExplorePage({ navigate }) {
                     if (match) setSelectedCity(match);
                   }}
                   style={{
-                    padding: '4px 8px',
-                    borderRadius: 'var(--radius-sm, 4px)',
-                    background: 'var(--bg-elevated, #1a2030)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
+                    padding: '5px 10px',
+                    borderRadius: '8px',
+                    background: 'var(--bg-elevated, #FFF3E0)',
+                    color: 'var(--text-primary, #1A1814)',
+                    border: '1px solid var(--border-color, #E6DFD5)',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
                   }}
                 >
                   {PRESET_CITIES.map((c) => (
@@ -445,8 +451,8 @@ export function ExplorePage({ navigate }) {
             )}
 
             {/* Sort Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs, 0.75rem)' }}>
-              <label htmlFor="sort-select" style={{ color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
+              <label htmlFor="sort-select" style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700 }}>
                 Sort:
               </label>
               <select
@@ -509,13 +515,14 @@ export function ExplorePage({ navigate }) {
                 onClick={() => setViewMode('split')}
                 style={{
                   cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm, 4px)',
+                  padding: '5px 12px',
+                  borderRadius: '9999px',
                   border: 'none',
-                  background: viewMode === 'split' ? 'var(--accent, #00f0ff)' : 'transparent',
-                  color: viewMode === 'split' ? 'var(--text-inverse, #0b0e14)' : 'var(--text-secondary, #94a3b8)',
+                  background: viewMode === 'split' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
+                  color: viewMode === 'split' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
                   fontSize: '11px',
                   fontWeight: 700,
+                  transition: 'all 0.15s ease',
                 }}
               >
                 Split
@@ -528,13 +535,14 @@ export function ExplorePage({ navigate }) {
                 onClick={() => setViewMode('list')}
                 style={{
                   cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm, 4px)',
+                  padding: '5px 12px',
+                  borderRadius: '9999px',
                   border: 'none',
-                  background: viewMode === 'list' ? 'var(--accent, #00f0ff)' : 'transparent',
-                  color: viewMode === 'list' ? 'var(--text-inverse, #0b0e14)' : 'var(--text-secondary, #94a3b8)',
+                  background: viewMode === 'list' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
+                  color: viewMode === 'list' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
                   fontSize: '11px',
                   fontWeight: 700,
+                  transition: 'all 0.15s ease',
                 }}
               >
                 List
@@ -547,13 +555,14 @@ export function ExplorePage({ navigate }) {
                 onClick={() => setViewMode('map')}
                 style={{
                   cursor: 'pointer',
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm, 4px)',
+                  padding: '5px 12px',
+                  borderRadius: '9999px',
                   border: 'none',
-                  background: viewMode === 'map' ? 'var(--accent, #00f0ff)' : 'transparent',
-                  color: viewMode === 'map' ? 'var(--text-inverse, #0b0e14)' : 'var(--text-secondary, #94a3b8)',
+                  background: viewMode === 'map' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
+                  color: viewMode === 'map' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
                   fontSize: '11px',
                   fontWeight: 700,
+                  transition: 'all 0.15s ease',
                 }}
               >
                 Map
@@ -587,13 +596,14 @@ export function ExplorePage({ navigate }) {
                 display: 'flex',
                 alignItems: 'center',
                 gap: '6px',
-                padding: '6px 12px',
+                padding: '6px 14px',
                 borderRadius: 'var(--radius-full, 9999px)',
-                background: activeCategory === cat.id ? 'var(--accent-subtle, rgba(0,240,255,0.15))' : 'var(--bg-surface, #121722)',
-                color: activeCategory === cat.id ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
-                border: activeCategory === cat.id ? '1px solid var(--accent, #00f0ff)' : '1px solid var(--border-subtle, #202738)',
+                background: activeCategory === cat.id ? 'var(--accent-highlight, #FFF8E1)' : 'var(--bg-surface, #FFFFFF)',
+                color: activeCategory === cat.id ? 'var(--accent-primary, #FF6F00)' : 'var(--text-secondary, #6E675F)',
+                border: activeCategory === cat.id ? '1px solid #FFCC80' : '1px solid var(--border-color, #E6DFD5)',
                 fontSize: 'var(--text-xs, 0.75rem)',
-                fontWeight: activeCategory === cat.id ? 700 : 500,
+                fontWeight: activeCategory === cat.id ? 800 : 600,
+                boxShadow: activeCategory === cat.id ? '0 2px 8px rgba(255, 111, 0, 0.12)' : 'none',
                 transition: 'all var(--transition-fast, 150ms ease)',
               }}
             >
@@ -685,14 +695,14 @@ export function ExplorePage({ navigate }) {
                       display: 'flex',
                       gap: 'var(--space-4, 16px)',
                       padding: 'var(--space-4, 16px)',
-                      background: 'var(--bg-surface, #121722)',
+                      background: 'var(--bg-surface, #FFFFFF)',
                       border: isSelected
-                        ? '1px solid var(--accent, #00f0ff)'
-                        : '1px solid var(--border-subtle, #202738)',
-                      borderRadius: 'var(--radius-lg, 12px)',
+                        ? '2px solid var(--accent-primary, #FF6F00)'
+                        : '1px solid var(--border-color, #E6DFD5)',
+                      borderRadius: 'var(--radius-card, 16px)',
                       boxShadow: isSelected
-                        ? 'var(--accent-glow, 0 0 14px rgba(0,240,255,0.3))'
-                        : 'var(--shadow-card, 0 4px 12px rgba(0,0,0,0.3))',
+                        ? '0 4px 20px rgba(255, 111, 0, 0.2)'
+                        : 'var(--shadow-card, 0 4px 20px -2px rgba(255, 111, 0, 0.08))',
                       transition: 'all var(--transition-fast, 150ms ease)',
                     }}
                   >
@@ -703,9 +713,10 @@ export function ExplorePage({ navigate }) {
                           width: '110px',
                           height: '110px',
                           flexShrink: 0,
-                          borderRadius: 'var(--radius-md, 8px)',
+                          borderRadius: '12px',
                           overflow: 'hidden',
                           position: 'relative',
+                          border: '1px solid var(--border-color, #E6DFD5)',
                         }}
                       >
                         <img
@@ -720,14 +731,14 @@ export function ExplorePage({ navigate }) {
                             className="image-badge"
                             style={{
                               position: 'absolute',
-                              bottom: '4px',
-                              right: '4px',
-                              background: 'rgba(0,0,0,0.75)',
-                              color: '#fff',
+                              bottom: '6px',
+                              right: '6px',
+                              background: 'rgba(26, 24, 20, 0.85)',
+                              color: '#FFFFFF',
                               fontSize: '10px',
-                              fontWeight: 700,
-                              padding: '2px 5px',
-                              borderRadius: '4px',
+                              fontWeight: 800,
+                              padding: '2px 6px',
+                              borderRadius: '6px',
                             }}
                           >
                             +{post.images.length - 1}
@@ -761,10 +772,11 @@ export function ExplorePage({ navigate }) {
                             style={{
                               fontSize: 'var(--text-2xs, 11px)',
                               fontWeight: 800,
-                              padding: '2px 6px',
-                              borderRadius: 'var(--radius-sm, 4px)',
-                              background: 'var(--accent-subtle, rgba(0,240,255,0.12))',
-                              color: 'var(--accent, #00f0ff)',
+                              padding: '3px 8px',
+                              borderRadius: '9999px',
+                              background: 'var(--accent-highlight, #FFF8E1)',
+                              color: 'var(--accent-primary, #FF6F00)',
+                              border: '1px solid #FFCC80',
                               textTransform: 'uppercase',
                             }}
                           >

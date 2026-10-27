@@ -22,8 +22,8 @@ export function getMeterStage(score = 0, countryThreshold = 50) {
       label: 'Country-Wide Certified Oddity!',
       shortLabel: 'Certified Oddity',
       badgeClass: 'stage-country',
-      color: '#10b981', // emerald
-      gradient: ['#06b6d4', '#f59e0b', '#f97316', '#10b981'],
+      color: '#BF360C', // deep vibrant rust orange
+      gradient: ['#FFB300', '#FF8F00', '#FF6F00', '#BF360C'],
       icon: '🌟',
       description: 'Nationally certified weirdness! Visible across the entire country.',
     };
@@ -34,8 +34,8 @@ export function getMeterStage(score = 0, countryThreshold = 50) {
       label: 'City Sensation',
       shortLabel: 'City Sensation',
       badgeClass: 'stage-city',
-      color: '#f97316', // electric orange
-      gradient: ['#06b6d4', '#f59e0b', '#f97316'],
+      color: '#E65100', // vibrant sunset orange
+      gradient: ['#FFB300', '#FF8F00', '#FF6F00'],
       icon: '🔥',
       description: 'Trending and buzzing across the entire city!',
     };
@@ -46,8 +46,8 @@ export function getMeterStage(score = 0, countryThreshold = 50) {
       label: 'Neighborhood Eyebrow-Raiser',
       shortLabel: 'Eyebrow-Raiser',
       badgeClass: 'stage-neighborhood',
-      color: '#f59e0b', // amber
-      gradient: ['#06b6d4', '#f59e0b'],
+      color: '#F57C00', // warm amber
+      gradient: ['#FFB300', '#F57C00'],
       icon: '🤨',
       description: 'Turning heads and raising eyebrows in the neighborhood.',
     };
@@ -57,8 +57,8 @@ export function getMeterStage(score = 0, countryThreshold = 50) {
     label: 'Local Whisper',
     shortLabel: 'Local Whisper',
     badgeClass: 'stage-local',
-    color: '#06b6d4', // cyan
-    gradient: ['#06b6d4'],
+    color: '#FFB300', // marigold yellow
+    gradient: ['#FFB300'],
     icon: '🤫',
     description: 'A quiet, hidden gem known only to local scouts nearby.',
   };
@@ -287,10 +287,9 @@ export default function OddometerGauge({
         >
           <defs>
             <linearGradient id={gradientId} x1="0%" y1="0%" x2="100%" y2="0%">
-              <stop offset="0%" stopColor="#06b6d4" />
-              <stop offset="35%" stopColor="#f59e0b" />
-              <stop offset="70%" stopColor="#f97316" />
-              <stop offset="100%" stopColor="#10b981" />
+              <stop offset="0%" stopColor="#FFB300" />
+              <stop offset="45%" stopColor="#FF8F00" />
+              <stop offset="100%" stopColor="#FF6F00" />
             </linearGradient>
             <filter id="gauge-glow" x="-20%" y="-20%" width="140%" height="140%">
               <feGaussianBlur stdDeviation="3" result="blur" />
@@ -302,17 +301,17 @@ export default function OddometerGauge({
           <path
             d="M 25 95 A 75 75 0 0 1 175 95"
             fill="none"
-            stroke="#27272a"
+            stroke="#E6DFD5"
             strokeWidth="14"
             strokeLinecap="round"
             className="odometer-track"
           />
 
           {/* Semicircle Stage Tick Indicators */}
-          <line x1="25" y1="95" x2="16" y2="95" stroke="#52525b" strokeWidth="2" strokeLinecap="round" />
-          <line x1="56" y1="51" x2="49" y2="45" stroke="#52525b" strokeWidth="2" strokeLinecap="round" />
-          <line x1="144" y1="51" x2="151" y2="45" stroke="#52525b" strokeWidth="2" strokeLinecap="round" />
-          <line x1="175" y1="95" x2="184" y2="95" stroke="#52525b" strokeWidth="2" strokeLinecap="round" />
+          <line x1="25" y1="95" x2="16" y2="95" stroke="#D1C7BA" strokeWidth="2" strokeLinecap="round" />
+          <line x1="56" y1="51" x2="49" y2="45" stroke="#D1C7BA" strokeWidth="2" strokeLinecap="round" />
+          <line x1="144" y1="51" x2="151" y2="45" stroke="#D1C7BA" strokeWidth="2" strokeLinecap="round" />
+          <line x1="175" y1="95" x2="184" y2="95" stroke="#D1C7BA" strokeWidth="2" strokeLinecap="round" />
 
           {/* Active Animated Progress Arc */}
           <path
@@ -339,7 +338,7 @@ export default function OddometerGauge({
               className="odometer-needle"
             />
             {/* Needle Pivot Cap */}
-            <circle cx="100" cy="95" r="7.5" fill="#18181b" stroke={stage.color} strokeWidth="2.5" />
+            <circle cx="100" cy="95" r="7.5" fill="#FFFFFF" stroke={stage.color} strokeWidth="2.5" />
             <circle cx="100" cy="95" r="3" fill={stage.color} />
           </g>
         </svg>

@@ -100,17 +100,17 @@ export function HomePage({ navigate }) {
   }, [posts, feedRuleMode, minScoreFilter, selectedTag]);
 
   return (
-    <div className="home-page-container" style={{ width: '100%', padding: '0 var(--space-4, 16px)' }}>
+    <div className="home-page-container" style={{ width: '100%', maxWidth: '1200px', margin: '0 auto', padding: '0 var(--space-4, 16px)' }}>
       {/* Hero Dispatch Banner */}
       <div
         className="home-hero-banner"
         style={{
           margin: 'var(--space-6, 24px) 0 var(--space-6, 24px)',
           padding: 'var(--space-8, 32px) var(--space-6, 24px)',
-          background: 'var(--bg-surface, #121722)',
-          border: '1px solid var(--border-subtle, #202738)',
-          borderRadius: 'var(--radius-xl, 20px)',
-          boxShadow: 'var(--shadow-card, 0 4px 16px rgba(0,0,0,0.4))',
+          background: 'var(--bg-surface, #FFFFFF)',
+          border: '1px solid var(--border-color, #E6DFD5)',
+          borderRadius: 'var(--radius-card, 16px)',
+          boxShadow: 'var(--shadow-card, 0 4px 20px -2px rgba(255, 111, 0, 0.08))',
           display: 'flex',
           flexDirection: 'column',
           gap: 'var(--space-4, 16px)',
@@ -122,59 +122,70 @@ export function HomePage({ navigate }) {
           <div>
             <div
               style={{
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '6px',
                 fontSize: 'var(--text-xs, 0.75rem)',
                 fontWeight: 800,
-                color: 'var(--accent, #00f0ff)',
+                color: 'var(--accent-primary, #FF6F00)',
+                background: 'var(--accent-highlight, #FFF8E1)',
+                border: '1px solid #FFCC80',
+                padding: '3px 10px',
+                borderRadius: '9999px',
                 textTransform: 'uppercase',
-                letterSpacing: '1px',
-                marginBottom: '4px',
+                letterSpacing: '0.8px',
+                marginBottom: '10px',
               }}
             >
-              📡 Oddspot Field Dispatch
+              <span>📡</span>
+              <span>Oddspot Field Dispatch</span>
             </div>
             <h1
               style={{
                 margin: '0 0 var(--space-2, 8px)',
-                fontSize: 'var(--text-3xl, 1.875rem)',
-                fontFamily: 'var(--font-heading, sans-serif)',
-                color: 'var(--text-primary, #f0f4fc)',
+                fontSize: 'var(--text-3xl, 2rem)',
+                fontFamily: 'var(--font-heading, "Plus Jakarta Sans", sans-serif)',
+                fontWeight: 800,
+                color: 'var(--text-primary, #1A1814)',
                 letterSpacing: '-0.5px',
+                lineHeight: 1.2,
               }}
             >
-              Real-World Anomalies & Overlooked Wonders
+              Real-World Anomalies &amp; Overlooked Wonders
             </h1>
             <p
               style={{
                 margin: 0,
-                color: 'var(--text-secondary, #94a3b8)',
-                fontSize: 'var(--text-sm, 0.875rem)',
-                maxWidth: '620px',
+                color: 'var(--text-secondary, #6E675F)',
+                fontSize: 'var(--text-sm, 0.925rem)',
+                maxWidth: '640px',
                 lineHeight: 'var(--leading-relaxed, 1.6)',
               }}
             >
-              Community intelligence reported by local scouts. Track architectural glitches,
-              clandestine street art, and urban legends vetted across the globe.
+              Field intelligence logged by curious scouts. Uncover architectural quirks,
+              clandestine street oddities, and urban legends vetted across the globe.
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: 'var(--space-3, 12px)', flexWrap: 'wrap' }}>
+          <div style={{ display: 'flex', gap: 'var(--space-3, 12px)', flexWrap: 'wrap', alignItems: 'center' }}>
             <button
               type="button"
               className="btn-primary"
               onClick={() => navigate('#/explore')}
               style={{
                 cursor: 'pointer',
-                padding: 'var(--space-3, 12px) var(--space-5, 20px)',
-                borderRadius: 'var(--radius-md, 8px)',
-                background: 'var(--accent, #00f0ff)',
-                color: 'var(--text-inverse, #0b0e14)',
+                padding: '12px 22px',
+                borderRadius: '9999px',
+                background: 'var(--accent-primary, #FF6F00)',
+                color: '#FFFFFF',
                 border: 'none',
                 fontWeight: 700,
                 fontSize: 'var(--text-sm, 0.875rem)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
-                boxShadow: 'var(--shadow-sm, 0 2px 6px rgba(0,0,0,0.3))',
+                boxShadow: '0 4px 14px rgba(255, 111, 0, 0.28)',
+                transition: 'all 0.15s ease',
               }}
             >
               <span>🧭</span>
@@ -186,16 +197,17 @@ export function HomePage({ navigate }) {
               onClick={() => navigate('#/random')}
               style={{
                 cursor: 'pointer',
-                padding: 'var(--space-3, 12px) var(--space-5, 20px)',
-                borderRadius: 'var(--radius-md, 8px)',
-                background: 'var(--bg-elevated, #1a2030)',
-                color: 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-strong, #2f3b54)',
-                fontWeight: 600,
+                padding: '12px 20px',
+                borderRadius: '9999px',
+                background: 'var(--bg-elevated, #FFF3E0)',
+                color: 'var(--text-primary, #1A1814)',
+                border: '1px solid var(--border-color, #E6DFD5)',
+                fontWeight: 700,
                 fontSize: 'var(--text-sm, 0.875rem)',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
+                transition: 'all 0.15s ease',
               }}
             >
               <span>🎲</span>
@@ -225,14 +237,15 @@ export function HomePage({ navigate }) {
                 style={{
                   margin: 0,
                   fontSize: 'var(--text-lg, 1.125rem)',
-                  fontFamily: 'var(--font-heading, sans-serif)',
-                  color: 'var(--text-primary, #f0f4fc)',
+                  fontFamily: 'var(--font-heading, "Plus Jakarta Sans", sans-serif)',
+                  fontWeight: 800,
+                  color: 'var(--text-primary, #1A1814)',
                 }}
               >
                 Trending Digest
               </h2>
             </div>
-            <span style={{ fontSize: 'var(--text-xs, 0.75rem)', color: 'var(--text-muted, #64748b)' }}>
+            <span style={{ fontSize: 'var(--text-xs, 0.75rem)', fontWeight: 600, color: 'var(--text-secondary, #6E675F)' }}>
               Top Vetted Finds
             </span>
           </div>
@@ -241,7 +254,7 @@ export function HomePage({ navigate }) {
             className="trending-digest-strip"
             style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))',
               gap: 'var(--space-3, 12px)',
             }}
           >
@@ -252,10 +265,10 @@ export function HomePage({ navigate }) {
                 style={{
                   cursor: 'pointer',
                   padding: 'var(--space-3, 12px)',
-                  background: 'var(--bg-surface, #121722)',
-                  border: '1px solid var(--border-subtle, #202738)',
-                  borderRadius: 'var(--radius-lg, 12px)',
-                  boxShadow: 'var(--shadow-card, 0 2px 8px rgba(0,0,0,0.3))',
+                  background: 'var(--bg-surface, #FFFFFF)',
+                  border: '1px solid var(--border-color, #E6DFD5)',
+                  borderRadius: 'var(--radius-card, 16px)',
+                  boxShadow: 'var(--shadow-card, 0 4px 20px -2px rgba(255, 111, 0, 0.08))',
                   display: 'flex',
                   gap: 'var(--space-3, 12px)',
                   alignItems: 'center',
@@ -269,36 +282,38 @@ export function HomePage({ navigate }) {
                     style={{
                       width: '64px',
                       height: '64px',
-                      borderRadius: 'var(--radius-md, 8px)',
+                      borderRadius: '10px',
                       objectFit: 'cover',
                       flexShrink: 0,
+                      border: '1px solid var(--border-color, #E6DFD5)',
                     }}
                   />
                 )}
                 <div style={{ minWidth: 0, flexGrow: 1 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '4px' }}>
                     <span
                       style={{
-                        fontSize: '10px',
+                        fontSize: '11px',
                         fontWeight: 800,
-                        color: 'var(--accent, #00f0ff)',
-                        background: 'var(--accent-subtle, rgba(0,240,255,0.12))',
-                        padding: '1px 5px',
-                        borderRadius: '3px',
+                        color: 'var(--accent-primary, #FF6F00)',
+                        background: 'var(--accent-highlight, #FFF8E1)',
+                        border: '1px solid #FFCC80',
+                        padding: '1px 6px',
+                        borderRadius: '4px',
                       }}
                     >
                       ★ {spot.meter?.score ?? 0}
                     </span>
-                    <span style={{ fontSize: '11px', color: 'var(--text-muted, #64748b)' }}>
+                    <span style={{ fontSize: '11px', color: 'var(--text-secondary, #6E675F)', fontWeight: 500 }}>
                       {spot.place?.city || spot.place?.country || 'Sector'}
                     </span>
                   </div>
                   <h4
                     style={{
                       margin: 0,
-                      fontSize: 'var(--text-xs, 0.75rem)',
+                      fontSize: 'var(--text-xs, 0.825rem)',
                       fontWeight: 700,
-                      color: 'var(--text-primary, #f0f4fc)',
+                      color: 'var(--text-primary, #1A1814)',
                       whiteSpace: 'nowrap',
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
@@ -324,7 +339,7 @@ export function HomePage({ navigate }) {
           gap: 'var(--space-3, 12px)',
           marginBottom: 'var(--space-4, 16px)',
           paddingBottom: 'var(--space-3, 12px)',
-          borderBottom: '1px solid var(--border-subtle, #202738)',
+          borderBottom: '1px solid var(--border-color, #E6DFD5)',
         }}
       >
         <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3, 12px)' }}>
@@ -334,10 +349,10 @@ export function HomePage({ navigate }) {
             aria-label="Feed Rules"
             style={{
               display: 'flex',
-              background: 'var(--bg-surface, #121722)',
-              borderRadius: 'var(--radius-md, 8px)',
-              padding: '3px',
-              border: '1px solid var(--border-subtle, #202738)',
+              background: 'var(--bg-elevated, #FFF3E0)',
+              borderRadius: '9999px',
+              padding: '4px',
+              border: '1px solid var(--border-color, #E6DFD5)',
             }}
           >
             <button
@@ -347,13 +362,14 @@ export function HomePage({ navigate }) {
               onClick={() => setFeedRuleMode('default')}
               style={{
                 cursor: 'pointer',
-                padding: '4px 12px',
-                borderRadius: 'var(--radius-sm, 6px)',
+                padding: '6px 14px',
+                borderRadius: '9999px',
                 border: 'none',
-                background: feedRuleMode === 'default' ? 'var(--accent, #00f0ff)' : 'transparent',
-                color: feedRuleMode === 'default' ? 'var(--text-inverse, #0b0e14)' : 'var(--text-secondary, #94a3b8)',
+                background: feedRuleMode === 'default' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
+                color: feedRuleMode === 'default' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
                 fontWeight: 700,
-                fontSize: 'var(--text-xs, 0.75rem)',
+                fontSize: 'var(--text-xs, 0.8rem)',
+                transition: 'all 0.15s ease',
               }}
             >
               Default Dispatch
@@ -365,27 +381,28 @@ export function HomePage({ navigate }) {
               onClick={() => setFeedRuleMode('custom')}
               style={{
                 cursor: 'pointer',
-                padding: '4px 12px',
-                borderRadius: 'var(--radius-sm, 6px)',
+                padding: '6px 14px',
+                borderRadius: '9999px',
                 border: 'none',
-                background: feedRuleMode === 'custom' ? 'var(--accent, #00f0ff)' : 'transparent',
-                color: feedRuleMode === 'custom' ? 'var(--text-inverse, #0b0e14)' : 'var(--text-secondary, #94a3b8)',
+                background: feedRuleMode === 'custom' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
+                color: feedRuleMode === 'custom' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
                 fontWeight: 700,
-                fontSize: 'var(--text-xs, 0.75rem)',
+                fontSize: 'var(--text-xs, 0.8rem)',
+                transition: 'all 0.15s ease',
               }}
             >
               Custom Feed Rules
             </button>
           </div>
 
-          <span style={{ fontSize: 'var(--text-xs, 0.75rem)', color: 'var(--text-muted, #64748b)' }}>
+          <span style={{ fontSize: 'var(--text-xs, 0.75rem)', fontWeight: 600, color: 'var(--text-secondary, #6E675F)' }}>
             Showing {displayedPosts.length} spots
           </span>
         </div>
 
         {/* Sort selector */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs, 0.75rem)' }}>
-          <label htmlFor="home-sort" style={{ color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs, 0.8rem)' }}>
+          <label htmlFor="home-sort" style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700 }}>
             Sort:
           </label>
           <select
@@ -393,15 +410,17 @@ export function HomePage({ navigate }) {
             value={sortOption}
             onChange={(e) => setSortOption(e.target.value)}
             style={{
-              padding: '4px 8px',
-              borderRadius: 'var(--radius-sm, 4px)',
-              background: 'var(--bg-elevated, #1a2030)',
-              color: 'var(--text-primary, #f0f4fc)',
-              border: '1px solid var(--border-subtle, #202738)',
-              fontSize: 'var(--text-xs, 0.75rem)',
+              padding: '6px 10px',
+              borderRadius: '8px',
+              background: 'var(--bg-surface, #FFFFFF)',
+              color: 'var(--text-primary, #1A1814)',
+              border: '1px solid var(--border-color, #E6DFD5)',
+              fontSize: 'var(--text-xs, 0.8rem)',
+              fontWeight: 600,
+              cursor: 'pointer',
             }}
           >
-            <option value="hot">🔥 Hot & Trending</option>
+            <option value="hot">🔥 Hot &amp; Trending</option>
             <option value="new">⚡ Latest Sightings</option>
             <option value="top">🏆 Highest Rated</option>
           </select>
@@ -415,17 +434,17 @@ export function HomePage({ navigate }) {
           style={{
             marginBottom: 'var(--space-6, 24px)',
             padding: 'var(--space-4, 16px)',
-            background: 'var(--bg-surface, #121722)',
-            border: '1px dashed var(--accent, #00f0ff)',
-            borderRadius: 'var(--radius-lg, 12px)',
+            background: 'var(--accent-highlight, #FFF8E1)',
+            border: '1px dashed var(--accent-primary, #FF6F00)',
+            borderRadius: 'var(--radius-card, 16px)',
             display: 'flex',
             flexWrap: 'wrap',
             gap: 'var(--space-4, 16px)',
             alignItems: 'center',
           }}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs, 0.75rem)' }}>
-            <label style={{ color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs, 0.8rem)' }}>
+            <label style={{ color: 'var(--text-primary, #1A1814)', fontWeight: 700 }}>
               Min Score: <strong>{minScoreFilter}</strong>
             </label>
             <input
@@ -435,24 +454,26 @@ export function HomePage({ navigate }) {
               step="5"
               value={minScoreFilter}
               onChange={(e) => setMinScoreFilter(Number(e.target.value))}
-              style={{ accentColor: 'var(--accent, #00f0ff)', cursor: 'pointer' }}
+              style={{ accentColor: 'var(--accent-primary, #FF6F00)', cursor: 'pointer' }}
             />
           </div>
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs, 0.75rem)' }}>
-            <label style={{ color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs, 0.8rem)' }}>
+            <label style={{ color: 'var(--text-primary, #1A1814)', fontWeight: 700 }}>
               Filter Tag:
             </label>
             <select
               value={selectedTag}
               onChange={(e) => setSelectedTag(e.target.value)}
               style={{
-                padding: '4px 8px',
-                borderRadius: 'var(--radius-sm, 4px)',
-                background: 'var(--bg-elevated, #1a2030)',
-                color: 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                fontSize: 'var(--text-xs, 0.75rem)',
+                padding: '6px 10px',
+                borderRadius: '8px',
+                background: 'var(--bg-surface, #FFFFFF)',
+                color: 'var(--text-primary, #1A1814)',
+                border: '1px solid var(--border-color, #E6DFD5)',
+                fontSize: 'var(--text-xs, 0.8rem)',
+                fontWeight: 600,
+                cursor: 'pointer',
               }}
             >
               <option value="all">All Tags</option>
@@ -472,12 +493,13 @@ export function HomePage({ navigate }) {
             }}
             style={{
               cursor: 'pointer',
-              background: 'transparent',
-              border: '1px solid var(--border-subtle, #202738)',
-              color: 'var(--text-secondary, #94a3b8)',
-              padding: '2px 8px',
-              borderRadius: '4px',
+              background: 'var(--bg-surface, #FFFFFF)',
+              border: '1px solid var(--border-color, #E6DFD5)',
+              color: 'var(--text-secondary, #6E675F)',
+              padding: '5px 12px',
+              borderRadius: '9999px',
               fontSize: '11px',
+              fontWeight: 700,
             }}
           >
             Reset Rules
@@ -528,10 +550,10 @@ export function HomePage({ navigate }) {
                   display: 'flex',
                   gap: 'var(--space-4, 16px)',
                   padding: 'var(--space-4, 16px)',
-                  background: 'var(--bg-surface, #121722)',
-                  border: '1px solid var(--border-subtle, #202738)',
-                  borderRadius: 'var(--radius-lg, 12px)',
-                  boxShadow: 'var(--shadow-card, 0 4px 12px rgba(0,0,0,0.3))',
+                  background: 'var(--bg-surface, #FFFFFF)',
+                  border: '1px solid var(--border-color, #E6DFD5)',
+                  borderRadius: 'var(--radius-card, 16px)',
+                  boxShadow: 'var(--shadow-card, 0 4px 20px -2px rgba(255, 111, 0, 0.08))',
                   transition: 'all var(--transition-fast, 150ms ease)',
                 }}
               >
@@ -542,9 +564,10 @@ export function HomePage({ navigate }) {
                       width: '120px',
                       height: '120px',
                       flexShrink: 0,
-                      borderRadius: 'var(--radius-md, 8px)',
+                      borderRadius: '12px',
                       overflow: 'hidden',
                       position: 'relative',
+                      border: '1px solid var(--border-color, #E6DFD5)',
                     }}
                   >
                     <img
@@ -559,14 +582,14 @@ export function HomePage({ navigate }) {
                         className="image-badge"
                         style={{
                           position: 'absolute',
-                          bottom: '4px',
-                          right: '4px',
-                          background: 'rgba(0,0,0,0.75)',
-                          color: '#fff',
+                          bottom: '6px',
+                          right: '6px',
+                          background: 'rgba(26, 24, 20, 0.85)',
+                          color: '#FFFFFF',
                           fontSize: '10px',
-                          fontWeight: 700,
-                          padding: '2px 5px',
-                          borderRadius: '4px',
+                          fontWeight: 800,
+                          padding: '2px 6px',
+                          borderRadius: '6px',
                         }}
                       >
                         +{post.images.length - 1}
@@ -600,10 +623,11 @@ export function HomePage({ navigate }) {
                         style={{
                           fontSize: 'var(--text-2xs, 11px)',
                           fontWeight: 800,
-                          padding: '2px 6px',
-                          borderRadius: 'var(--radius-sm, 4px)',
-                          background: 'var(--accent-subtle, rgba(0,240,255,0.12))',
-                          color: 'var(--accent, #00f0ff)',
+                          padding: '3px 8px',
+                          borderRadius: '9999px',
+                          background: 'var(--accent-highlight, #FFF8E1)',
+                          color: 'var(--accent-primary, #FF6F00)',
+                          border: '1px solid #FFCC80',
                           textTransform: 'uppercase',
                         }}
                       >
@@ -616,11 +640,11 @@ export function HomePage({ navigate }) {
                           style={{
                             fontSize: 'var(--text-2xs, 11px)',
                             fontWeight: 700,
-                            padding: '2px 6px',
-                            borderRadius: 'var(--radius-sm, 4px)',
-                            background: 'var(--color-warning-bg, rgba(245, 158, 11, 0.12))',
-                            color: 'var(--color-warning, #f59e0b)',
-                            border: '1px dashed var(--color-warning, #f59e0b)',
+                            padding: '3px 8px',
+                            borderRadius: '9999px',
+                            background: '#FFFBEB',
+                            color: '#B45309',
+                            border: '1px dashed #F59E0B',
                           }}
                         >
                           ◌ Approximate Area
@@ -630,7 +654,8 @@ export function HomePage({ navigate }) {
                       <span
                         style={{
                           fontSize: 'var(--text-2xs, 11px)',
-                          color: 'var(--text-muted, #64748b)',
+                          color: 'var(--text-secondary, #6E675F)',
+                          fontWeight: 500,
                         }}
                       >
                         📍 {post.place?.city || 'Unknown'}, {post.place?.country || ''}
@@ -641,9 +666,9 @@ export function HomePage({ navigate }) {
                       className="post-title"
                       style={{
                         margin: '0 0 6px',
-                        fontSize: 'var(--text-lg, 1.125rem)',
+                        fontSize: 'var(--text-lg, 1.15rem)',
                         fontWeight: 700,
-                        color: 'var(--text-primary, #f0f4fc)',
+                        color: 'var(--text-primary, #1A1814)',
                         lineHeight: 1.3,
                       }}
                     >
@@ -656,8 +681,8 @@ export function HomePage({ navigate }) {
                         style={{
                           margin: '0 0 8px',
                           fontSize: 'var(--text-sm, 0.875rem)',
-                          color: 'var(--text-secondary, #94a3b8)',
-                          lineHeight: 1.4,
+                          color: 'var(--text-secondary, #6E675F)',
+                          lineHeight: 1.5,
                         }}
                       >
                         {post.body.length > 130 ? `${post.body.slice(0, 130)}...` : post.body}
@@ -672,8 +697,8 @@ export function HomePage({ navigate }) {
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       marginTop: '8px',
-                      paddingTop: '8px',
-                      borderTop: '1px solid var(--border-subtle, #202738)',
+                      paddingTop: '10px',
+                      borderTop: '1px solid var(--border-color, #E6DFD5)',
                     }}
                   >
                     <OddometerPill
@@ -684,20 +709,21 @@ export function HomePage({ navigate }) {
                       size="sm"
                     />
 
-                    <div className="vote-actions" style={{ display: 'flex', gap: '6px' }}>
+                    <div className="vote-actions" style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                       <button
                         type="button"
                         className={`btn-vote ${myVote === 1 ? 'voted-up' : ''}`}
                         onClick={(e) => handleVote(post._id, 1, e)}
                         style={{
                           cursor: 'pointer',
-                          padding: '3px 10px',
-                          borderRadius: 'var(--radius-sm, 4px)',
-                          background: myVote === 1 ? 'var(--color-success-bg, rgba(16,185,129,0.2))' : 'var(--bg-elevated, #1a2030)',
-                          color: myVote === 1 ? 'var(--color-success, #10b981)' : 'var(--text-primary, #f0f4fc)',
-                          border: '1px solid var(--border-subtle, #202738)',
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          background: myVote === 1 ? '#ECFDF5' : 'var(--bg-surface, #FFFFFF)',
+                          color: myVote === 1 ? '#059669' : 'var(--text-primary, #1A1814)',
+                          border: myVote === 1 ? '1px solid #A7F3D0' : '1px solid var(--border-color, #E6DFD5)',
                           fontSize: 'var(--text-xs, 0.75rem)',
-                          fontWeight: 600,
+                          fontWeight: 700,
+                          transition: 'all 0.15s ease',
                         }}
                       >
                         👍 {post.meter?.likes ?? 0}
@@ -708,13 +734,14 @@ export function HomePage({ navigate }) {
                         onClick={(e) => handleVote(post._id, -1, e)}
                         style={{
                           cursor: 'pointer',
-                          padding: '3px 10px',
-                          borderRadius: 'var(--radius-sm, 4px)',
-                          background: myVote === -1 ? 'var(--color-danger-bg, rgba(239,68,68,0.2))' : 'var(--bg-elevated, #1a2030)',
-                          color: myVote === -1 ? 'var(--color-danger, #ef4444)' : 'var(--text-primary, #f0f4fc)',
-                          border: '1px solid var(--border-subtle, #202738)',
+                          padding: '4px 12px',
+                          borderRadius: '9999px',
+                          background: myVote === -1 ? '#FEF2F2' : 'var(--bg-surface, #FFFFFF)',
+                          color: myVote === -1 ? '#DC2626' : 'var(--text-primary, #1A1814)',
+                          border: myVote === -1 ? '1px solid #FECACA' : '1px solid var(--border-color, #E6DFD5)',
                           fontSize: 'var(--text-xs, 0.75rem)',
-                          fontWeight: 600,
+                          fontWeight: 700,
+                          transition: 'all 0.15s ease',
                         }}
                       >
                         👎 {post.meter?.dislikes ?? 0}
@@ -723,7 +750,8 @@ export function HomePage({ navigate }) {
                         style={{
                           padding: '3px 8px',
                           fontSize: 'var(--text-xs, 0.75rem)',
-                          color: 'var(--text-muted, #64748b)',
+                          color: 'var(--text-secondary, #6E675F)',
+                          fontWeight: 600,
                           display: 'flex',
                           alignItems: 'center',
                         }}

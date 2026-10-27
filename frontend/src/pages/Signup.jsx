@@ -42,8 +42,8 @@ export function Signup({ navigate }) {
         email: cleanEmail,
         password,
       });
-      login(res.token, res.user);
-      navigate('#/feed');
+      login(res.token, res.user, res.refreshToken);
+      navigate('#/home');
     } catch (err) {
       setError(err.message || 'Signup failed.');
     } finally {

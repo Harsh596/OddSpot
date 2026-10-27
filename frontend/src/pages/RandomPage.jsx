@@ -122,11 +122,11 @@ export function RandomPage({ navigate }) {
             fontWeight: 800,
             textTransform: 'uppercase',
             letterSpacing: '1px',
-            color: 'var(--accent, #00f0ff)',
-            background: 'var(--accent-subtle, rgba(0,240,255,0.12))',
-            padding: '4px 12px',
-            borderRadius: 'var(--radius-full, 9999px)',
-            border: '1px solid var(--accent-border, rgba(0,240,255,0.35))',
+            color: 'var(--accent-primary, #FF6F00)',
+            background: 'var(--accent-highlight, #FFF8E1)',
+            padding: '4px 14px',
+            borderRadius: '9999px',
+            border: '1px solid #FFCC80',
           }}
         >
           🌌 Teleportation Matrix
@@ -136,7 +136,9 @@ export function RandomPage({ navigate }) {
           style={{
             margin: 0,
             fontSize: 'var(--text-4xl, 2.25rem)',
-            fontFamily: 'var(--font-heading, sans-serif)',
+            fontFamily: 'var(--font-heading, "Plus Jakarta Sans", sans-serif)',
+            fontWeight: 800,
+            color: 'var(--text-primary, #1A1814)',
             letterSpacing: '-0.5px',
           }}
         >
@@ -147,21 +149,22 @@ export function RandomPage({ navigate }) {
           style={{
             margin: 0,
             maxWidth: '540px',
-            color: 'var(--text-secondary, #94a3b8)',
-            fontSize: 'var(--text-sm, 0.875rem)',
+            color: 'var(--text-secondary, #6E675F)',
+            fontSize: 'var(--text-sm, 0.925rem)',
             lineHeight: 'var(--leading-relaxed, 1.6)',
           }}
         >
           Country-tier oddities that crossed the viral threshold. Press the button or hit{' '}
           <kbd
             style={{
-              padding: '2px 6px',
-              borderRadius: '4px',
-              background: 'var(--bg-elevated, #1a2030)',
-              border: '1px solid var(--border-subtle, #202738)',
-              fontFamily: 'var(--font-mono, monospace)',
+              padding: '2px 8px',
+              borderRadius: '6px',
+              background: 'var(--bg-elevated, #FFF3E0)',
+              border: '1px solid var(--border-color, #E6DFD5)',
+              fontFamily: 'var(--font-mono, "JetBrains Mono", monospace)',
               fontSize: '11px',
-              color: 'var(--accent, #00f0ff)',
+              fontWeight: 700,
+              color: 'var(--accent-primary, #FF6F00)',
             }}
           >
             Shift + R
@@ -190,10 +193,10 @@ export function RandomPage({ navigate }) {
             aria-label="Surprise Me (Shift + R)"
             style={{
               cursor: 'pointer',
-              padding: 'var(--space-3, 12px) var(--space-8, 32px)',
-              borderRadius: 'var(--radius-xl, 20px)',
-              background: 'var(--accent, #00f0ff)',
-              color: 'var(--text-inverse, #0b0e14)',
+              padding: '12px 32px',
+              borderRadius: '9999px',
+              background: 'linear-gradient(135deg, #FF6F00 0%, #FFB300 100%)',
+              color: '#FFFFFF',
               border: 'none',
               fontWeight: 800,
               fontSize: 'var(--text-base, 1rem)',
@@ -201,8 +204,8 @@ export function RandomPage({ navigate }) {
               alignItems: 'center',
               gap: '10px',
               boxShadow: isRolling
-                ? '0 0 24px rgba(0, 240, 255, 0.8)'
-                : 'var(--shadow-card, 0 4px 16px rgba(0,0,0,0.4))',
+                ? '0 0 24px rgba(255, 111, 0, 0.6)'
+                : '0 6px 20px rgba(255, 111, 0, 0.28)',
               transform: isRolling ? 'scale(0.97) rotate(-1deg)' : 'scale(1)',
               transition: 'all 200ms cubic-bezier(0.34, 1.56, 0.64, 1)',
             }}
@@ -214,8 +217,8 @@ export function RandomPage({ navigate }) {
           </button>
 
           {/* Country Sector Dropdown */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: 'var(--text-xs, 0.75rem)' }}>
-            <label htmlFor="teleport-country" style={{ color: 'var(--text-secondary, #94a3b8)', fontWeight: 600 }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: 'var(--text-xs, 0.8rem)' }}>
+            <label htmlFor="teleport-country" style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700 }}>
               Teleport Sector:
             </label>
             <select
@@ -223,14 +226,15 @@ export function RandomPage({ navigate }) {
               value={selectedCountry}
               onChange={(e) => setSelectedCountry(e.target.value)}
               style={{
-                padding: '8px 12px',
-                borderRadius: 'var(--radius-md, 8px)',
-                background: 'var(--bg-surface, #121722)',
-                color: 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-strong, #2f3b54)',
-                fontSize: 'var(--text-xs, 0.75rem)',
+                padding: '10px 14px',
+                borderRadius: '12px',
+                background: 'var(--bg-surface, #FFFFFF)',
+                color: 'var(--text-primary, #1A1814)',
+                border: '1px solid var(--border-color, #E6DFD5)',
+                fontSize: 'var(--text-xs, 0.825rem)',
                 fontWeight: 600,
                 cursor: 'pointer',
+                boxShadow: 'var(--shadow-card, 0 4px 20px -2px rgba(255, 111, 0, 0.08))',
               }}
             >
               {TELEPORT_COUNTRIES.map((c) => (
@@ -247,7 +251,7 @@ export function RandomPage({ navigate }) {
 
       {/* Spot Card Showcase */}
       {loading ? (
-        <div style={{ padding: 'var(--space-6, 24px)', background: 'var(--bg-surface, #121722)', borderRadius: 'var(--radius-xl, 20px)', border: '1px solid var(--border-subtle, #202738)' }}>
+        <div style={{ padding: 'var(--space-6, 24px)', background: 'var(--bg-surface, #FFFFFF)', borderRadius: 'var(--radius-card, 16px)', border: '1px solid var(--border-color, #E6DFD5)' }}>
           <LoadingSkeleton count={1} type="card" />
         </div>
       ) : !spot ? (
@@ -271,11 +275,11 @@ export function RandomPage({ navigate }) {
         <article
           className="random-spot-showcase"
           style={{
-            background: 'var(--bg-surface, #121722)',
-            border: '1px solid var(--border-strong, #2f3b54)',
-            borderRadius: 'var(--radius-xl, 20px)',
+            background: 'var(--bg-surface, #FFFFFF)',
+            border: '1px solid var(--border-color, #E6DFD5)',
+            borderRadius: 'var(--radius-card, 16px)',
             overflow: 'hidden',
-            boxShadow: 'var(--shadow-lg, 0 10px 30px rgba(0,0,0,0.65))',
+            boxShadow: 'var(--shadow-card, 0 4px 20px -2px rgba(255, 111, 0, 0.08))',
             display: 'flex',
             flexDirection: 'column',
             marginBottom: 'var(--space-12, 48px)',
@@ -289,7 +293,7 @@ export function RandomPage({ navigate }) {
                 width: '100%',
                 height: '360px',
                 position: 'relative',
-                background: 'var(--bg-elevated, #1a2030)',
+                background: 'var(--bg-elevated, #FFF3E0)',
                 overflow: 'hidden',
               }}
             >
@@ -314,13 +318,14 @@ export function RandomPage({ navigate }) {
               >
                 <span
                   style={{
-                    background: 'var(--accent, #00f0ff)',
-                    color: 'var(--text-inverse, #0b0e14)',
+                    background: 'var(--accent-primary, #FF6F00)',
+                    color: '#FFFFFF',
                     fontSize: '11px',
                     fontWeight: 800,
-                    padding: '4px 8px',
-                    borderRadius: '6px',
+                    padding: '4px 10px',
+                    borderRadius: '9999px',
                     letterSpacing: '0.5px',
+                    boxShadow: '0 2px 8px rgba(0,0,0,0.2)',
                   }}
                 >
                   COUNTRY TIER
@@ -328,13 +333,14 @@ export function RandomPage({ navigate }) {
                 {spot.hideExact && (
                   <span
                     style={{
-                      background: 'rgba(0,0,0,0.85)',
-                      color: 'var(--color-warning, #f59e0b)',
+                      background: 'rgba(255, 255, 255, 0.95)',
+                      color: '#B45309',
                       fontSize: '11px',
                       fontWeight: 700,
-                      padding: '4px 8px',
-                      borderRadius: '6px',
-                      border: '1px dashed var(--color-warning, #f59e0b)',
+                      padding: '4px 10px',
+                      borderRadius: '9999px',
+                      border: '1px dashed #F59E0B',
+                      boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
                     }}
                   >
                     ◌ 400m Approximate Area
@@ -347,7 +353,7 @@ export function RandomPage({ navigate }) {
               style={{
                 width: '100%',
                 height: '160px',
-                background: 'linear-gradient(135deg, var(--bg-elevated, #1a2030), var(--bg-surface, #121722))',
+                background: 'linear-gradient(135deg, var(--bg-elevated, #FFF3E0), var(--accent-highlight, #FFF8E1))',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -362,15 +368,16 @@ export function RandomPage({ navigate }) {
           <div style={{ padding: 'var(--space-6, 24px)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-3, 12px)', marginBottom: 'var(--space-3, 12px)' }}>
               <div>
-                <div style={{ fontSize: 'var(--text-xs, 0.75rem)', color: 'var(--text-muted, #64748b)', marginBottom: '4px' }}>
+                <div style={{ fontSize: 'var(--text-xs, 0.75rem)', color: 'var(--text-secondary, #6E675F)', fontWeight: 600, marginBottom: '4px' }}>
                   📍 {spot.place?.city ? `${spot.place.city}, ` : ''}{spot.place?.country || 'Unknown Sector'}
                 </div>
                 <h2
                   style={{
                     margin: 0,
-                    fontSize: 'var(--text-2xl, 1.5rem)',
-                    fontFamily: 'var(--font-heading, sans-serif)',
-                    color: 'var(--text-primary, #f0f4fc)',
+                    fontSize: 'var(--text-2xl, 1.625rem)',
+                    fontFamily: 'var(--font-heading, "Plus Jakarta Sans", sans-serif)',
+                    fontWeight: 800,
+                    color: 'var(--text-primary, #1A1814)',
                     lineHeight: 1.25,
                   }}
                 >
@@ -384,16 +391,16 @@ export function RandomPage({ navigate }) {
                   display: 'flex',
                   flexDirection: 'column',
                   alignItems: 'center',
-                  background: 'var(--bg-elevated, #1a2030)',
-                  border: '1px solid var(--border-subtle, #202738)',
-                  borderRadius: 'var(--radius-md, 8px)',
-                  padding: '6px 14px',
+                  background: 'var(--accent-highlight, #FFF8E1)',
+                  border: '1px solid #FFCC80',
+                  borderRadius: '12px',
+                  padding: '8px 16px',
                 }}
               >
-                <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-muted, #64748b)', fontWeight: 700 }}>
+                <span style={{ fontSize: '10px', textTransform: 'uppercase', color: 'var(--text-secondary, #6E675F)', fontWeight: 700 }}>
                   Oddity Score
                 </span>
-                <span style={{ fontSize: 'var(--text-xl, 1.25rem)', fontWeight: 900, color: 'var(--accent, #00f0ff)' }}>
+                <span style={{ fontSize: 'var(--text-xl, 1.35rem)', fontWeight: 900, color: 'var(--accent-primary, #FF6F00)' }}>
                   {spot.meter?.score ?? 0}
                 </span>
               </div>
@@ -403,8 +410,8 @@ export function RandomPage({ navigate }) {
               <p
                 style={{
                   margin: '0 0 var(--space-5, 20px)',
-                  fontSize: 'var(--text-base, 1rem)',
-                  color: 'var(--text-secondary, #94a3b8)',
+                  fontSize: 'var(--text-base, 0.95rem)',
+                  color: 'var(--text-secondary, #6E675F)',
                   lineHeight: 'var(--leading-relaxed, 1.6)',
                 }}
               >
@@ -420,11 +427,12 @@ export function RandomPage({ navigate }) {
                     key={idx}
                     style={{
                       fontSize: '11px',
-                      padding: '3px 8px',
-                      background: 'var(--bg-elevated, #1a2030)',
-                      color: 'var(--text-secondary, #94a3b8)',
-                      borderRadius: 'var(--radius-sm, 4px)',
-                      border: '1px solid var(--border-subtle, #202738)',
+                      fontWeight: 700,
+                      padding: '3px 10px',
+                      background: 'var(--bg-elevated, #FFF3E0)',
+                      color: 'var(--accent-primary, #FF6F00)',
+                      borderRadius: '9999px',
+                      border: '1px solid #FFCC80',
                     }}
                   >
                     #{tag}
@@ -442,7 +450,7 @@ export function RandomPage({ navigate }) {
                 flexWrap: 'wrap',
                 gap: 'var(--space-3, 12px)',
                 paddingTop: 'var(--space-4, 16px)',
-                borderTop: '1px solid var(--border-subtle, #202738)',
+                borderTop: '1px solid var(--border-color, #E6DFD5)',
               }}
             >
               <div style={{ display: 'flex', gap: '8px' }}>
@@ -452,13 +460,14 @@ export function RandomPage({ navigate }) {
                   onClick={() => handleVote(1)}
                   style={{
                     cursor: 'pointer',
-                    padding: '6px 14px',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    background: myVote === 1 ? 'var(--color-success-bg, rgba(16,185,129,0.2))' : 'var(--bg-elevated, #1a2030)',
-                    color: myVote === 1 ? 'var(--color-success, #10b981)' : 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 600,
+                    padding: '8px 16px',
+                    borderRadius: '9999px',
+                    background: myVote === 1 ? '#ECFDF5' : 'var(--bg-surface, #FFFFFF)',
+                    color: myVote === 1 ? '#059669' : 'var(--text-primary, #1A1814)',
+                    border: myVote === 1 ? '1px solid #A7F3D0' : '1px solid var(--border-color, #E6DFD5)',
+                    fontSize: 'var(--text-xs, 0.8rem)',
+                    fontWeight: 700,
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   👍 Like ({spot.meter?.likes ?? 0})
@@ -469,13 +478,14 @@ export function RandomPage({ navigate }) {
                   onClick={() => handleVote(-1)}
                   style={{
                     cursor: 'pointer',
-                    padding: '6px 14px',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    background: myVote === -1 ? 'var(--color-danger-bg, rgba(239,68,68,0.2))' : 'var(--bg-elevated, #1a2030)',
-                    color: myVote === -1 ? 'var(--color-danger, #ef4444)' : 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-subtle, #202738)',
-                    fontSize: 'var(--text-xs, 0.75rem)',
-                    fontWeight: 600,
+                    padding: '8px 16px',
+                    borderRadius: '9999px',
+                    background: myVote === -1 ? '#FEF2F2' : 'var(--bg-surface, #FFFFFF)',
+                    color: myVote === -1 ? '#DC2626' : 'var(--text-primary, #1A1814)',
+                    border: myVote === -1 ? '1px solid #FECACA' : '1px solid var(--border-color, #E6DFD5)',
+                    fontSize: 'var(--text-xs, 0.8rem)',
+                    fontWeight: 700,
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   👎 Dislike ({spot.meter?.dislikes ?? 0})
@@ -489,13 +499,15 @@ export function RandomPage({ navigate }) {
                   onClick={() => navigate(`#/post/${spot._id}`)}
                   style={{
                     cursor: 'pointer',
-                    padding: 'var(--space-2, 8px) var(--space-5, 20px)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    background: 'var(--accent, #00f0ff)',
-                    color: 'var(--text-inverse, #0b0e14)',
+                    padding: '8px 20px',
+                    borderRadius: '9999px',
+                    background: 'var(--accent-primary, #FF6F00)',
+                    color: '#FFFFFF',
                     border: 'none',
                     fontWeight: 700,
                     fontSize: 'var(--text-sm, 0.875rem)',
+                    boxShadow: '0 4px 12px rgba(255, 111, 0, 0.25)',
+                    transition: 'all 0.15s ease',
                   }}
                 >
                   Inspect Full Details →

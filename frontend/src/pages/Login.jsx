@@ -25,8 +25,8 @@ export function Login({ navigate }) {
     setLoading(true);
     try {
       const res = await api.login({ identifier: identifier.trim(), password });
-      login(res.token, res.user);
-      navigate('#/feed');
+      login(res.token, res.user, res.refreshToken);
+      navigate('#/home');
     } catch (err) {
       setError(err.message || 'Login failed.');
     } finally {
