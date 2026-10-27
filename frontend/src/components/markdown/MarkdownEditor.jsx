@@ -1,7 +1,7 @@
 // frontend/src/components/markdown/MarkdownEditor.jsx
 // Tabbed markdown editor with formatting toolbar, spoiler shortcuts, and live preview.
 
-import React, { useState, useRef } from 'react';
+import { useState, useRef } from 'react';
 import { RichText } from './RichText';
 
 export const FIELD_GUIDE_TEMPLATE = `### What is it?

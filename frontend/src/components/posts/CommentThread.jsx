@@ -1,8 +1,9 @@
 // frontend/src/components/posts/CommentThread.jsx
 // Threaded comments tree up to depth 3 with inline reply, edit, delete, and Best Answer solve flow.
 
-import React, { useState, useMemo } from 'react';
+import { useState, useMemo } from 'react';
 import { RichText } from '../markdown/RichText';
+import { MentionTextarea } from './MentionTextarea';
 
 function SingleCommentItem({
   comment,
@@ -13,6 +14,7 @@ function SingleCommentItem({
   isSolved,
   bestCommentId,
   currentUser,
+  usernames = [],
   children = [],
   onSolve,
   onAddReply,
@@ -130,11 +132,12 @@ function SingleCommentItem({
       <div className="comment-body">
         {isEditing ? (
           <form onSubmit={handleSaveEdit} className="inline-edit-form">
-            <textarea
+            <MentionTextarea
               className="inline-edit-textarea"
               rows={3}
               value={editText}
-              onChange={(e) => setEditText(e.target.value)}
+              onChange={setEditText}
+              usernames={usernames}
               required
             />
             <div className="inline-action-buttons">
@@ -199,12 +202,13 @@ function SingleCommentItem({
       {/* Inline Reply Form */}
       {isReplying && (
         <form onSubmit={handleSendReply} className="inline-reply-form">
-          <textarea
+          <MentionTextarea
             className="inline-reply-textarea"
             rows={2}
             placeholder={`Reply to ${authorName}...`}
             value={replyText}
-            onChange={(e) => setReplyText(e.target.value)}
+            onChange={setReplyText}
+            usernames={usernames}
             required
           />
           <div className="inline-action-buttons">
@@ -243,6 +247,7 @@ function SingleCommentItem({
               isSolved={isSolved}
               bestCommentId={bestCommentId}
               currentUser={currentUser}
+              usernames={usernames}
               children={child.children || []}
               onSolve={onSolve}
               onAddReply={onAddReply}
@@ -264,6 +269,7 @@ export function CommentThread({
   isSolved = false,
   bestCommentId = null,
   currentUser = null,
+  usernames = [],
   onSolve,
   onAddComment,
   onEditComment,
@@ -323,6 +329,7 @@ export function CommentThread({
           isSolved={isSolved}
           bestCommentId={bestCommentId}
           currentUser={currentUser}
+          usernames={usernames}
           children={rootComment.children || []}
           onSolve={onSolve}
           onAddReply={onAddComment}

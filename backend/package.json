@@ -10,6 +10,7 @@
     "test:smoke": "node scripts/smokeTest.js",
     "db:sync": "node scripts/syncIndexes.js",
     "db:seed": "node scripts/seed.js",
+    "seed:demo": "node scripts/seedDemo.js",
     "db:clean": "node scripts/cleanupTestData.js",
     "db:reconcile": "node scripts/reconcileCounters.js",
     "openapi:generate": "node scripts/generateOpenApi.js"

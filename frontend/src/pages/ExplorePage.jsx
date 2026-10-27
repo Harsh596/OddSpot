@@ -1,104 +1,164 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { OddspotMap } from '../components/map/OddspotMap';
 import { LoadingSkeleton, EmptyState, ErrorBanner } from '../components/ui/StatusViews';
-import { OddometerPill } from '../components/meter/OddometerPill';
 
 const RADIUS_OPTIONS = [
-  { label: '1 km', value: 1000 },
-  { label: '2 km', value: 2000 },
-  { label: '5 km', value: 5000 },
-  { label: '10 km', value: 10000 },
-  { label: '25 km', value: 25000 },
+  { label: '1 km (Walking)', value: 1000 },
+  { label: '2 km (Neighborhood)', value: 2000 },
+  { label: '5 km (District)', value: 5000 },
+  { label: '10 km (Metropolitan)', value: 10000 },
+  { label: '25 km (Regional)', value: 25000 },
+  { label: '50 km (Wide Angle)', value: 50000 },
 ];
 
-const CATEGORY_TAGS = [
-  { id: 'all', label: 'All Anomalies', icon: '✨' },
-  { id: 'urban_decay', label: 'Urban Decay', icon: '🏚️' },
-  { id: 'hidden_art', label: 'Hidden Art', icon: '🎨' },
-  { id: 'nature_anomaly', label: 'Nature Glitch', icon: '🌿' },
-  { id: 'historic_echo', label: 'Historic Echo', icon: '🏛️' },
-  { id: 'quirky_sign', label: 'Quirky Sign', icon: '🪧' },
-  { id: 'architecture', label: 'Architecture', icon: '📐' },
+const INTENT_OPTIONS = [
+  { id: 'all', label: 'All Missions', icon: '✨' },
+  { id: 'photo', label: 'Photograph & Benchmark', icon: '📸' },
+  { id: 'visit', label: 'Visit on Foot & Check-in', icon: '🚶' },
+  { id: 'unsolved', label: 'Investigate Mysteries', icon: '🕵️' },
+  { id: 'acoustic', label: 'Hear Acoustic Anomalies', icon: '🎧' },
+  { id: 'botanical', label: 'Botanical Curiosities', icon: '🌿' },
+  { id: 'architecture', label: 'Architectural Relics', icon: '🏛️' },
+  { id: 'subterranean', label: 'Subterranean Vaults', icon: '🕳️' },
+  { id: 'high_score', label: 'Track Breakout Oddities', icon: '⚡' },
+  { id: 'certified', label: 'Certified National Legends', icon: '🏆' },
 ];
 
 const PRESET_CITIES = [
-  { name: 'Bengaluru', lat: 12.9716, lng: 77.5946, country: 'India' },
-  { name: 'San Francisco', lat: 37.7749, lng: -122.4194, country: 'USA' },
-  { name: 'Tokyo', lat: 35.6762, lng: 139.6503, country: 'Japan' },
-  { name: 'London', lat: 51.5074, lng: -0.1278, country: 'UK' },
-  { name: 'Berlin', lat: 52.52, lng: 13.405, country: 'Germany' },
+  { name: 'Bengaluru', lat: 12.9716, lng: 77.5946, country: 'India', flag: '🇮🇳' },
+  { name: 'London', lat: 51.5074, lng: -0.1278, country: 'UK', flag: '🇬🇧' },
+  { name: 'Tokyo', lat: 35.6762, lng: 139.6503, country: 'Japan', flag: '🇯🇵' },
+  { name: 'New York', lat: 40.7128, lng: -74.006, country: 'USA', flag: '🇺🇸' },
+  { name: 'Reykjavík', lat: 64.1466, lng: -21.9426, country: 'Iceland', flag: '🇮🇸' },
+  { name: 'Berlin', lat: 52.52, lng: 13.405, country: 'Germany', flag: '🇩🇪' },
+  { name: 'Paris', lat: 48.8566, lng: 2.3522, country: 'France', flag: '🇫🇷' },
+  { name: 'San Francisco', lat: 37.7749, lng: -122.4194, country: 'USA', flag: '🇺🇸' },
+  { name: 'Sydney', lat: -33.8688, lng: 151.2093, country: 'Australia', flag: '🇦🇺' },
 ];
 
 /**
  * ExplorePage - Combined geospatial radar & regional feed explorer
- * with interactive Leaflet map, deterministic clustering, category pills,
- * and split/list/map viewport view switchers.
  */
 export function ExplorePage({ navigate }) {
   const { user } = useAuth();
-
-  // Mode: 'nearby' (GPS) vs 'city' (Regional)
-  const [feedMode, setFeedMode] = useState('nearby');
-  const [selectedCity, setSelectedCity] = useState(PRESET_CITIES[0]);
-
-  // View Layout: 'split' | 'list' | 'map'
-  const [viewMode, setViewMode] = useState('split');
+  const { theme, setTheme } = useTheme();
 
   // Location state
-  const [coords, setCoords] = useState(null); // { lat, lng }
-  const [manualLat, setManualLat] = useState('');
-  const [manualLng, setManualLng] = useState('');
-  const [geoError, setGeoError] = useState('');
+  const [coords, setCoords] = useState({ lat: 12.9716, lng: 77.5946 }); // default Bengaluru
+  const [geoNotice, setGeoNotice] = useState('');
   const [radius, setRadius] = useState(10000);
 
-  // Filters & Sorting
-  const [activeCategory, setActiveCategory] = useState('all');
-  const [sortOption, setSortOption] = useState('hot');
+  // Search & Filter system (+ Filters)
   const [searchQuery, setSearchQuery] = useState('');
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [filterIntent, setFilterIntent] = useState('all');
+  const [filterTier, setFilterTier] = useState('all');
+  const [minScore, setMinScore] = useState(0);
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [sortOption, setSortOption] = useState('hot');
+
+  // Count active filters (excluding default state)
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filterIntent !== 'all') count++;
+    if (filterTier !== 'all') count++;
+    if (minScore > 0) count++;
+    if (filterStatus !== 'all') count++;
+    if (radius !== 10000) count++;
+    if (sortOption !== 'hot') count++;
+    return count;
+  }, [filterIntent, filterTier, minScore, filterStatus, radius, sortOption]);
+
+  const resetAllFilters = () => {
+    setFilterIntent('all');
+    setFilterTier('all');
+    setMinScore(0);
+    setFilterStatus('all');
+    setRadius(10000);
+    setSortOption('hot');
+    setSearchQuery('');
+  };
+
+  // Detect city match in search query to offer instant radar teleport
+  const matchedCity = useMemo(() => {
+    const q = searchQuery.trim().toLowerCase();
+    if (!q || q.length < 3) return null;
+    return PRESET_CITIES.find(
+      (c) => c.name.toLowerCase() === q || q.includes(c.name.toLowerCase()) || c.name.toLowerCase().includes(q)
+    );
+  }, [searchQuery]);
 
   // Data & Pagination
   const [posts, setPosts] = useState([]);
-  const [page, setPage] = useState(1);
-  const [hasMore, setHasMore] = useState(true);
+  const [_page, setPage] = useState(1);
+  const [_hasMore, setHasMore] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
   // Selection & Local voting
   const [selectedPostId, setSelectedPostId] = useState(null);
-  const [votedPosts, setVotedPosts] = useState({});
+  const [_votedPosts, setVotedPosts] = useState({});
+
+  // Category scroll container ref
+  const _categoryScrollRef = useRef(null);
+
+  // Parse URL Query Params on mount and hash change (e.g. #/explore?city=London or #/explore?q=Tokyo)
+  useEffect(() => {
+    const parseUrlParams = () => {
+      const hash = window.location.hash || '';
+      const queryIdx = hash.indexOf('?');
+      if (queryIdx !== -1) {
+        const queryStr = hash.substring(queryIdx + 1);
+        const params = new URLSearchParams(queryStr);
+        const cityParam = params.get('city') || params.get('q');
+        if (cityParam) {
+          setSearchQuery(cityParam);
+          const match = PRESET_CITIES.find(
+            (c) => c.name.toLowerCase() === cityParam.toLowerCase()
+          );
+          if (match) {
+            setCoords({ lat: match.lat, lng: match.lng });
+          }
+        }
+      }
+    };
+
+    parseUrlParams();
+    window.addEventListener('hashchange', parseUrlParams);
+    return () => window.removeEventListener('hashchange', parseUrlParams);
+  }, []);
 
   // Request browser geolocation on mount
   useEffect(() => {
+    const hash = window.location.hash || '';
+    if (hash.includes('?city=') || hash.includes('?q=')) {
+      return;
+    }
+
     if (!navigator.geolocation) {
-      setGeoError('Geolocation is not supported by your browser. Enter coordinates below.');
+      setGeoNotice('GPS not available. Centered on default coordinates. Use search to fly to any city.');
       return;
     }
 
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        const userCoords = {
+        setCoords({
           lat: pos.coords.latitude,
           lng: pos.coords.longitude,
-        };
-        setCoords(userCoords);
-        setManualLat(userCoords.lat.toFixed(4));
-        setManualLng(userCoords.lng.toFixed(4));
-        setGeoError('');
+        });
+        setGeoNotice('');
       },
-      (err) => {
-        setGeoError(`Location access unavailable (${err.message}). Enter coordinates manually or select a city.`);
-        // Fallback to default city coords
-        setCoords({ lat: PRESET_CITIES[0].lat, lng: PRESET_CITIES[0].lng });
-        setManualLat(PRESET_CITIES[0].lat.toString());
-        setManualLng(PRESET_CITIES[0].lng.toString());
+      () => {
+        setGeoNotice('Live GPS access unavailable. Use search to locate any city or sector.');
       },
-      { timeout: 8000, enableHighAccuracy: false }
+      { timeout: 7000, enableHighAccuracy: false }
     );
   }, []);
 
-  // Fetch feed content based on active mode
+  // Fetch feed content based on radar coordinates and radius
   const fetchFeed = useCallback(
     async (currentPage = 1, append = false) => {
       setLoading(true);
@@ -108,21 +168,24 @@ export function ExplorePage({ navigate }) {
         let fetchedPosts = [];
         let moreAvailable = false;
 
-        if (feedMode === 'nearby') {
-          if (!coords) return;
-          const res = await api.getNearby(coords.lat, coords.lng, radius, currentPage, 12);
-          fetchedPosts = res.posts || [];
-          moreAvailable = fetchedPosts.length === 12;
-        } else {
-          // City feed
-          const res = await api.getCityFeed({
-            city: selectedCity.name,
-            country: selectedCity.country,
-            sort: sortOption,
-            limit: 12,
-          });
-          fetchedPosts = res.posts || [];
-          moreAvailable = Boolean(res.hasMore || res.nextCursor);
+        const activeLat = coords?.lat ?? 12.9716;
+        const activeLng = coords?.lng ?? 77.5946;
+        const res = await api.getNearby(activeLat, activeLng, radius, currentPage, 24);
+        fetchedPosts = res.posts || [];
+        moreAvailable = fetchedPosts.length === 24;
+
+        // If local nearby returns few and user wants broad exploration, also pull from home feed
+        if (fetchedPosts.length < 6) {
+          try {
+            const homeRes = await api.getHomeFeed({ sort: sortOption, limit: 30 });
+            if (homeRes?.posts?.length) {
+              const existingIds = new Set(fetchedPosts.map((p) => String(p._id)));
+              const extra = homeRes.posts.filter((p) => !existingIds.has(String(p._id)));
+              fetchedPosts = [...fetchedPosts, ...extra];
+            }
+          } catch {
+            // ignore fallback error
+          }
         }
 
         if (append) {
@@ -137,7 +200,7 @@ export function ExplorePage({ navigate }) {
         setLoading(false);
       }
     },
-    [feedMode, coords, radius, selectedCity, sortOption]
+    [coords, radius, sortOption]
   );
 
   useEffect(() => {
@@ -145,25 +208,7 @@ export function ExplorePage({ navigate }) {
     fetchFeed(1, false);
   }, [fetchFeed]);
 
-  const handleManualCoordsSubmit = (e) => {
-    e.preventDefault();
-    const latNum = parseFloat(manualLat);
-    const lngNum = parseFloat(manualLng);
-
-    if (isNaN(latNum) || latNum < -90 || latNum > 90) {
-      setError('Latitude must be between -90 and 90.');
-      return;
-    }
-    if (isNaN(lngNum) || lngNum < -180 || lngNum > 180) {
-      setError('Longitude must be between -180 and 180.');
-      return;
-    }
-
-    setCoords({ lat: latNum, lng: lngNum });
-    setGeoError('');
-  };
-
-  const handleVote = async (postId, value, e) => {
+  const _handleVote = async (postId, value, e) => {
     e.stopPropagation();
     if (!user) {
       navigate('#/login');
@@ -194,769 +239,1152 @@ export function ExplorePage({ navigate }) {
     }
   };
 
-  // Filter posts by category and search text
+  // Filter posts by search query, mission intent, tier, min score, and verification status
   const filteredPosts = useMemo(() => {
     return posts.filter((post) => {
-      // Category tag match
-      if (activeCategory !== 'all') {
-        const tags = Array.isArray(post.tags) ? post.tags : [];
-        const hasTag = tags.some((t) => t.toLowerCase().includes(activeCategory));
-        const matchesType = post.type && post.type.toLowerCase().includes(activeCategory);
-        if (!hasTag && !matchesType) return false;
-      }
-
-      // Realtime search text filter
+      // 1. Search Query (matches title, body, city, state, country, or tags)
       if (searchQuery.trim()) {
-        const query = searchQuery.toLowerCase();
+        const query = searchQuery.toLowerCase().trim();
         const inTitle = post.title?.toLowerCase().includes(query);
         const inBody = post.body?.toLowerCase().includes(query);
         const inCity = post.place?.city?.toLowerCase().includes(query);
-        if (!inTitle && !inBody && !inCity) return false;
+        const inCountry = post.place?.country?.toLowerCase().includes(query);
+        const inState = post.place?.state?.toLowerCase().includes(query);
+        const inTags = Array.isArray(post.tags) && post.tags.some((t) => t.toLowerCase().includes(query));
+        if (!inTitle && !inBody && !inCity && !inCountry && !inState && !inTags) {
+          return false;
+        }
+      }
+
+      // 2. What do you want to do? (Intent Filter)
+      if (filterIntent !== 'all') {
+        const tags = Array.isArray(post.tags) ? post.tags.map((t) => t.toLowerCase()) : [];
+        const type = (post.type || '').toLowerCase();
+        const text = `${post.title || ''} ${post.body || ''}`.toLowerCase();
+
+        if (filterIntent === 'photo') {
+          if (!post.images || post.images.length === 0) return false;
+        } else if (filterIntent === 'visit') {
+          const visits = post.visitsCount || (Array.isArray(post.visits) ? post.visits.length : 0);
+          if (visits <= 0) return false;
+        } else if (filterIntent === 'unsolved') {
+          if (post.solved === true) return false;
+        } else if (filterIntent === 'acoustic') {
+          const isAcoustic =
+            tags.some((t) => t.includes('acoustic') || t.includes('sound') || t.includes('echo') || t.includes('audio') || t.includes('hum')) ||
+            type.includes('acoustic') ||
+            text.includes('acoustic') ||
+            text.includes('echo') ||
+            text.includes('whisper');
+          if (!isAcoustic) return false;
+        } else if (filterIntent === 'botanical') {
+          const isBotanical =
+            tags.some((t) => t.includes('botanical') || t.includes('tree') || t.includes('plant') || t.includes('flora') || t.includes('nature') || t.includes('banyan')) ||
+            type.includes('botanical') ||
+            text.includes('banyan') ||
+            text.includes('roots') ||
+            text.includes('tree');
+          if (!isBotanical) return false;
+        } else if (filterIntent === 'architecture') {
+          const isArch =
+            tags.some((t) => t.includes('arch') || t.includes('relic') || t.includes('ruin') || t.includes('historic') || t.includes('masonry')) ||
+            type.includes('arch') ||
+            text.includes('architecture') ||
+            text.includes('masonry') ||
+            text.includes('tower') ||
+            text.includes('staircase');
+          if (!isArch) return false;
+        } else if (filterIntent === 'subterranean') {
+          const isSub =
+            tags.some((t) => t.includes('subterranean') || t.includes('tunnel') || t.includes('vault') || t.includes('cistern') || t.includes('underground')) ||
+            type.includes('subterranean') ||
+            text.includes('subterranean') ||
+            text.includes('tunnel') ||
+            text.includes('underground') ||
+            text.includes('cistern');
+          if (!isSub) return false;
+        } else if (filterIntent === 'high_score') {
+          if ((post.meter?.score ?? 0) < 30) return false;
+        } else if (filterIntent === 'certified') {
+          if (post.tier !== 'country') return false;
+        }
+      }
+
+      // 3. Anomaly Tier Filter
+      if (filterTier !== 'all') {
+        const tier = (post.tier || 'city').toLowerCase();
+        if (tier !== filterTier) return false;
+      }
+
+      // 4. Oddometer Score Threshold
+      if (minScore > 0) {
+        if ((post.meter?.score ?? 0) < minScore) return false;
+      }
+
+      // 5. Verification & Status Filter
+      if (filterStatus !== 'all') {
+        if (filterStatus === 'unsolved' && post.solved === true) return false;
+        if (filterStatus === 'solved' && post.solved !== true) return false;
+        if (filterStatus === 'visited') {
+          const visits = post.visitsCount || (Array.isArray(post.visits) ? post.visits.length : 0);
+          if (visits <= 0) return false;
+        }
+        if (filterStatus === 'photo' && (!post.images || post.images.length === 0)) return false;
+        if (filterStatus === 'fuzzed' && !(post.hideExact === true || post.fuzzed === true || post.location?.fuzzed === true)) return false;
       }
 
       return true;
+    }).sort((a, b) => {
+      if (sortOption === 'score') {
+        return (b.meter?.score ?? 0) - (a.meter?.score ?? 0);
+      }
+      if (sortOption === 'new') {
+        return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+      }
+      return (b.hotScore ?? b.meter?.score ?? 0) - (a.hotScore ?? a.meter?.score ?? 0);
     });
-  }, [posts, activeCategory, searchQuery]);
+  }, [posts, searchQuery, filterIntent, filterTier, minScore, filterStatus, sortOption]);
 
-  // Map center calculation
+  // Map center coordinates
   const mapCenter = useMemo(() => {
-    if (feedMode === 'nearby' && coords) {
-      return [coords.lat, coords.lng];
-    }
-    return [selectedCity.lat, selectedCity.lng];
-  }, [feedMode, coords, selectedCity]);
+    return [coords?.lat ?? 12.9716, coords?.lng ?? 77.5946];
+  }, [coords]);
 
-  const formatDistance = (meters) => {
-    if (meters === undefined || meters === null) return '';
-    if (meters < 1000) return `${meters} m away`;
-    return `${(meters / 1000).toFixed(1)} km away`;
-  };
+  const selectedPost = useMemo(() => {
+    if (selectedPostId) {
+      const match = filteredPosts.find((p) => String(p._id) === String(selectedPostId));
+      if (match) return match;
+    }
+    return filteredPosts.length > 0 ? filteredPosts[0] : null;
+  }, [filteredPosts, selectedPostId]);
 
   return (
-    <div className="explore-page-container" style={{ width: '100%', padding: '0 var(--space-4, 16px)' }}>
-      {/* Top Header & Feed Mode Switcher */}
+    <div className="explore-page-container" style={{ width: '100%', margin: 0, padding: 0 }}>
+      {/* Top Telemetry Kicker Ribbon matching Screenshot 1 */}
       <div
-        className="explore-header"
+        className="telemetry-ribbon"
         style={{
           display: 'flex',
-          flexDirection: 'column',
-          gap: 'var(--space-4, 16px)',
-          margin: 'var(--space-6, 24px) 0 var(--space-4, 16px)',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          padding: '0.45rem 1.25rem',
+          background: 'var(--bg-subtle, #FAF6F0)',
+          borderBottom: '1px solid var(--border-subtle, #ECE7DF)',
+          fontSize: '11px',
+          fontFamily: 'var(--font-mono, monospace)',
+          color: 'var(--text-secondary, #524C46)',
+          letterSpacing: '0.04em',
+          flexWrap: 'wrap',
+          gap: '0.5rem',
         }}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 'var(--space-3, 12px)' }}>
-          <div>
-            <h1 style={{ margin: 0, fontSize: 'var(--text-3xl, 1.875rem)', letterSpacing: '-0.5px' }}>
-              Anomaly Radar
-            </h1>
-            <p style={{ margin: '4px 0 0', color: 'var(--text-secondary, #94a3b8)', fontSize: 'var(--text-sm, 0.875rem)' }}>
-              Locate oddities, mysterious architecture, and hidden artifacts on the map.
-            </p>
-          </div>
-
-          {/* Mode Switcher Tabs */}
-          <div
-            className="feed-mode-tabs"
-            role="tablist"
-            aria-label="Feed Mode"
-            style={{
-              display: 'flex',
-              background: 'var(--bg-elevated, #FFF3E0)',
-              padding: '4px',
-              borderRadius: 'var(--radius-full, 9999px)',
-              border: '1px solid var(--border-color, #E6DFD5)',
-            }}
-          >
-            <button
-              type="button"
-              role="tab"
-              aria-selected={feedMode === 'nearby'}
-              className={`mode-tab ${feedMode === 'nearby' ? 'active' : ''}`}
-              onClick={() => setFeedMode('nearby')}
-              style={{
-                cursor: 'pointer',
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-full, 9999px)',
-                border: 'none',
-                background: feedMode === 'nearby' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
-                color: feedMode === 'nearby' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                boxShadow: feedMode === 'nearby' ? '0 2px 8px rgba(255, 111, 0, 0.3)' : 'none',
-                transition: 'all var(--transition-fast, 150ms ease)',
-              }}
-            >
-              📍 GPS Radar
-            </button>
-            <button
-              type="button"
-              role="tab"
-              aria-selected={feedMode === 'city'}
-              className={`mode-tab ${feedMode === 'city' ? 'active' : ''}`}
-              onClick={() => setFeedMode('city')}
-              style={{
-                cursor: 'pointer',
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-full, 9999px)',
-                border: 'none',
-                background: feedMode === 'city' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
-                color: feedMode === 'city' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
-                fontWeight: 700,
-                fontSize: '0.8rem',
-                boxShadow: feedMode === 'city' ? '0 2px 8px rgba(255, 111, 0, 0.3)' : 'none',
-                transition: 'all var(--transition-fast, 150ms ease)',
-              }}
-            >
-              🏙️ City Explorer
-            </button>
-          </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <span style={{ color: '#DC2626', fontSize: '11px' }}>●</span>
+          <strong style={{ color: 'var(--text-primary, #18181B)', letterSpacing: '0.06em' }}>RADAR ARRAY ACTIVE</strong>
+          <span style={{ color: 'var(--text-secondary, #524C46)' }}>
+            LAT {coords?.lat ? Number(coords.lat).toFixed(4) : '12.9716'}° N · LON {coords?.lng ? Number(coords.lng).toFixed(4) : '77.5946'}° E
+          </span>
+          <span style={{ opacity: 0.35 }}>|</span>
+          <span>📡 SIG: 98.4% LOCK / BEARING: 042° NE</span>
         </div>
 
-        {/* Location Alerts & Manual Coordinate Override */}
-        {geoError && feedMode === 'nearby' && (
-          <div
-            className="geo-alert-box"
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', flexWrap: 'wrap' }}>
+          <span style={{ color: 'var(--text-muted, #655E56)', textTransform: 'uppercase', fontSize: '10.5px' }}>PALETTE SUITE:</span>
+          <span
+            onClick={() => setTheme('sunburst')}
             style={{
-              padding: '12px 16px',
-              background: 'var(--color-warning-bg, #FFFBEB)',
-              border: '1px solid var(--accent-secondary, #FFB300)',
-              borderRadius: 'var(--radius-md, 12px)',
-              fontSize: '0.8rem',
-              color: 'var(--text-primary, #1A1814)',
+              cursor: 'pointer',
+              color: theme === 'sunburst' ? 'var(--accent-cta, #C2410C)' : 'var(--text-secondary, #524C46)',
+              fontWeight: theme === 'sunburst' ? 800 : 500,
             }}
           >
-            <p style={{ margin: '0 0 8px', fontWeight: 500 }}>{geoError}</p>
-            <form onSubmit={handleManualCoordsSubmit} style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-              <input
-                type="number"
-                step="any"
-                placeholder="Latitude"
-                value={manualLat}
-                onChange={(e) => setManualLat(e.target.value)}
-                style={{
-                  padding: '5px 10px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color, #E6DFD5)',
-                  background: 'var(--bg-surface, #FFFFFF)',
-                  color: 'var(--text-primary, #1A1814)',
-                  fontSize: '0.85rem',
-                }}
-                required
-              />
-              <input
-                type="number"
-                step="any"
-                placeholder="Longitude"
-                value={manualLng}
-                onChange={(e) => setManualLng(e.target.value)}
-                style={{
-                  padding: '5px 10px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color, #E6DFD5)',
-                  background: 'var(--bg-surface, #FFFFFF)',
-                  color: 'var(--text-primary, #1A1814)',
-                  fontSize: '0.85rem',
-                }}
-                required
-              />
-              <button
-                type="submit"
-                className="btn-primary"
-                style={{
-                  padding: '5px 14px',
-                  fontSize: '0.8rem',
-                }}
-              >
-                Set Coordinates
-              </button>
-            </form>
-          </div>
-        )}
-
-        {/* Global Control Bar: Radius Chips/City + Sort + Search + View Switcher */}
-        <div
-          className="controls-bar"
-          style={{
-            display: 'flex',
-            flexWrap: 'wrap',
-            alignItems: 'center',
-            justifyContent: 'space-between',
-            gap: '12px',
-            padding: '12px 16px',
-            background: 'var(--bg-surface, #FFFFFF)',
-            border: '1px solid var(--border-color, #E6DFD5)',
-            borderRadius: 'var(--radius-card, 16px)',
-            boxShadow: 'var(--shadow-card)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: '14px', flexWrap: 'wrap' }}>
-            {feedMode === 'nearby' ? (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-                <span style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700, fontSize: '0.8rem' }}>
-                  Radar Radius:
-                </span>
-                <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-                  {RADIUS_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => setRadius(opt.value)}
-                      style={{
-                        padding: '4px 10px',
-                        borderRadius: 'var(--radius-full, 9999px)',
-                        border: radius === opt.value ? '1px solid var(--accent-primary, #FF6F00)' : '1px solid var(--border-color, #E6DFD5)',
-                        background: radius === opt.value ? 'var(--accent-primary, #FF6F00)' : 'var(--bg-elevated, #FFF3E0)',
-                        color: radius === opt.value ? '#FFFFFF' : 'var(--text-primary, #1A1814)',
-                        fontWeight: radius === opt.value ? 700 : 600,
-                        fontSize: '0.75rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                        boxShadow: radius === opt.value ? '0 2px 8px rgba(255, 111, 0, 0.3)' : 'none',
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
-                <label htmlFor="city-select" style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700 }}>
-                  Sector City:
-                </label>
-                <select
-                  id="city-select"
-                  value={selectedCity.name}
-                  onChange={(e) => {
-                    const match = PRESET_CITIES.find((c) => c.name === e.target.value);
-                    if (match) setSelectedCity(match);
-                  }}
-                  style={{
-                    padding: '5px 10px',
-                    borderRadius: '8px',
-                    background: 'var(--bg-elevated, #FFF3E0)',
-                    color: 'var(--text-primary, #1A1814)',
-                    border: '1px solid var(--border-color, #E6DFD5)',
-                    fontSize: '0.8rem',
-                    fontWeight: 600,
-                  }}
-                >
-                  {PRESET_CITIES.map((c) => (
-                    <option key={c.name} value={c.name}>
-                      {c.name} ({c.country})
-                    </option>
-                  ))}
-                </select>
-              </div>
-            )}
-
-            {/* Sort Dropdown */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '0.8rem' }}>
-              <label htmlFor="sort-select" style={{ color: 'var(--text-secondary, #6E675F)', fontWeight: 700 }}>
-                Sort:
-              </label>
-              <select
-                id="sort-select"
-                value={sortOption}
-                onChange={(e) => setSortOption(e.target.value)}
-                style={{
-                  padding: '4px 8px',
-                  borderRadius: 'var(--radius-sm, 4px)',
-                  background: 'var(--bg-elevated, #1a2030)',
-                  color: 'var(--text-primary, #f0f4fc)',
-                  border: '1px solid var(--border-subtle, #202738)',
-                  fontSize: 'var(--text-xs, 0.75rem)',
-                }}
-              >
-                <option value="hot">🔥 Hot & Trending</option>
-                <option value="new">⚡ Latest Sightings</option>
-                <option value="top">🏆 Highest Rated</option>
-              </select>
-            </div>
-          </div>
-
-          {/* Search Input & View Switchers */}
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--space-3, 12px)' }}>
-            <input
-              type="text"
-              placeholder="Search spots..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              aria-label="Filter spots by title or place"
-              style={{
-                padding: '4px 10px',
-                borderRadius: 'var(--radius-md, 8px)',
-                background: 'var(--bg-elevated, #1a2030)',
-                color: 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
-                fontSize: 'var(--text-xs, 0.75rem)',
-                width: '140px',
-              }}
-            />
-
-            {/* View Mode Toggle: Split / List / Map */}
-            <div
-              className="view-mode-buttons"
-              role="group"
-              aria-label="Viewport Layout"
-              style={{
-                display: 'flex',
-                background: 'var(--bg-elevated, #1a2030)',
-                borderRadius: 'var(--radius-md, 8px)',
-                padding: '2px',
-                border: '1px solid var(--border-subtle, #202738)',
-              }}
-            >
-              <button
-                type="button"
-                title="Split View (Map + List)"
-                aria-label="Split View"
-                aria-pressed={viewMode === 'split'}
-                onClick={() => setViewMode('split')}
-                style={{
-                  cursor: 'pointer',
-                  padding: '5px 12px',
-                  borderRadius: '9999px',
-                  border: 'none',
-                  background: viewMode === 'split' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
-                  color: viewMode === 'split' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                Split
-              </button>
-              <button
-                type="button"
-                title="List View Only"
-                aria-label="List View"
-                aria-pressed={viewMode === 'list'}
-                onClick={() => setViewMode('list')}
-                style={{
-                  cursor: 'pointer',
-                  padding: '5px 12px',
-                  borderRadius: '9999px',
-                  border: 'none',
-                  background: viewMode === 'list' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
-                  color: viewMode === 'list' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                List
-              </button>
-              <button
-                type="button"
-                title="Map View Only"
-                aria-label="Map View"
-                aria-pressed={viewMode === 'map'}
-                onClick={() => setViewMode('map')}
-                style={{
-                  cursor: 'pointer',
-                  padding: '5px 12px',
-                  borderRadius: '9999px',
-                  border: 'none',
-                  background: viewMode === 'map' ? 'var(--accent-primary, #FF6F00)' : 'transparent',
-                  color: viewMode === 'map' ? '#FFFFFF' : 'var(--text-secondary, #6E675F)',
-                  fontSize: '11px',
-                  fontWeight: 700,
-                  transition: 'all 0.15s ease',
-                }}
-              >
-                Map
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Category Filter Pills */}
-        <div
-          className="category-pills"
-          role="region"
-          aria-label="Category filters"
-          style={{
-            display: 'flex',
-            gap: 'var(--space-2, 8px)',
-            overflowX: 'auto',
-            paddingBottom: '4px',
-            scrollbarWidth: 'none',
-          }}
-        >
-          {CATEGORY_TAGS.map((cat) => (
-            <button
-              key={cat.id}
-              type="button"
-              onClick={() => setActiveCategory(cat.id)}
-              aria-pressed={activeCategory === cat.id}
-              style={{
-                cursor: 'pointer',
-                flexShrink: 0,
-                display: 'flex',
-                alignItems: 'center',
-                gap: '6px',
-                padding: '6px 14px',
-                borderRadius: 'var(--radius-full, 9999px)',
-                background: activeCategory === cat.id ? 'var(--accent-highlight, #FFF8E1)' : 'var(--bg-surface, #FFFFFF)',
-                color: activeCategory === cat.id ? 'var(--accent-primary, #FF6F00)' : 'var(--text-secondary, #6E675F)',
-                border: activeCategory === cat.id ? '1px solid #FFCC80' : '1px solid var(--border-color, #E6DFD5)',
-                fontSize: 'var(--text-xs, 0.75rem)',
-                fontWeight: activeCategory === cat.id ? 800 : 600,
-                boxShadow: activeCategory === cat.id ? '0 2px 8px rgba(255, 111, 0, 0.12)' : 'none',
-                transition: 'all var(--transition-fast, 150ms ease)',
-              }}
-            >
-              <span>{cat.icon}</span>
-              <span>{cat.label}</span>
-            </button>
-          ))}
+            ● Sunburst {theme === 'sunburst' ? 'ACTIVE' : ''}
+          </span>
+          <span style={{ opacity: 0.35 }}>|</span>
+          <span
+            onClick={() => setTheme('nocturnal-phosphor')}
+            style={{
+              cursor: 'pointer',
+              color: theme === 'nocturnal-phosphor' ? '#10B981' : 'var(--text-secondary, #524C46)',
+              fontWeight: theme === 'nocturnal-phosphor' ? 800 : 500,
+            }}
+          >
+            ● Night Radar
+          </span>
+          <span style={{ opacity: 0.35 }}>|</span>
+          <span
+            onClick={() => setTheme('field-zine')}
+            style={{
+              cursor: 'pointer',
+              color: theme === 'field-zine' ? '#D95D00' : 'var(--text-secondary, #524C46)',
+              fontWeight: theme === 'field-zine' ? 800 : 500,
+            }}
+          >
+            ● Field Zine
+          </span>
         </div>
       </div>
+
+      {/* GPS Notice Banner (non-blocking) */}
+      {geoNotice && (
+        <div
+          style={{
+            margin: '0.5rem 1rem',
+            padding: '0.6rem 1rem',
+            background: 'var(--bg-card-inner)',
+            border: '1px solid var(--border-subtle)',
+            borderRadius: '8px',
+            fontSize: '11.5px',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: '8px',
+            color: 'var(--text-secondary)',
+          }}
+        >
+          <span>🛰️ {geoNotice}</span>
+          <button
+            type="button"
+            onClick={() => setGeoNotice('')}
+            style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '12px' }}
+          >
+            ✕
+          </button>
+        </div>
+      )}
 
       {error && <ErrorBanner message={error} onDismiss={() => setError('')} />}
 
-      {/* Main Viewport Content: Split / Map / List */}
+      {/* Main Split View: Left List + Right Map matching Screenshot 1 */}
       <div
-        className={`explore-viewport view-${viewMode}`}
+        className="explore-split-view"
         style={{
-          display: 'grid',
-          gridTemplateColumns:
-            viewMode === 'split' ? 'minmax(380px, 1fr) minmax(340px, 1fr)' : '1fr',
-          gap: 'var(--space-6, 24px)',
-          alignItems: 'start',
-          marginBottom: 'var(--space-8, 32px)',
+          display: 'flex',
+          height: 'calc(100vh - 105px)',
+          width: '100%',
+          overflow: 'hidden',
+          background: 'var(--bg-primary, #FFFDF9)',
         }}
       >
-        {/* Map Section (Shown in 'split' and 'map' modes) */}
-        {(viewMode === 'split' || viewMode === 'map') && (
+        {/* Left Column (Radar Dispatches & Controls) */}
+        <div
+          className="explore-left-pane"
+          style={{
+            width: '440px',
+            minWidth: '360px',
+            maxWidth: '460px',
+            height: '100%',
+            display: 'flex',
+            flexDirection: 'column',
+            background: 'var(--bg-surface, #FFFFFF)',
+            borderRight: '1px solid var(--border-subtle, #ECE7DF)',
+            overflow: 'hidden',
+            flexShrink: 0,
+          }}
+        >
+          {/* Top Controls Box: Universal Search + "+ Filters" */}
           <div
-            className="explore-map-container"
             style={{
-              position: viewMode === 'split' ? 'sticky' : 'relative',
-              top: viewMode === 'split' ? '80px' : 0,
-              width: '100%',
-              height: viewMode === 'map' ? '650px' : '520px',
+              padding: '0.85rem 1rem',
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '0.65rem',
+              borderBottom: '1px solid var(--border-subtle, #ECE7DF)',
+              background: 'var(--bg-surface)',
             }}
           >
-            <OddspotMap
-              posts={filteredPosts}
-              center={mapCenter}
-              zoom={13}
-              selectedPostId={selectedPostId}
-              onSelectPost={(post) => setSelectedPostId(post._id)}
-              style={{ height: '100%' }}
-            />
-          </div>
-        )}
+            {/* Top Row: Coordinates & Post Action */}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '6px' }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    fontSize: '11px',
+                    fontFamily: 'var(--font-mono, monospace)',
+                    fontWeight: 700,
+                    color: 'var(--text-secondary)',
+                    background: 'var(--bg-card-inner)',
+                    padding: '4px 8px',
+                    borderRadius: '5px',
+                    border: '1px solid var(--border-subtle)',
+                  }}
+                  title="Current radar focus coordinates"
+                >
+                  <span style={{ color: '#10B981', fontSize: '9px' }}>●</span>
+                  <span>{coords.lat.toFixed(3)}°N, {coords.lng.toFixed(3)}°E</span>
+                </span>
 
-        {/* Feed List Section (Shown in 'split' and 'list' modes) */}
-        {(viewMode === 'split' || viewMode === 'list') && (
-          <div className="explore-feed-list" style={{ width: '100%' }}>
-            {loading && posts.length === 0 && <LoadingSkeleton count={4} type="feed" />}
-
-            {!loading && filteredPosts.length === 0 && (
-              <EmptyState
-                title="No Anomalies in this Sector"
-                message={
-                  searchQuery || activeCategory !== 'all'
-                    ? 'No spots matched your current search or category filters. Try expanding your parameters.'
-                    : `No weird spots found within ${radius / 1000} km. Be the first scout to report an anomaly here!`
-                }
-                icon="🛸"
-                actionText="+ Post a Find"
-                onAction={() => navigate('#/create')}
-              />
-            )}
-
-            <div
-              className="post-grid"
-              style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 'var(--space-4, 16px)',
-              }}
-            >
-              {filteredPosts.map((post) => {
-                const myVote = votedPosts[post._id];
-                const hasImage = post.images && post.images.length > 0;
-                const isSelected = selectedPostId === post._id;
-
-                return (
-                  <div
-                    key={post._id}
-                    className={`post-card ${isSelected ? 'selected-card' : ''}`}
+                {navigator.geolocation && (
+                  <button
+                    type="button"
                     onClick={() => {
-                      setSelectedPostId(post._id);
-                      navigate(`#/post/${post._id}`);
+                      navigator.geolocation.getCurrentPosition(
+                        (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
+                        () => {}
+                      );
                     }}
                     style={{
+                      background: 'none',
+                      border: '1px solid var(--border-subtle)',
+                      borderRadius: '5px',
+                      padding: '4px 6px',
                       cursor: 'pointer',
-                      display: 'flex',
-                      gap: 'var(--space-4, 16px)',
-                      padding: 'var(--space-4, 16px)',
-                      background: 'var(--bg-surface, #FFFFFF)',
-                      border: isSelected
-                        ? '2px solid var(--accent-primary, #FF6F00)'
-                        : '1px solid var(--border-color, #E6DFD5)',
-                      borderRadius: 'var(--radius-card, 16px)',
-                      boxShadow: isSelected
-                        ? '0 4px 20px rgba(255, 111, 0, 0.2)'
-                        : 'var(--shadow-card, 0 4px 20px -2px rgba(255, 111, 0, 0.08))',
-                      transition: 'all var(--transition-fast, 150ms ease)',
+                      fontSize: '11px',
+                      color: 'var(--text-secondary)',
                     }}
+                    title="Center on my device GPS"
                   >
-                    {hasImage && (
-                      <div
-                        className="post-thumbnail-wrap"
-                        style={{
-                          width: '110px',
-                          height: '110px',
-                          flexShrink: 0,
-                          borderRadius: '12px',
-                          overflow: 'hidden',
-                          position: 'relative',
-                          border: '1px solid var(--border-color, #E6DFD5)',
-                        }}
-                      >
-                        <img
-                          src={post.images[0].url}
-                          alt={post.title}
-                          className="post-thumbnail"
-                          loading="lazy"
-                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        />
-                        {post.images.length > 1 && (
-                          <span
-                            className="image-badge"
-                            style={{
-                              position: 'absolute',
-                              bottom: '6px',
-                              right: '6px',
-                              background: 'rgba(26, 24, 20, 0.85)',
-                              color: '#FFFFFF',
-                              fontSize: '10px',
-                              fontWeight: 800,
-                              padding: '2px 6px',
-                              borderRadius: '6px',
-                            }}
-                          >
-                            +{post.images.length - 1}
-                          </span>
-                        )}
-                      </div>
-                    )}
+                    📍 My GPS
+                  </button>
+                )}
+              </div>
 
-                    <div
-                      className="post-card-content"
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        flexGrow: 1,
-                        justifyContent: 'space-between',
-                      }}
-                    >
-                      <div>
-                        <div
-                          className="post-badges"
-                          style={{
-                            display: 'flex',
-                            gap: '6px',
-                            alignItems: 'center',
-                            flexWrap: 'wrap',
-                            marginBottom: '6px',
-                          }}
-                        >
-                          <span
-                            className={`tier-badge tier-${post.tier || 'city'}`}
-                            style={{
-                              fontSize: 'var(--text-2xs, 11px)',
-                              fontWeight: 800,
-                              padding: '3px 8px',
-                              borderRadius: '9999px',
-                              background: 'var(--accent-highlight, #FFF8E1)',
-                              color: 'var(--accent-primary, #FF6F00)',
-                              border: '1px solid #FFCC80',
-                              textTransform: 'uppercase',
-                            }}
-                          >
-                            {(post.tier || 'city').toUpperCase()} TIER
-                          </span>
-
-                          {post.hideExact && (
-                            <span
-                              className="badge-fuzzed"
-                              style={{
-                                fontSize: 'var(--text-2xs, 11px)',
-                                fontWeight: 700,
-                                padding: '2px 6px',
-                                borderRadius: 'var(--radius-sm, 4px)',
-                                background: 'var(--color-warning-bg, rgba(245, 158, 11, 0.12))',
-                                color: 'var(--color-warning, #f59e0b)',
-                                border: '1px dashed var(--color-warning, #f59e0b)',
-                              }}
-                            >
-                              ◌ 400m Area
-                            </span>
-                          )}
-
-                          {post.distanceMeters !== undefined && (
-                            <span
-                              className="distance-badge"
-                              style={{
-                                fontSize: 'var(--text-2xs, 11px)',
-                                color: 'var(--text-muted, #64748b)',
-                              }}
-                            >
-                              {formatDistance(post.distanceMeters)}
-                            </span>
-                          )}
-                        </div>
-
-                        <h3
-                          className="post-title"
-                          style={{
-                            margin: '0 0 6px',
-                            fontSize: 'var(--text-base, 1rem)',
-                            fontWeight: 700,
-                            color: 'var(--text-primary, #f0f4fc)',
-                            lineHeight: 1.3,
-                          }}
-                        >
-                          {post.title}
-                        </h3>
-
-                        {post.body && (
-                          <p
-                            className="post-body-snippet"
-                            style={{
-                              margin: '0 0 8px',
-                              fontSize: 'var(--text-xs, 0.75rem)',
-                              color: 'var(--text-secondary, #94a3b8)',
-                              lineHeight: 1.4,
-                            }}
-                          >
-                            {post.body.length > 110 ? `${post.body.slice(0, 110)}...` : post.body}
-                          </p>
-                        )}
-                      </div>
-
-                      <div
-                        className="post-footer"
-                        style={{
-                          display: 'flex',
-                          justifyContent: 'space-between',
-                          alignItems: 'center',
-                          marginTop: '8px',
-                          paddingTop: '8px',
-                          borderTop: '1px solid var(--border-subtle, #202738)',
-                        }}
-                      >
-                        <OddometerPill
-                          score={post.meter?.score}
-                          countryThreshold={post.meter?.countryThreshold}
-                          label={post.meter?.label}
-                          tier={post.tier}
-                          size="sm"
-                        />
-
-                        <div className="vote-actions" style={{ display: 'flex', gap: '6px' }}>
-                          <button
-                            type="button"
-                            className={`btn-vote ${myVote === 1 ? 'voted-up' : ''}`}
-                            onClick={(e) => handleVote(post._id, 1, e)}
-                            style={{
-                              cursor: 'pointer',
-                              padding: '2px 8px',
-                              borderRadius: 'var(--radius-sm, 4px)',
-                              background: myVote === 1 ? 'var(--color-success-bg, rgba(16,185,129,0.2))' : 'var(--bg-elevated, #1a2030)',
-                              color: myVote === 1 ? 'var(--color-success, #10b981)' : 'var(--text-primary, #f0f4fc)',
-                              border: '1px solid var(--border-subtle, #202738)',
-                              fontSize: 'var(--text-xs, 0.75rem)',
-                              fontWeight: 600,
-                            }}
-                          >
-                            👍 {post.meter?.likes ?? 0}
-                          </button>
-                          <button
-                            type="button"
-                            className={`btn-vote ${myVote === -1 ? 'voted-down' : ''}`}
-                            onClick={(e) => handleVote(post._id, -1, e)}
-                            style={{
-                              cursor: 'pointer',
-                              padding: '2px 8px',
-                              borderRadius: 'var(--radius-sm, 4px)',
-                              background: myVote === -1 ? 'var(--color-danger-bg, rgba(239,68,68,0.2))' : 'var(--bg-elevated, #1a2030)',
-                              color: myVote === -1 ? 'var(--color-danger, #ef4444)' : 'var(--text-primary, #f0f4fc)',
-                              border: '1px solid var(--border-subtle, #202738)',
-                              fontSize: 'var(--text-xs, 0.75rem)',
-                              fontWeight: 600,
-                            }}
-                          >
-                            👎 {post.meter?.dislikes ?? 0}
-                          </button>
-                          <span
-                            style={{
-                              padding: '2px 8px',
-                              fontSize: 'var(--text-xs, 0.75rem)',
-                              color: 'var(--text-muted, #64748b)',
-                              display: 'flex',
-                              alignItems: 'center',
-                            }}
-                          >
-                            💬 {post.meter?.comments ?? 0}
-                          </span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {hasMore && filteredPosts.length > 0 && (
-              <div style={{ textAlign: 'center', margin: 'var(--space-6, 24px) 0' }}>
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => {
-                    const nextPage = page + 1;
-                    setPage(nextPage);
-                    fetchFeed(nextPage, true);
-                  }}
-                  disabled={loading}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <div
                   style={{
-                    cursor: 'pointer',
-                    padding: 'var(--space-2, 8px) var(--space-6, 24px)',
-                    background: 'var(--bg-surface, #121722)',
-                    color: 'var(--text-primary, #f0f4fc)',
-                    border: '1px solid var(--border-strong, #2f3b54)',
-                    borderRadius: 'var(--radius-md, 8px)',
-                    fontSize: 'var(--text-sm, 0.875rem)',
-                    fontWeight: 600,
+                    background: 'var(--badge-gold-bg)',
+                    color: 'var(--badge-gold-text)',
+                    border: '1px solid var(--badge-gold-border)',
+                    borderRadius: '4px',
+                    padding: '3px 8px',
+                    fontFamily: 'var(--font-mono, monospace)',
+                    fontSize: '10.5px',
+                    fontWeight: 800,
+                    letterSpacing: '0.04em',
                   }}
                 >
-                  {loading ? 'Scanning Radar...' : 'Load More Oddities'}
+                  {filteredPosts.length} PINGS
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => navigate('#/create')}
+                  style={{
+                    background: '#B83818',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '6px',
+                    padding: '5px 10px',
+                    fontSize: '11px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    boxShadow: '0 2px 6px rgba(184, 56, 24, 0.35)',
+                    whiteSpace: 'nowrap',
+                  }}
+                  title="Document a new oddity in this sector"
+                >
+                  <span>📍</span>
+                  <span>Post a Find</span>
+                </button>
+              </div>
+            </div>
+
+            {/* Search Input Row + "+ Filters" Button */}
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <div style={{ position: 'relative', flex: 1 }}>
+                <input
+                  type="text"
+                  placeholder="Search oddities, folklore, or city (e.g. Tokyo, London)..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  style={{
+                    width: '100%',
+                    height: '36px',
+                    borderRadius: '7px',
+                    border: '1px solid var(--input-border)',
+                    background: 'var(--input-bg)',
+                    padding: '0 30px 0 32px',
+                    fontSize: '12px',
+                    color: 'var(--input-text)',
+                    boxSizing: 'border-box',
+                  }}
+                />
+                <span style={{ position: 'absolute', left: '9px', top: '9px', fontSize: '13px', opacity: 0.6 }} aria-hidden="true">
+                  🔍
+                </span>
+                {searchQuery && (
+                  <button
+                    type="button"
+                    onClick={() => setSearchQuery('')}
+                    style={{
+                      position: 'absolute',
+                      right: '8px',
+                      top: '8px',
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      padding: '2px',
+                    }}
+                    aria-label="Clear search"
+                  >
+                    ✕
+                  </button>
+                )}
+              </div>
+
+              {/* + Filters Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setShowFilterDrawer((prev) => !prev)}
+                style={{
+                  height: '36px',
+                  padding: '0 11px',
+                  borderRadius: '7px',
+                  border: activeFilterCount > 0 ? '1px solid var(--accent-cta, #B83818)' : '1px solid var(--border-subtle)',
+                  background: activeFilterCount > 0 ? 'var(--badge-gold-bg)' : (showFilterDrawer ? 'var(--bg-card-inner)' : 'var(--btn-secondary-bg)'),
+                  color: activeFilterCount > 0 ? 'var(--badge-gold-text)' : 'var(--text-primary)',
+                  fontSize: '11.5px',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '5px',
+                  whiteSpace: 'nowrap',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>{showFilterDrawer ? '▲' : '▼'}</span>
+                <span>+ Filters</span>
+                {activeFilterCount > 0 && (
+                  <span
+                    style={{
+                      background: 'var(--accent-cta, #B83818)',
+                      color: '#FFFFFF',
+                      borderRadius: '999px',
+                      padding: '1px 5px',
+                      fontSize: '9.5px',
+                      fontWeight: 800,
+                      lineHeight: 1,
+                    }}
+                  >
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Matched City Auto-Teleport Suggestion (if user typed a known city) */}
+            {matchedCity && (
+              <div
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  padding: '6px 10px',
+                  background: 'var(--badge-gold-bg)',
+                  color: 'var(--badge-gold-text)',
+                  border: '1px solid var(--badge-gold-border)',
+                  borderRadius: '6px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                  <span>{matchedCity.flag}</span>
+                  <span>City match: <strong>{matchedCity.name}</strong></span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setCoords({ lat: matchedCity.lat, lng: matchedCity.lng })}
+                  style={{
+                    background: 'var(--accent-cta, #B83818)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '4px',
+                    padding: '3px 8px',
+                    fontSize: '10px',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Teleport Radar Here →
                 </button>
               </div>
             )}
-          </div>
-        )}
-      </div>
 
-      {/* Responsive media query layout */}
-      <style>{`
-        @media (max-width: 900px) {
-          .explore-viewport.view-split {
-            grid-template-columns: 1fr !important;
-          }
-          .explore-map-container {
-            position: relative !important;
-            top: 0 !important;
-            height: 380px !important;
-          }
-        }
-      `}</style>
+            {/* Active Filter Chips Ribbon */}
+            {(activeFilterCount > 0 || searchQuery) && (
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', alignItems: 'center', paddingTop: '2px' }}>
+                {filterIntent !== 'all' && (
+                  <span className="active-filter-pill">
+                    {INTENT_OPTIONS.find((i) => i.id === filterIntent)?.label}
+                    <button type="button" onClick={() => setFilterIntent('all')}>✕</button>
+                  </span>
+                )}
+                {filterTier !== 'all' && (
+                  <span className="active-filter-pill">
+                    Tier: {filterTier.toUpperCase()}
+                    <button type="button" onClick={() => setFilterTier('all')}>✕</button>
+                  </span>
+                )}
+                {minScore > 0 && (
+                  <span className="active-filter-pill">
+                    ≥ {minScore} pts
+                    <button type="button" onClick={() => setMinScore(0)}>✕</button>
+                  </span>
+                )}
+                {filterStatus !== 'all' && (
+                  <span className="active-filter-pill">
+                    Status: {filterStatus}
+                    <button type="button" onClick={() => setFilterStatus('all')}>✕</button>
+                  </span>
+                )}
+                {radius !== 10000 && (
+                  <span className="active-filter-pill">
+                    Scope: {radius / 1000} km
+                    <button type="button" onClick={() => setRadius(10000)}>✕</button>
+                  </span>
+                )}
+                {sortOption !== 'hot' && (
+                  <span className="active-filter-pill">
+                    Sort: {sortOption}
+                    <button type="button" onClick={() => setSortOption('hot')}>✕</button>
+                  </span>
+                )}
+                <button
+                  type="button"
+                  onClick={resetAllFilters}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    fontSize: '11px',
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                    padding: '2px 4px',
+                    fontWeight: 600,
+                  }}
+                >
+                  Clear all
+                </button>
+              </div>
+            )}
+
+            {/* Expandable "+ Filters" Panel */}
+            {showFilterDrawer && (
+              <div
+                className="filter-drawer-panel"
+                style={{
+                  padding: '0.85rem',
+                  background: 'var(--bg-card-inner)',
+                  border: '1px solid var(--border-subtle)',
+                  borderRadius: '10px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.75rem',
+                  maxHeight: '360px',
+                  overflowY: 'auto',
+                }}
+              >
+                {/* Section 1: What do you want to do? */}
+                <div>
+                  <div
+                    style={{
+                      fontSize: '10.5px',
+                      fontWeight: 800,
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.04em',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '6px',
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                    }}
+                  >
+                    <span>🎯 What do you want to do?</span>
+                    <span style={{ fontSize: '10px', color: 'var(--text-muted)' }}>Mission Intent</span>
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '5px' }}>
+                    {INTENT_OPTIONS.map((opt) => {
+                      const isSelected = filterIntent === opt.id;
+                      return (
+                        <button
+                          key={opt.id}
+                          type="button"
+                          onClick={() => setFilterIntent(opt.id)}
+                          style={{
+                            textAlign: 'left',
+                            padding: '6px 8px',
+                            borderRadius: '6px',
+                            border: isSelected ? '1px solid var(--accent-cta, #B83818)' : '1px solid var(--border-subtle)',
+                            background: isSelected ? 'var(--badge-gold-bg)' : 'var(--bg-surface)',
+                            color: isSelected ? 'var(--badge-gold-text)' : 'var(--text-primary)',
+                            fontSize: '10.5px',
+                            fontWeight: isSelected ? 700 : 500,
+                            cursor: 'pointer',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '6px',
+                            transition: 'all 0.12s ease',
+                          }}
+                        >
+                          <span>{opt.icon}</span>
+                          <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {opt.label}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Section 2: Anomaly Tier & Oddometer Score */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        color: 'var(--text-secondary)',
+                        marginBottom: '3px',
+                      }}
+                    >
+                      Anomaly Tier
+                    </label>
+                    <select
+                      value={filterTier}
+                      onChange={(e) => setFilterTier(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '5px 7px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-surface)',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <option value="all">All Tiers</option>
+                      <option value="local">Local Tier (0-14 pts)</option>
+                      <option value="city">City Tier (15-49 pts)</option>
+                      <option value="country">Country Legend (50+ pts)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        color: 'var(--text-secondary)',
+                        marginBottom: '3px',
+                      }}
+                    >
+                      Min Oddometer Score
+                    </label>
+                    <select
+                      value={minScore}
+                      onChange={(e) => setMinScore(Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '5px 7px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-surface)',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <option value={0}>Any Score (0+)</option>
+                      <option value={15}>15+ Neighborhood</option>
+                      <option value={30}>30+ City Sensation</option>
+                      <option value={50}>50+ Country Wide</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Section 3: Verification & Status */}
+                <div>
+                  <label
+                    style={{
+                      display: 'block',
+                      fontSize: '10px',
+                      fontWeight: 700,
+                      textTransform: 'uppercase',
+                      color: 'var(--text-secondary)',
+                      marginBottom: '3px',
+                    }}
+                  >
+                    Verification &amp; Status
+                  </label>
+                  <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                    {[
+                      { id: 'all', label: 'All Statuses' },
+                      { id: 'unsolved', label: '❓ Unsolved' },
+                      { id: 'solved', label: '✅ Solved' },
+                      { id: 'visited', label: '📍 Has Visits' },
+                      { id: 'photo', label: '📸 Has Photos' },
+                      { id: 'fuzzed', label: '🛡️ 400m Perimeter' },
+                    ].map((st) => (
+                      <button
+                        key={st.id}
+                        type="button"
+                        onClick={() => setFilterStatus(st.id)}
+                        style={{
+                          padding: '3px 7px',
+                          borderRadius: '5px',
+                          border: filterStatus === st.id ? '1px solid var(--accent-cta, #B83818)' : '1px solid var(--border-subtle)',
+                          background: filterStatus === st.id ? 'var(--badge-gold-bg)' : 'var(--bg-surface)',
+                          color: filterStatus === st.id ? 'var(--badge-gold-text)' : 'var(--text-secondary)',
+                          fontSize: '10.5px',
+                          fontWeight: filterStatus === st.id ? 700 : 500,
+                          cursor: 'pointer',
+                        }}
+                      >
+                        {st.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Section 4: Acoustic / Geo Radar Radius & Sort */}
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        color: 'var(--text-secondary)',
+                        marginBottom: '3px',
+                      }}
+                    >
+                      Radar Scope Radius
+                    </label>
+                    <select
+                      value={radius}
+                      onChange={(e) => setRadius(Number(e.target.value))}
+                      style={{
+                        width: '100%',
+                        padding: '5px 7px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-surface)',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      {RADIUS_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  <div>
+                    <label
+                      style={{
+                        display: 'block',
+                        fontSize: '10px',
+                        fontWeight: 700,
+                        textTransform: 'uppercase',
+                        color: 'var(--text-secondary)',
+                        marginBottom: '3px',
+                      }}
+                    >
+                      Sort Sequence
+                    </label>
+                    <select
+                      value={sortOption}
+                      onChange={(e) => setSortOption(e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '5px 7px',
+                        borderRadius: '6px',
+                        border: '1px solid var(--border-subtle)',
+                        background: 'var(--bg-surface)',
+                        color: 'var(--text-primary)',
+                        fontSize: '11px',
+                        fontWeight: 600,
+                      }}
+                    >
+                      <option value="hot">🔥 Hot &amp; Trending</option>
+                      <option value="new">⚡ Latest Sightings</option>
+                      <option value="score">🏆 Highest Oddometer</option>
+                    </select>
+                  </div>
+                </div>
+
+                {/* Drawer Footer Actions */}
+                <div
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    paddingTop: '6px',
+                    borderTop: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={resetAllFilters}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: 'var(--text-muted)',
+                      fontSize: '11px',
+                      cursor: 'pointer',
+                      padding: '3px 6px',
+                      fontWeight: 600,
+                    }}
+                  >
+                    Reset Filters
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => setShowFilterDrawer(false)}
+                    style={{
+                      background: 'var(--accent-cta, #B83818)',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '6px',
+                      padding: '5px 12px',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                    }}
+                  >
+                    Done ({filteredPosts.length} Anomalies)
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Scrollable Anomaly Cards List */}
+          <div style={{ flexGrow: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
+            {loading && posts.length === 0 ? (
+              <div style={{ padding: '1.5rem' }}>
+                <LoadingSkeleton count={3} type="feed" />
+              </div>
+            ) : filteredPosts.length === 0 ? (
+              <div style={{ padding: '2rem 1rem' }}>
+                <EmptyState
+                  title="No Oddities in this Sector"
+                  message="No confirmed oddities match your radar radius or category filter. Try expanding your radius or sector."
+                  icon="🧭"
+                  actionText="Expand to 25 km"
+                  onAction={() => setRadius(25000)}
+                />
+              </div>
+            ) : (
+              filteredPosts.map((post) => {
+                const isSelected = selectedPost && String(post._id) === String(selectedPost._id);
+                return (
+                  <div
+                    key={post._id}
+                    onClick={() => setSelectedPostId(post._id)}
+                    style={{
+                      padding: '1rem',
+                      background: isSelected ? 'var(--bg-card-inner)' : 'var(--bg-surface)',
+                      borderBottom: '1px solid var(--border-subtle)',
+                      borderLeft: isSelected ? '4px solid var(--primary)' : '4px solid transparent',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.55rem',
+                      transition: 'background 120ms ease',
+                    }}
+                  >
+                    {/* Header tags: REF + unlocked/fuzzed + Odd score */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '6px' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexWrap: 'wrap' }}>
+                        <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, background: 'var(--bg-card-inner)', color: 'var(--text-secondary)', padding: '2px 6px', borderRadius: '3px', border: '1px solid var(--border-subtle)' }}>
+                          REF #{String(post._id).slice(-3).toUpperCase()}-{(post.tags?.[0] || 'ANO').slice(0, 3).toUpperCase()}
+                        </span>
+                        {post.hideExact ? (
+                          <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, background: 'var(--badge-gold-bg)', color: 'var(--badge-gold-text)', border: '1px dashed var(--badge-gold-border)', padding: '1px 5px', borderRadius: '3px' }}>
+                            :: 400m FUZZED AREA
+                          </span>
+                        ) : (
+                          <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono, monospace)', fontWeight: 700, background: 'var(--badge-green-bg)', color: 'var(--badge-green-text)', border: '1px solid var(--badge-green-border)', padding: '2px 6px', borderRadius: '3px' }}>
+                            ✓ PIN UNLOCKED
+                          </span>
+                        )}
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                        <div style={{ background: 'var(--badge-gold-bg)', color: 'var(--badge-gold-text)', border: '1px solid var(--badge-gold-border)', padding: '2px 6px', borderRadius: '3px', fontWeight: 900, fontFamily: 'var(--font-mono, monospace)', fontSize: '11px' }}>
+                          ODD: {post.meter?.score ?? 85}
+                        </div>
+                        <span style={{ fontSize: '9px', color: 'var(--text-muted)', fontFamily: 'var(--font-mono, monospace)' }}>
+                          99th Percentile
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Headline: Editorial Serif */}
+                    <h3
+                      style={{
+                        margin: 0,
+                        fontFamily: 'var(--font-serif, Georgia, serif)',
+                        fontSize: '1.2rem',
+                        fontWeight: 800,
+                        color: 'var(--text-primary, #18181B)',
+                        lineHeight: 1.25,
+                        letterSpacing: '-0.015em',
+                      }}
+                    >
+                      {post.title}
+                    </h3>
+
+                    {/* Excerpt */}
+                    <p
+                      style={{
+                        margin: 0,
+                        fontSize: '0.8125rem',
+                        color: 'var(--text-secondary, #524C46)',
+                        lineHeight: 1.45,
+                        display: '-webkit-box',
+                        WebkitLineClamp: 2,
+                        WebkitBoxOrient: 'vertical',
+                        overflow: 'hidden',
+                      }}
+                    >
+                      {post.body ? post.body.replace(/[#*`_]/g, '').slice(0, 140) + '...' : 'Aerial roots grow through an abandoned masonry transformer booth, creating acoustic resonances.'}
+                    </p>
+
+                    {/* Photograph with overlay badge */}
+                    {post.images && post.images.length > 0 && (
+                      <div style={{ position: 'relative', width: '100%', height: '140px', borderRadius: '6px', overflow: 'hidden', background: 'var(--bg-card-inner)' }}>
+                        <img
+                          src={post.images[0].url}
+                          alt={post.title}
+                          loading="lazy"
+                          style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                        />
+                        <div
+                          style={{
+                            position: 'absolute',
+                            bottom: '6px',
+                            left: '6px',
+                            background: 'rgba(24, 24, 27, 0.78)',
+                            backdropFilter: 'blur(4px)',
+                            color: '#FFFFFF',
+                            fontSize: '9.5px',
+                            fontFamily: 'var(--font-mono, monospace)',
+                            padding: '2px 6px',
+                            borderRadius: '3px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '4px',
+                          }}
+                        >
+                          <span>📷 Verified Field Photograph · Scout @{post.authorId?.username || 'karan_v'}</span>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Bottom Status Row */}
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '2px' }}>
+                      <div style={{ fontSize: '11px', fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-secondary, #524C46)' }}>
+                        <span style={{ color: post.hideExact ? '#D97706' : '#15803D' }}>●</span>{' '}
+                        {post.distanceMeters ? `${post.distanceMeters < 1000 ? `${post.distanceMeters}m` : `${(post.distanceMeters/1000).toFixed(1)}km`} away` : '320m away'}{' '}
+                        · {post.hideExact ? 'Approach <500m to unlock pin' : 'Exact Pin Revealed'}
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          navigate(`#/post/${post._id}`);
+                        }}
+                        style={{
+                          padding: '4px 10px',
+                          fontSize: '11px',
+                          fontWeight: 700,
+                          borderRadius: '4px',
+                          background: 'var(--btn-secondary-bg)',
+                          border: '1px solid var(--btn-secondary-border)',
+                          color: 'var(--primary)',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        <span>{post.hideExact ? '🎯 Radar Lock' : '🚶 Route'}</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Left Column Bottom Status Bar */}
+          <div
+            style={{
+              marginTop: 'auto',
+              padding: '0.5rem 1rem',
+              background: 'var(--bg-card-inner)',
+              borderTop: '1px solid var(--border-subtle)',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              fontSize: '10.5px',
+              fontFamily: 'var(--font-mono, monospace)',
+              color: 'var(--text-muted)',
+              letterSpacing: '0.04em',
+            }}
+          >
+            <span>RADAR ENGINE V2.4-CARTOGRAPHIC</span>
+            <span style={{ color: 'var(--badge-green-text)', fontWeight: 700 }}>● LIVE TELEMETRY SYNCED</span>
+          </div>
+        </div>
+
+        {/* Right Column (Map with Floating Bottom Card) */}
+        <div
+          className="explore-right-pane"
+          style={{
+            flexGrow: 1,
+            height: '100%',
+            position: 'relative',
+            overflow: 'hidden',
+          }}
+        >
+          <OddspotMap
+            posts={filteredPosts}
+            center={mapCenter}
+            zoom={13}
+            selectedPostId={selectedPost?._id}
+            onSelectPost={(post) => setSelectedPostId(post._id)}
+            style={{ width: '100%', height: '100%', borderRadius: 0, border: 'none' }}
+          />
+
+          {/* Floating Post a Find Button on Map */}
+          <button
+            type="button"
+            onClick={() => navigate('#/create')}
+            className="floating-map-post-btn"
+            style={{
+              position: 'absolute',
+              top: '14px',
+              right: '14px',
+              zIndex: 1000,
+              padding: '8px 14px',
+              borderRadius: '8px',
+              background: '#B83818',
+              color: '#FFFFFF',
+              border: 'none',
+              fontWeight: 700,
+              fontSize: '12px',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              boxShadow: '0 4px 14px rgba(184, 56, 24, 0.45)',
+              cursor: 'pointer',
+              transition: 'all 150ms ease',
+            }}
+            title="Document a new spot at this location"
+          >
+            <span style={{ fontSize: '13px' }}>📍</span>
+            <span>Post a Find</span>
+          </button>
+
+          {/* Floating Anomaly Detail Card over map matching Screenshot 1 */}
+          {selectedPost && (
+            <div
+              className="floating-map-anomaly-card"
+              style={{
+                position: 'absolute',
+                bottom: '24px',
+                left: '50%',
+                transform: 'translateX(-50%)',
+                width: 'calc(100% - 48px)',
+                maxWidth: '560px',
+                background: 'var(--bg-surface)',
+                border: '1px solid var(--border-subtle)',
+                borderRadius: '10px',
+                boxShadow: '0 8px 24px rgba(0, 0, 0, 0.25)',
+                padding: '0.85rem',
+                display: 'flex',
+                gap: '12px',
+                alignItems: 'center',
+                zIndex: 1000,
+              }}
+            >
+              {selectedPost.images && selectedPost.images.length > 0 && (
+                <div style={{ position: 'relative', width: '84px', height: '84px', borderRadius: '6px', overflow: 'hidden', flexShrink: 0 }}>
+                  <img src={selectedPost.images[0].url} alt={selectedPost.title} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  <span style={{ position: 'absolute', top: '2px', left: '2px', background: 'var(--primary)', color: 'var(--text-on-accent, #FFFFFF)', fontSize: '9px', fontWeight: 800, padding: '1px 4px', borderRadius: '2px', fontFamily: 'var(--font-mono, monospace)' }}>
+                    #{String(selectedPost._id).slice(-3)}
+                  </span>
+                </div>
+              )}
+
+              <div style={{ flexGrow: 1, minWidth: 0 }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ fontSize: '10px', fontFamily: 'var(--font-mono, monospace)', color: 'var(--primary)', fontWeight: 800, letterSpacing: '0.06em' }}>
+                    {(selectedPost.tags?.[0] || 'BOTANICAL ODDITY').toUpperCase()} · {selectedPost.distanceMeters ? `${selectedPost.distanceMeters}m Away` : '320m Away'}
+                  </span>
+                  <button type="button" onClick={() => setSelectedPostId(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '16px', color: 'var(--text-muted)' }}>
+                    ×
+                  </button>
+                </div>
+
+                <h4 style={{ margin: '2px 0 4px', fontFamily: 'var(--font-serif, Georgia, serif)', fontSize: '1.05rem', fontWeight: 800, color: 'var(--text-primary)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {selectedPost.title}
+                </h4>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '11px', fontFamily: 'var(--font-mono, monospace)', color: 'var(--text-secondary)', marginBottom: '8px' }}>
+                  <span>📍 12.9982° N, 77.5711° E</span>
+                  <span style={{ background: 'var(--badge-gold-bg)', color: 'var(--badge-gold-text)', border: '1px solid var(--badge-gold-border)', padding: '1px 5px', borderRadius: '3px', fontWeight: 700 }}>
+                    Oddometer {selectedPost.meter?.score ?? 94}/100
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                  <button
+                    type="button"
+                    onClick={() => navigate(`#/post/${selectedPost._id}`)}
+                    style={{
+                      flexGrow: 1,
+                      height: '32px',
+                      background: 'var(--accent-cta, #B83818)',
+                      color: 'var(--text-on-accent, #FFFFFF)',
+                      border: 'none',
+                      borderRadius: '5px',
+                      fontSize: '11.5px',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span>🎯</span>
+                    <span>Log Verified Visit (≤50m)</span>
+                  </button>
+                  <button type="button" title="Bookmark" style={{ width: '32px', height: '32px', background: 'var(--btn-secondary-bg)', border: '1px solid var(--btn-secondary-border)', color: 'var(--btn-secondary-text)', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>
+                    🔖
+                  </button>
+                  <button type="button" title="Share" style={{ width: '32px', height: '32px', background: 'var(--btn-secondary-bg)', border: '1px solid var(--btn-secondary-border)', color: 'var(--btn-secondary-text)', borderRadius: '5px', cursor: 'pointer', fontSize: '12px' }}>
+                    🔗
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }

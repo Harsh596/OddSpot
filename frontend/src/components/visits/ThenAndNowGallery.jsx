@@ -2,7 +2,7 @@
 // Signature Then-and-Now real-world visitor comparison gallery:
 // Displays original post photo ("Then") side-by-side with verified scout visitor check-in photos ("Now").
 
-import React, { useState } from 'react';
+import { useState } from 'react';
 
 export function ThenAndNowGallery({
   post = {},
@@ -193,7 +193,7 @@ export function ThenAndNowGallery({
             >
               ✕
             </button>
-            <img src={selectedImage} alt="Enlarged anomaly proof" className="lightbox-full-img" />
+            <img src={selectedImage} alt="Enlarged spot photo" className="lightbox-full-img" />
           </div>
         </div>
       )}

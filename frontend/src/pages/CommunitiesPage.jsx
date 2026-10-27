@@ -2,7 +2,7 @@
 // Communities Hub featuring Nearby GPS radar, Keyword search,
 // community cards with member counts and scope, and + Create Community modal.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { LoadingSkeleton, EmptyState, ErrorBanner } from '../components/ui/StatusViews';
@@ -16,7 +16,7 @@ export function CommunitiesPage({ navigate }) {
   const [error, setError] = useState('');
 
   // GPS state
-  const [gpsLoading, setGpsLoading] = useState(false);
+  const [_gpsLoading, setGpsLoading] = useState(false);
   const [coords, setCoords] = useState(null);
 
   // Search state
@@ -36,6 +36,41 @@ export function CommunitiesPage({ navigate }) {
   const [newFlairInput, setNewFlairInput] = useState('');
   const [submittingCreate, setSubmittingCreate] = useState(false);
   const [createError, setCreateError] = useState('');
+
+  // Debounced Slug Availability Check
+  const [slugStatus, setSlugStatus] = useState('idle'); // 'idle' | 'checking' | 'available' | 'taken'
+  const slugDebounceRef = useRef(null);
+
+  useEffect(() => {
+    const cleanSlug = slug.trim().toLowerCase();
+    if (cleanSlug.length < 3) {
+      setSlugStatus('idle');
+      return;
+    }
+
+    setSlugStatus('checking');
+    if (slugDebounceRef.current) {
+      clearTimeout(slugDebounceRef.current);
+    }
+
+    slugDebounceRef.current = setTimeout(async () => {
+      try {
+        const existing = await api.getCommunity(cleanSlug);
+        if (existing && (existing._id || existing.slug)) {
+          setSlugStatus('taken');
+        } else {
+          setSlugStatus('available');
+        }
+      } catch {
+        // Not found means slug is available!
+        setSlugStatus('available');
+      }
+    }, 300);
+
+    return () => {
+      if (slugDebounceRef.current) clearTimeout(slugDebounceRef.current);
+    };
+  }, [slug]);
 
   // Auto-generate slug from name
   const handleNameChange = (val) => {
@@ -195,35 +230,39 @@ export function CommunitiesPage({ navigate }) {
             Join regional chapters, specialized urban exploring circles, and local oddity syndicates.
           </p>
         </div>
-
-        <button
-          type="button"
-          className="btn-primary"
-          onClick={() => {
-            if (!user) navigate('#/login');
-            else setShowCreateModal(true);
-          }}
-        >
-          + Create Community
-        </button>
       </div>
 
-      {/* Tabs & Search Controls */}
+      {/* Tabs & Search Controls with Subtle Secondary Create Action */}
       <div className="communities-filter-bar">
-        <div className="tab-pill-group">
+        <div className="communities-filter-left">
+          <div className="tab-pill-group">
+            <button
+              type="button"
+              className={`tab-pill ${activeTab === 'nearby' ? 'active' : ''}`}
+              onClick={() => setActiveTab('nearby')}
+            >
+              📍 Nearby Chapters
+            </button>
+            <button
+              type="button"
+              className={`tab-pill ${activeTab === 'search' ? 'active' : ''}`}
+              onClick={() => setActiveTab('search')}
+            >
+              🔍 Browse &amp; Search
+            </button>
+          </div>
+
           <button
             type="button"
-            className={`tab-pill ${activeTab === 'nearby' ? 'active' : ''}`}
-            onClick={() => setActiveTab('nearby')}
+            className="btn-create-community-subtle"
+            onClick={() => {
+              if (!user) navigate('#/login');
+              else setShowCreateModal(true);
+            }}
+            title="Start a new scout community"
           >
-            📍 Nearby Chapters
-          </button>
-          <button
-            type="button"
-            className={`tab-pill ${activeTab === 'search' ? 'active' : ''}`}
-            onClick={() => setActiveTab('search')}
-          >
-            🔍 Browse &amp; Search
+            <span className="plus-sign">+</span>
+            <span>Create Chapter</span>
           </button>
         </div>
 
@@ -352,6 +391,17 @@ export function CommunitiesPage({ navigate }) {
                       required
                     />
                   </div>
+                  <div style={{ marginTop: '4px', fontSize: '11px', minHeight: '18px' }}>
+                    {slugStatus === 'checking' && (
+                      <span style={{ color: 'var(--text-muted, #71717A)' }}>Checking slug availability...</span>
+                    )}
+                    {slugStatus === 'available' && (
+                      <span style={{ color: 'var(--color-success, #059669)', fontWeight: 700 }}>✓ Slug available</span>
+                    )}
+                    {slugStatus === 'taken' && (
+                      <span style={{ color: 'var(--color-danger, #DC2626)', fontWeight: 700 }}>⚠️ Slug already taken</span>
+                    )}
+                  </div>
                 </label>
               </div>
 
@@ -455,7 +505,11 @@ export function CommunitiesPage({ navigate }) {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={submittingCreate}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={submittingCreate || slugStatus === 'taken' || slugStatus === 'checking'}
+                >
                   {submittingCreate ? 'Founding Chapter...' : 'Found Community'}
                 </button>
               </div>

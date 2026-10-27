@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const PAGE_TIPS = {
   home: {
@@ -7,7 +7,7 @@ const PAGE_TIPS = {
     tips: [
       'Joined Communities: Posts from communities you follow appear here automatically.',
       'Feed Rules: Switch between Default and Custom Filter Rules to customize your discovery stream.',
-      'Trending Digest: Highlights anomalies that crossed their city threshold into country-wide attention.',
+      'Trending Digest: Highlights oddities that crossed their city threshold into country-wide attention.',
     ],
   },
   explore: {
@@ -23,7 +23,7 @@ const PAGE_TIPS = {
     title: 'Surprise Discovery Guide',
     icon: '🎲',
     tips: [
-      'Random Anomaly: Roll the dice to teleport to an oddity anywhere in the world.',
+      'Random Oddity: Roll the dice to teleport to a curiosity anywhere in the world.',
       'Keyboard Shortcut: Press Shift + R anytime on desktop to roll a fresh random spot.',
       'Country Teleport: Filter random picks to specific countries or explore everywhere.',
     ],
@@ -82,9 +82,15 @@ export default function HelpPopover({ pageKey = 'default', onOpenTour }) {
 
   const config = PAGE_TIPS[pageKey] || PAGE_TIPS.default;
 
-  // Click outside listener
+  // Click outside and keyboard focus trap
   useEffect(() => {
     if (!isOpen) return;
+
+    // Focus the first interactive element inside the popover on open
+    const focusable = popoverRef.current?.querySelectorAll('button:not([disabled]), [tabindex="0"], a[href]');
+    if (focusable && focusable.length > 0) {
+      focusable[0].focus();
+    }
 
     const handleClickOutside = (e) => {
       if (
@@ -101,6 +107,23 @@ export default function HelpPopover({ pageKey = 'default', onOpenTour }) {
       if (e.key === 'Escape') {
         setIsOpen(false);
         buttonRef.current?.focus();
+      } else if (e.key === 'Tab' && popoverRef.current) {
+        const items = Array.from(popoverRef.current.querySelectorAll('button:not([disabled]), [tabindex="0"], a[href]'));
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first || !popoverRef.current.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !popoverRef.current.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
       }
     };
 
@@ -136,8 +159,8 @@ export default function HelpPopover({ pageKey = 'default', onOpenTour }) {
         aria-label="Toggle Scout Field Guide and Contextual Help"
         title="Field Guide & Tips"
       >
-        <span className="help-icon" aria-hidden="true">💡</span>
-        <span className="help-label">Guide</span>
+        <span className="help-icon" aria-hidden="true" style={{ color: 'var(--accent-primary, #FF6F00)', fontWeight: 800 }}>?</span>
+        <span className="help-label">Field Guide</span>
       </button>
 
       {isOpen && (

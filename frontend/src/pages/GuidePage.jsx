@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 
 export default function GuidePage({ onOpenTour }) {
@@ -78,7 +78,7 @@ export default function GuidePage({ onOpenTour }) {
           <p className="first-mission-desc">
             Spot something weird within 1 km of where you stand right now — a peculiar sticker, an
             unusual door, a secret sculpture, or strange architecture. Post it to start its Oddometer,
-            or discover an anomaly nearby!
+            or discover an oddity nearby!
           </p>
 
           <div className="mission-radar-box">
@@ -179,7 +179,7 @@ export default function GuidePage({ onOpenTour }) {
           2. Field Verification & Check-Ins
         </h2>
         <p className="guide-section-intro">
-          Oddspot is built for real boots on the ground. Here is how field scouts verify anomalies:
+          Oddspot is built for real boots on the ground. Here is how field scouts verify oddities:
         </p>
 
         <div className="guide-steps-list">
@@ -307,7 +307,7 @@ export default function GuidePage({ onOpenTour }) {
             <div className="badge-card-icon">👟</div>
             <div className="badge-card-info">
               <h3>First Visit (first_visit)</h3>
-              <p>Physically verified your first real-world anomaly within 50m.</p>
+              <p>Physically verified your first real-world spot within 50m.</p>
               <span className="badge-status-tag">
                 {user?.badges?.includes('first_visit') ? '✓ Earned' : 'Locked'}
               </span>
@@ -318,7 +318,7 @@ export default function GuidePage({ onOpenTour }) {
             <div className="badge-card-icon">🏆</div>
             <div className="badge-card-info">
               <h3>Veteran Explorer (10_visits)</h3>
-              <p>Logged 10 verified real-world anomaly visits.</p>
+              <p>Logged 10 verified real-world spot visits.</p>
               <span className="badge-status-tag">
                 {user?.badges?.includes('10_visits') ? '✓ Earned' : 'Locked'}
               </span>

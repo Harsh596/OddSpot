@@ -7,8 +7,8 @@ export function SafetyChecklist({
   hideExact,
   onEnableHideExact,
   warnings = [],
-  latitude,
-  longitude,
+  _latitude,
+  _longitude,
 }) {
   const isPrivateProperty = warnings.includes('private_property');
   const isUnsafeNight = warnings.includes('unsafe_night');

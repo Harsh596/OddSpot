@@ -3,7 +3,7 @@
 // "Open in Maps" deep link, "Reveal on Arrival" flow within 300m (session-only),
 // and "I Visited This!" GPS check-in modal.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../../api';
 
 /**
@@ -109,9 +109,10 @@ export function VisitActionPanel({
   // Compute live distance and bearing if coordinates are available
   let distanceDisplay = null;
   let bearingInfo = null;
+  let rawDist = null;
 
   if (userCoords && spotLat && spotLng) {
-    const rawDist = haversineDistanceMeters(
+    rawDist = haversineDistanceMeters(
       userCoords.latitude,
       userCoords.longitude,
       spotLat,
@@ -131,6 +132,26 @@ export function VisitActionPanel({
         spotLat,
         spotLng
       );
+    }
+  }
+
+  const isWithinCheckIn = rawDist !== null && rawDist <= 50;
+
+  // Live Monospace Distance Readout Badge calculation
+  const quantized500m = rawDist !== null ? Math.round(rawDist / 500) * 500 : null;
+  let liveDistanceBadgeText = null;
+  let liveDistanceBadgeVariant = 'amber'; // 'green' | 'amber'
+
+  if (rawDist !== null) {
+    if (isHidden) {
+      liveDistanceBadgeText = `📍 ~${quantized500m}m away (Approximate Zone — arrive within 300m to unlock exact pin)`;
+      liveDistanceBadgeVariant = 'amber';
+    } else if (rawDist <= 50) {
+      liveDistanceBadgeText = `📍 ${Math.round(rawDist)}m away — Within 50m Check-In Zone!`;
+      liveDistanceBadgeVariant = 'green';
+    } else {
+      liveDistanceBadgeText = `📍 Currently ${Math.round(rawDist)}m away (${Math.round(rawDist - 50)}m closer needed to verify)`;
+      liveDistanceBadgeVariant = 'amber';
     }
   }
 
@@ -162,7 +183,7 @@ export function VisitActionPanel({
       }
     } catch (err) {
       setRevealError(
-        err.message || 'Failed to reveal spot. Ensure you are within 300 meters of the anomaly.'
+        err.message || 'Failed to reveal spot. Ensure you are within 300 meters of the spot.'
       );
     } finally {
       setRevealing(false);
@@ -289,6 +310,31 @@ export function VisitActionPanel({
           </div>
         )}
 
+        {/* Live Distance Meter Readout Badge */}
+        {userCoords && liveDistanceBadgeText && (
+          <div
+            className={`live-distance-badge ${liveDistanceBadgeVariant === 'green' ? 'badge-in-range' : 'badge-out-range'}`}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              padding: '10px 14px',
+              borderRadius: 'var(--radius-md, 8px)',
+              background: liveDistanceBadgeVariant === 'green' ? 'var(--badge-green-bg, #ECFDF5)' : 'var(--badge-gold-bg, #FFFBEB)',
+              border: `1.5px solid ${liveDistanceBadgeVariant === 'green' ? 'var(--badge-green-border, #10B981)' : 'var(--badge-gold-border, #F59E0B)'}`,
+              color: liveDistanceBadgeVariant === 'green' ? 'var(--badge-green-text, #047857)' : 'var(--badge-gold-text, #B45309)',
+              fontFamily: "'JetBrains Mono', var(--font-mono, monospace)",
+              fontVariantNumeric: 'tabular-nums',
+              fontSize: '0.85rem',
+              fontWeight: 700,
+              marginTop: '12px',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.05)',
+            }}
+          >
+            <span>{liveDistanceBadgeText}</span>
+          </div>
+        )}
+
         {/* Action Button Row */}
         <div className="visit-cta-row">
           {/* Reveal on Arrival flow for hidden spots */}
@@ -320,8 +366,33 @@ export function VisitActionPanel({
               requestLocation();
               setShowCheckInModal(true);
             }}
+            style={{
+              cursor: 'pointer',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              padding: '12px 24px',
+              borderRadius: 'var(--radius-full, 9999px)',
+              background: isWithinCheckIn
+                ? 'linear-gradient(135deg, #FF6F00 0%, #FFB300 100%)'
+                : 'var(--accent-primary, #FF6F00)',
+              color: 'var(--text-on-accent, #1A1814)',
+              border: 'none',
+              fontWeight: 800,
+              fontSize: '0.9rem',
+              boxShadow: isWithinCheckIn
+                ? '0 4px 18px rgba(255, 111, 0, 0.45)'
+                : '0 4px 14px rgba(255, 111, 0, 0.28)',
+              transition: 'all var(--transition-fast, 150ms ease)',
+            }}
           >
-            🧭 I Visited This Spot! (GPS Check-In)
+            <span>🧭</span>
+            <span>
+              {isWithinCheckIn
+                ? `I Visited This Spot! (Unlocked — ${rawDist}m)`
+                : 'I Visited This Spot! (GPS Check-In)'}
+            </span>
           </button>
         </div>
       </div>
@@ -352,15 +423,40 @@ export function VisitActionPanel({
               Verify your presence at <strong>{post.title}</strong> within 50 meters to award +4 Oddometer points and earn badges.
             </p>
 
-            {/* GPS Signal Status Bar */}
-            <div className={`gps-status-pill ${userCoords ? 'gps-locked' : 'gps-searching'}`}>
-              <span className="gps-dot" />
+            {/* GPS Signal Status Bar & Live Proximity Status */}
+            <div
+              className={`gps-status-pill ${
+                userCoords
+                  ? isWithinCheckIn
+                    ? 'gps-unlocked'
+                    : 'gps-locked'
+                  : 'gps-searching'
+              }`}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 14px',
+                borderRadius: 'var(--radius-md, 10px)',
+                background: isWithinCheckIn ? 'var(--badge-green-bg, #ECFDF5)' : 'var(--badge-gold-bg, #FFFBEB)',
+                border: `1.5px solid ${isWithinCheckIn ? 'var(--badge-green-border, #10B981)' : 'var(--badge-gold-border, #F59E0B)'}`,
+                color: isWithinCheckIn ? 'var(--badge-green-text, #047857)' : 'var(--badge-gold-text, #B45309)',
+                fontFamily: "'JetBrains Mono', var(--font-mono, monospace)",
+                fontVariantNumeric: 'tabular-nums',
+                fontWeight: 700,
+                fontSize: '0.85rem',
+                margin: '12px 0',
+              }}
+            >
+              <span className="gps-dot" style={{ background: isWithinCheckIn ? '#10B981' : '#F59E0B' }} />
               <span>
-                {userCoords
-                  ? `GPS Locked: ±${Math.round(userCoords.accuracy || 10)}m accuracy`
-                  : locating
-                  ? 'Acquiring high-accuracy GPS fix...'
-                  : 'GPS location needed.'}
+                {userCoords ? (
+                  liveDistanceBadgeText || `📍 Distance calculated: ${rawDist}m`
+                ) : locating ? (
+                  'Acquiring high-accuracy GPS fix...'
+                ) : (
+                  'GPS location needed.'
+                )}
               </span>
               {!userCoords && (
                 <button type="button" className="btn-gps-refresh" onClick={requestLocation}>
@@ -428,7 +524,7 @@ export function VisitActionPanel({
                   maxLength={500}
                 />
                 <small className="form-hint">
-                  Provide an image URL to show the anomaly as it looks today.
+                  Provide an image URL to show the spot as it looks today.
                 </small>
               </div>
 

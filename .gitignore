@@ -25,3 +25,19 @@ npm-debug.log*
 # Database backups
 backups/
 backend/backups/
+
+# Internal dev-only files (not needed in public repo)
+TASKS.md
+WORKLOG.md
+PLAYBOOK_RULES.md
+FINAL_REPORT.md
+
+# Test suite (optional to exclude, but keeps repo clean)
+backend/test/
+
+# Internal docs (has its own docs/ folder already tracked, but remove handoff)
+docs/handoff/
+
+# Scripts that are dev/ops only
+backend/scripts/loadTest.js
+backend/scripts/redteam*.js

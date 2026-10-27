@@ -2,7 +2,7 @@
 // Complete Admin & Moderator Dashboard with Analytics, Moderation Queue,
 // Runtime Meter Tuning, and Audit Log Viewer.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 
@@ -26,7 +26,7 @@ export function AdminPage({ navigate }) {
   const [reportActionMsg, setReportActionMsg] = useState('');
 
   // Meter Config State
-  const [meterConfig, setMeterConfig] = useState(null);
+  const [_meterConfig, setMeterConfig] = useState(null);
   const [countryThreshold, setCountryThreshold] = useState(50);
   const [reportFuzzThreshold, setReportFuzzThreshold] = useState(3);
   const [weights, setWeights] = useState({
@@ -44,6 +44,29 @@ export function AdminPage({ navigate }) {
   // Audit Logs State
   const [auditLogs, setAuditLogs] = useState([]);
   const [loadingAuditLogs, setLoadingAuditLogs] = useState(false);
+
+  // Moderation Reports Pagination (20 per page)
+  const [reportPage, setReportPage] = useState(1);
+  const REPORTS_PER_PAGE = 20;
+
+  useEffect(() => {
+    setReportPage(1);
+  }, [reportFilter]);
+
+  const totalReportPages = Math.ceil(reports.length / REPORTS_PER_PAGE) || 1;
+  const pagedReports = useMemo(() => {
+    const start = (reportPage - 1) * REPORTS_PER_PAGE;
+    return reports.slice(start, start + REPORTS_PER_PAGE);
+  }, [reports, reportPage]);
+
+  // Audit Logs Pagination (20 per page)
+  const [auditPage, setAuditPage] = useState(1);
+  const AUDIT_PER_PAGE = 20;
+  const totalAuditPages = Math.ceil(auditLogs.length / AUDIT_PER_PAGE) || 1;
+  const pagedAuditLogs = useMemo(() => {
+    const start = (auditPage - 1) * AUDIT_PER_PAGE;
+    return auditLogs.slice(start, start + AUDIT_PER_PAGE);
+  }, [auditLogs, auditPage]);
 
   // Load Analytics
   const loadAnalytics = useCallback(async () => {
@@ -97,7 +120,7 @@ export function AdminPage({ navigate }) {
     if (!isAdmin) return;
     setLoadingAuditLogs(true);
     try {
-      const data = await api.getAdminAuditLogs({ limit: 40 });
+      const data = await api.getAdminAuditLogs({ limit: 100 });
       setAuditLogs(data.logs || []);
     } catch (err) {
       console.error('Failed to load audit logs:', err);
@@ -299,21 +322,21 @@ export function AdminPage({ navigate }) {
 
                 <div className="card stat-card">
                   <h4>🎒 Physical Visits</h4>
-                  <div className="stat-number" style={{ fontSize: '2rem', fontWeight: 'bold', color: '#10b981' }}>
+                  <div className="stat-number" style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-success, #10b981)' }}>
                     {analytics.storageSummary?.totalVisits || 0}
                   </div>
                 </div>
 
                 <div className="card stat-card">
                   <h4>⚡ Total Reactions</h4>
-                  <div className="stat-number" style={{ fontSize: '2rem', fontWeight: 'bold', color: '#eab308' }}>
+                  <div className="stat-number" style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-warning, #eab308)' }}>
                     {analytics.storageSummary?.totalReactions || 0}
                   </div>
                 </div>
 
                 <div className="card stat-card">
                   <h4>🚨 Open Reports</h4>
-                  <div className="stat-number" style={{ fontSize: '2rem', fontWeight: 'bold', color: '#ef4444' }}>
+                  <div className="stat-number" style={{ fontSize: '2rem', fontWeight: 'bold', color: 'var(--color-danger, #ef4444)' }}>
                     {analytics.openReportsCount}
                   </div>
                 </div>
@@ -365,7 +388,7 @@ export function AdminPage({ navigate }) {
                     <div style={{ background: 'var(--bg-surface-elevated)', borderRadius: '4px', height: '12px', marginTop: '0.5rem', overflow: 'hidden' }}>
                       <div
                         style={{
-                          background: 'linear-gradient(90deg, #10b981, #00e5ff)',
+                          background: 'linear-gradient(90deg, var(--color-success, #15803D), var(--accent-secondary, #FFB300))',
                           width: '18%',
                           height: '100%',
                         }}
@@ -426,10 +449,10 @@ export function AdminPage({ navigate }) {
           )}
 
           <div className="reports-stack" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {reports.map((r) => {
+            {pagedReports.map((r) => {
               const target = r.target || {};
               return (
-                <div key={r.id || r._id} className="card report-card" style={{ borderLeft: r.isEscalated ? '4px solid #ef4444' : '4px solid var(--accent-primary)' }}>
+                <div key={r.id || r._id} className="card report-card" style={{ borderLeft: r.isEscalated ? '4px solid var(--color-danger, #ef4444)' : '4px solid var(--accent-primary)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', flexWrap: 'wrap', gap: '0.5rem' }}>
                     <div>
                       <span className="badge-warning" style={{ marginRight: '0.5rem' }}>
@@ -458,7 +481,7 @@ export function AdminPage({ navigate }) {
                     {target.body && <p><strong>Content Snippet:</strong> {target.body.slice(0, 150)}...</p>}
                   </div>
 
-                  {/* One-click Action Buttons */}
+                  {/* One-click Action Buttons matching backend contract 2.10 */}
                   <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1rem', flexWrap: 'wrap' }}>
                     <button
                       type="button"
@@ -467,20 +490,32 @@ export function AdminPage({ navigate }) {
                     >
                       ✓ Dismiss Report
                     </button>
-                    <button
-                      type="button"
-                      className="btn-danger btn-small"
-                      onClick={() => handleActionReport(r.id || r._id, 'remove_content', 'Content violates community guidelines')}
-                    >
-                      🗑️ Remove Content
-                    </button>
-                    <button
-                      type="button"
-                      className="btn-secondary btn-small"
-                      onClick={() => handleActionReport(r.id || r._id, 'ban_reporter', 'Frivolous false flag brigade')}
-                    >
-                      🚫 Ban Reporter
-                    </button>
+                    {r.targetType === 'comment' ? (
+                      <button
+                        type="button"
+                        className="btn-danger btn-small"
+                        onClick={() => handleActionReport(r.id || r._id, 'remove_comment', 'Comment removed for guidelines violation')}
+                      >
+                        🗑️ Remove Comment
+                      </button>
+                    ) : (
+                      <>
+                        <button
+                          type="button"
+                          className="btn-danger btn-small"
+                          onClick={() => handleActionReport(r.id || r._id, 'hide_post', 'Post hidden for guidelines violation')}
+                        >
+                          👁️ Hide Post
+                        </button>
+                        <button
+                          type="button"
+                          className="btn-secondary btn-small"
+                          onClick={() => handleActionReport(r.id || r._id, 'fuzz_location', 'Coordinates fuzzed for safety/privacy')}
+                        >
+                          🔒 Fuzz Location
+                        </button>
+                      </>
+                    )}
                     {target.authorId && (
                       <>
                         <button
@@ -504,6 +539,45 @@ export function AdminPage({ navigate }) {
               );
             })}
           </div>
+
+          {/* Reports Pagination Bar (20 per page) */}
+          {reports.length > REPORTS_PER_PAGE && (
+            <div
+              className="pagination-controls-bar"
+              style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginTop: '1.5rem',
+                padding: '12px 16px',
+                background: 'var(--bg-surface, #FFFFFF)',
+                borderRadius: '8px',
+                border: '1px solid var(--border-subtle, #E4E4E7)',
+              }}
+            >
+              <button
+                type="button"
+                className="btn-secondary btn-small"
+                disabled={reportPage === 1}
+                onClick={() => setReportPage((p) => Math.max(p - 1, 1))}
+                style={{ minHeight: '36px' }}
+              >
+                ← Previous
+              </button>
+              <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                Page {reportPage} of {totalReportPages} ({reports.length} total reports)
+              </span>
+              <button
+                type="button"
+                className="btn-secondary btn-small"
+                disabled={reportPage >= totalReportPages}
+                onClick={() => setReportPage((p) => Math.min(p + 1, totalReportPages))}
+                style={{ minHeight: '36px' }}
+              >
+                Next →
+              </button>
+            </div>
+          )}
         </div>
       )}
 
@@ -521,28 +595,56 @@ export function AdminPage({ navigate }) {
 
           <form onSubmit={handleSaveMeterConfig} className="card form-stack" style={{ maxWidth: '650px' }}>
             <div className="form-group">
-              <label><strong>Country-Wide Promotion Threshold (Points)</strong></label>
-              <input
-                type="number"
-                min="10"
-                max="500"
-                value={countryThreshold}
-                onChange={(e) => setCountryThreshold(e.target.value)}
-                required
-              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label><strong>Country-Wide Promotion Threshold</strong></label>
+                <span className="badge-warning">{countryThreshold} pts</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <input
+                  type="range"
+                  min="10"
+                  max="200"
+                  value={countryThreshold}
+                  onChange={(e) => setCountryThreshold(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: 'var(--accent-primary, #FF6F00)', cursor: 'pointer' }}
+                />
+                <input
+                  type="number"
+                  min="10"
+                  max="500"
+                  value={countryThreshold}
+                  onChange={(e) => setCountryThreshold(Number(e.target.value))}
+                  style={{ width: '84px', textAlign: 'center', fontWeight: 'bold' }}
+                  required
+                />
+              </div>
               <span className="field-note">Oddometer score needed to ratchet from City to Country feed.</span>
             </div>
 
             <div className="form-group">
-              <label><strong>Automated Report Quarantine Threshold</strong></label>
-              <input
-                type="number"
-                min="1"
-                max="20"
-                value={reportFuzzThreshold}
-                onChange={(e) => setReportFuzzThreshold(e.target.value)}
-                required
-              />
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                <label><strong>Automated Report Quarantine Threshold</strong></label>
+                <span className="badge-danger">{reportFuzzThreshold} reports</span>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                <input
+                  type="range"
+                  min="1"
+                  max="10"
+                  value={reportFuzzThreshold}
+                  onChange={(e) => setReportFuzzThreshold(Number(e.target.value))}
+                  style={{ flex: 1, accentColor: 'var(--accent-primary, #FF6F00)', cursor: 'pointer' }}
+                />
+                <input
+                  type="number"
+                  min="1"
+                  max="20"
+                  value={reportFuzzThreshold}
+                  onChange={(e) => setReportFuzzThreshold(Number(e.target.value))}
+                  style={{ width: '84px', textAlign: 'center', fontWeight: 'bold' }}
+                  required
+                />
+              </div>
               <span className="field-note">Number of safety reports that automatically hides a spot for review.</span>
             </div>
 
@@ -642,7 +744,7 @@ export function AdminPage({ navigate }) {
                   </tr>
                 </thead>
                 <tbody>
-                  {auditLogs.map((log) => (
+                  {pagedAuditLogs.map((log) => (
                     <tr key={log._id} style={{ borderBottom: '1px solid var(--border-subtle)', fontSize: '0.9rem' }}>
                       <td style={{ padding: '0.5rem', whiteSpace: 'nowrap' }}>
                         {new Date(log.createdAt).toLocaleString()}
@@ -663,6 +765,43 @@ export function AdminPage({ navigate }) {
                   ))}
                 </tbody>
               </table>
+
+              {/* Audit Logs Pagination Bar (20 per page) */}
+              {auditLogs.length > AUDIT_PER_PAGE && (
+                <div
+                  className="pagination-controls-bar"
+                  style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '12px 16px',
+                    borderTop: '1px solid var(--border-subtle, #E4E4E7)',
+                    background: 'var(--bg-surface, #FFFFFF)',
+                  }}
+                >
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    disabled={auditPage === 1}
+                    onClick={() => setAuditPage((p) => Math.max(p - 1, 1))}
+                    style={{ minHeight: '36px' }}
+                  >
+                    ← Previous
+                  </button>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text-primary)' }}>
+                    Page {auditPage} of {totalAuditPages} ({auditLogs.length} total entries)
+                  </span>
+                  <button
+                    type="button"
+                    className="btn-secondary btn-small"
+                    disabled={auditPage >= totalAuditPages}
+                    onClick={() => setAuditPage((p) => Math.min(p + 1, totalAuditPages))}
+                    style={{ minHeight: '36px' }}
+                  >
+                    Next →
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>

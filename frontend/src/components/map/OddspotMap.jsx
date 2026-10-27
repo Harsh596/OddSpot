@@ -1,36 +1,34 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import { useEffect, useRef, useState, useCallback } from 'react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 import { clusterMarkers } from '../../utils/mapCluster';
 
 /**
  * Creates custom HTML divIcon for cluster markers
+ * Circular badge with #18181B dark charcoal center, #FFB300 3px border ring, and monospace count
  */
 function createClusterIcon(count) {
-  let sizeClass = 'cluster-sm';
-  let size = 36;
+  let size = 38;
   if (count >= 20) {
-    sizeClass = 'cluster-lg';
     size = 48;
   } else if (count >= 5) {
-    sizeClass = 'cluster-md';
     size = 42;
   }
 
   return L.divIcon({
     html: `
-      <div class="oddspot-cluster-badge ${sizeClass}" style="
+      <div class="oddspot-cluster-badge" style="
         width: ${size}px;
         height: ${size}px;
         border-radius: 50%;
-        background: #FF6F00;
+        background: #18181B;
         color: #FFFFFF;
-        border: 2px solid #FFB300;
-        box-shadow: 0 4px 14px rgba(255, 111, 0, 0.38);
+        border: 3px solid #FFB300;
+        box-shadow: 0 4px 14px rgba(24, 24, 27, 0.35);
         font-weight: 800;
-        font-family: var(--font-mono, monospace);
+        font-family: 'JetBrains Mono', var(--font-mono, monospace);
         text-align: center;
-        font-size: 13px;
+        font-size: ${size >= 48 ? '14px' : '12px'};
         user-select: none;
         display: flex;
         align-items: center;
@@ -46,65 +44,33 @@ function createClusterIcon(count) {
 }
 
 /**
- * Creates custom HTML divIcon for exact spot pins
+ * Creates custom SVG divIcon for public spot pins
+ * Crisp custom SVG pin in #FF6F00 with #FFFFFF inner core and #FFB300 active ring when selected
  */
 function createSpotPinIcon(post, isSelected = false) {
-  const borderColor = isSelected ? '#FF6F00' : '#E6DFD5';
-  const bg = isSelected ? '#FFF8E1' : '#FFFFFF';
-  const glow = isSelected ? '0 0 16px rgba(255, 111, 0, 0.55)' : '0 3px 10px rgba(0,0,0,0.1)';
+  const pinWidth = isSelected ? 38 : 32;
+  const pinHeight = isSelected ? 46 : 40;
+  const label = post?.title ? (post.title.length > 18 ? post.title.slice(0, 16) + '...' : post.title) : '';
+  const refNum = post?._id ? `#${String(post._id).slice(-3)}` : '';
+
+  const svg = `
+    <div style="display: flex; flex-direction: column; align-items: center; cursor: pointer; user-select: none;">
+      <svg width="${pinWidth}" height="${pinHeight}" viewBox="0 0 32 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <path d="M16 0C7.16344 0 0 7.16344 0 16C0 26.5 16 40 16 40C16 40 32 26.5 32 16C32 7.16344 24.8366 0 16 0Z" fill="${isSelected ? '#B83818' : '#C2410C'}" filter="drop-shadow(0 3px 6px rgba(184, 56, 24, 0.45))"/>
+        <circle cx="16" cy="16" r="8" fill="#FFFFFF"/>
+        <path d="M12 16C12 13.7909 13.7909 12 16 12C18.2091 12 20 13.7909 20 16C20 18.2091 18.2091 20 16 20" stroke="#B83818" stroke-width="2" stroke-linecap="round"/>
+        <circle cx="16" cy="16" r="2.5" fill="#B83818"/>
+      </svg>
+      ${isSelected ? `<div style="margin-top: -2px; background: rgba(24, 24, 27, 0.90); backdrop-filter: blur(4px); color: #FFFFFF; font-family: 'JetBrains Mono', monospace; font-size: 10px; font-weight: 700; padding: 2px 7px; border-radius: 4px; white-space: nowrap; border: 1px solid rgba(255, 179, 0, 0.6); box-shadow: 0 2px 6px rgba(0,0,0,0.3);"><span style="color: #FFB300;">●</span> ${label} ${refNum}</div>` : ''}
+    </div>
+  `;
 
   return L.divIcon({
-    html: `
-      <div class="oddspot-pin ${isSelected ? 'selected' : ''}" style="
-        display: flex;
-        align-items: center;
-        justify-content: center;
-        width: 32px;
-        height: 32px;
-        background: ${bg};
-        border: 2.5px solid ${borderColor};
-        border-radius: 50% 50% 50% 0;
-        transform: rotate(-45deg);
-        box-shadow: ${glow};
-        cursor: pointer;
-        transition: transform 0.15s ease;
-      ">
-        <span style="
-          transform: rotate(45deg);
-          font-size: 13px;
-          line-height: 1;
-        ">
-          👁️
-        </span>
-      </div>
-    `,
+    html: svg,
     className: 'oddspot-spot-icon',
-    iconSize: [32, 32],
-    iconAnchor: [16, 32],
-    popupAnchor: [0, -32],
-  });
-}
-
-/**
- * Creates privacy center icon for fuzzed/hidden spots
- */
-function createPrivacyCenterIcon(isSelected = false) {
-  return L.divIcon({
-    html: `
-      <div class="privacy-dot" style="
-        width: 14px;
-        height: 14px;
-        border-radius: 50%;
-        background: #FF6F00;
-        border: 2px solid #FFFFFF;
-        box-shadow: 0 0 10px rgba(255, 111, 0, 0.6);
-        cursor: pointer;
-      "></div>
-    `,
-    className: 'privacy-center-icon',
-    iconSize: [14, 14],
-    iconAnchor: [7, 7],
-    popupAnchor: [0, -10],
+    iconSize: [pinWidth, pinHeight + (isSelected ? 20 : 0)],
+    iconAnchor: [pinWidth / 2, pinHeight],
+    popupAnchor: [0, -pinHeight],
   });
 }
 
@@ -121,10 +87,12 @@ function buildPopupContent(post, isHidden = false) {
 
   return `
     <div class="map-popup-card" style="
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      color: #0b0e14;
-      max-width: 240px;
-      padding: 4px;
+      font-family: var(--font-sans, 'Plus Jakarta Sans', system-ui, sans-serif);
+      color: var(--text-primary, #18181B);
+      background: var(--bg-surface, #FFFFFF);
+      border-radius: var(--radius-md, 10px);
+      max-width: 250px;
+      padding: 6px;
     ">
       ${
         hasImage
@@ -132,46 +100,50 @@ function buildPopupContent(post, isHidden = false) {
               width: 100%;
               height: 110px;
               object-fit: cover;
-              border-radius: 6px;
-              margin-bottom: 6px;
-            " />`
+              border-radius: var(--radius-sm, 8px);
+              margin-bottom: 8px;
+            "/>`
           : ''
       }
-      <div style="display: flex; gap: 4px; margin-bottom: 4px; align-items: center; flex-wrap: wrap;">
+      <div style="display: flex; gap: 4px; margin-bottom: 6px; flex-wrap: wrap;">
         <span style="
           font-size: 10px;
-          font-weight: 700;
-          padding: 2px 6px;
-          border-radius: 4px;
-          background: #e0f2fe;
-          color: #0369a1;
+          font-weight: 800;
+          padding: 2px 7px;
+          border-radius: var(--radius-full, 9999px);
+          background: var(--accent-subtle, #FFF7ED);
+          color: var(--accent-cta, #C2410C);
+          border: 1px solid var(--accent-border, #FDBA74);
+          text-transform: uppercase;
         ">${tier} TIER</span>
         ${
           isHidden
             ? `<span style="
                 font-size: 10px;
                 font-weight: 700;
-                padding: 2px 6px;
-                border-radius: 4px;
-                background: #fdf2f8;
-                color: #be185d;
-                border: 1px dashed #f472b6;
-              ">Approximate Area</span>`
+                padding: 2px 7px;
+                border-radius: var(--radius-full, 9999px);
+                background: #FEF3C7;
+                color: #B45309;
+                border: 1px dashed #FFB300;
+                font-family: var(--font-mono, monospace);
+              ">[ 🔒 ~400m Zone ]</span>`
             : ''
         }
       </div>
-      <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 700; line-height: 1.3;">
+      <h4 style="margin: 0 0 4px; font-size: 14px; font-weight: 800; line-height: 1.3; color: var(--text-primary, #18181B);">
         ${title}
       </h4>
-      <div style="font-size: 11px; color: #475569; margin-bottom: 6px;">
+      <div style="font-size: 11px; color: var(--text-secondary, #524C46); margin-bottom: 8px;">
         📍 ${city ? `${city}, ` : ''}${country} · <strong>Score: ${score}</strong>
       </div>
       <a href="#/post/${post._id}" style="
         display: inline-block;
         font-size: 12px;
-        font-weight: 600;
-        color: #0284c7;
+        font-weight: 700;
+        color: var(--accent-text, #B45309);
         text-decoration: underline;
+        transition: color 0.15s ease;
       ">Inspect Spot Details →</a>
     </div>
   `;
@@ -179,7 +151,7 @@ function buildPopupContent(post, isHidden = false) {
 
 /**
  * OddspotMap - Interactive Leaflet Map with OpenStreetMap tiles,
- * deterministic marker clustering, privacy circles, and responsive viewport sizing.
+ * deterministic marker clustering, SVG spot pins, and 400m uncertainty circles.
  */
 export function OddspotMap({
   posts = [],
@@ -194,7 +166,6 @@ export function OddspotMap({
   const mapContainerRef = useRef(null);
   const mapInstanceRef = useRef(null);
   const layerGroupRef = useRef(null);
-  const userMarkerRef = useRef(null);
   const [currentZoom, setCurrentZoom] = useState(zoom);
 
   // Initialize Leaflet map instance on mount
@@ -209,11 +180,17 @@ export function OddspotMap({
         attributionControl: true,
       });
 
-      // Standard OpenStreetMap tiles (no API keys required)
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+      // CartoDB Voyager tiles matching screenshot (authenticated with Carto API key when configured)
+      const cartoKey = import.meta.env.VITE_CARTO_API_KEY;
+      const tileUrl = cartoKey
+        ? `https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png?key=${encodeURIComponent(cartoKey)}`
+        : 'https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png';
+
+      L.tileLayer(tileUrl, {
         attribution:
-          '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors',
+          '&copy; <a href="https://carto.com/">CARTO</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
         maxZoom: 19,
+        subdomains: 'abcd',
       }).addTo(map);
 
       // Dedicated layer group for clustering
@@ -233,6 +210,7 @@ export function OddspotMap({
         mapInstanceRef.current = null;
       }
     };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Update center when prop changes significantly
@@ -250,7 +228,7 @@ export function OddspotMap({
     }
   }, [center]);
 
-  // Render clusters, markers, and 400m dashed privacy circles
+  // Render clusters, SVG pins, and 400m dashed uncertainty circles
   useEffect(() => {
     const map = mapInstanceRef.current;
     const layerGroup = layerGroupRef.current;
@@ -263,7 +241,7 @@ export function OddspotMap({
 
     for (const item of clusters) {
       if (item.isCluster) {
-        // Multi-post cluster marker
+        // Multi-post cluster marker with charcoal center and amber border
         const marker = L.marker([item.lat, item.lng], {
           icon: createClusterIcon(item.count),
         });
@@ -287,27 +265,25 @@ export function OddspotMap({
       } else {
         // Single post
         const post = item.post;
-        const isHidden = post.hideExact === true || post.fuzzed === true;
+        const isHidden = post.hideExact === true || post.fuzzed === true || post.location?.fuzzed === true;
         const isSelected = selectedPostId && String(post._id) === String(selectedPostId);
 
         if (isHidden) {
-          // Task F2-T2 Requirement: If post.hideExact === true or post.fuzzed === true,
-          // render a 400m dashed circle labeled "Approximate Area" instead of an exact pin.
-          const circleColor = isSelected ? '#FF6F00' : '#FFB300';
+          // Render ONLY the 400m dashed amber-orange uncertainty circle with floating label - never a sharp pin
           const privacyCircle = L.circle([item.lat, item.lng], {
-            radius: 400, // 400m radius as specified
-            color: circleColor,
-            dashArray: '6, 8',
+            radius: 400,
+            color: '#B45309',
+            fillColor: '#FEF3C7',
+            fillOpacity: 0.28,
+            dashArray: '5, 5',
             weight: 2,
-            fillColor: '#FFF8E1',
-            fillOpacity: 0.35,
           });
 
           privacyCircle.bindPopup(buildPopupContent(post, true));
-          privacyCircle.bindTooltip('Approximate Area (within 400m)', {
-            permanent: false,
+          privacyCircle.bindTooltip('🔊 400m FUZZED PERIMETER', {
+            permanent: true,
             direction: 'center',
-            className: 'privacy-tooltip',
+            className: 'privacy-zone-label',
           });
 
           privacyCircle.on('click', () => {
@@ -315,16 +291,8 @@ export function OddspotMap({
           });
 
           layerGroup.addLayer(privacyCircle);
-
-          // Add a subtle central indicator dot for easy clickability
-          const centerDot = L.marker([item.lat, item.lng], {
-            icon: createPrivacyCenterIcon(isSelected),
-          });
-          centerDot.bindPopup(buildPopupContent(post, true));
-          centerDot.on('click', () => onSelectPost(post));
-          layerGroup.addLayer(centerDot);
         } else {
-          // Exact pin for public spots
+          // Exact SVG pin for public spots
           const pinMarker = L.marker([item.lat, item.lng], {
             icon: createSpotPinIcon(post, isSelected),
           });
@@ -338,7 +306,31 @@ export function OddspotMap({
         }
       }
     }
-  }, [posts, currentZoom, clusterRadiusPx, selectedPostId, onSelectPost]);
+
+    // Render live scout beacon at center
+    if (center && center.length === 2) {
+      const beaconHtml = `
+        <div style="position: relative; display: flex; align-items: center; justify-content: center; width: 32px; height: 32px; user-select: none;">
+          <div style="position: absolute; width: 28px; height: 28px; border-radius: 50%; background: rgba(37, 99, 235, 0.2); border: 1.5px solid #3B82F6;"></div>
+          <div style="width: 12px; height: 12px; border-radius: 50%; background: #2563EB; border: 2.5px solid #FFFFFF; box-shadow: 0 0 8px rgba(37, 99, 235, 0.8);"></div>
+        </div>
+      `;
+      const beaconIcon = L.divIcon({
+        html: beaconHtml,
+        className: 'scout-beacon-marker',
+        iconSize: [32, 32],
+        iconAnchor: [16, 16],
+      });
+      const beaconMarker = L.marker(center, { icon: beaconIcon, zIndexOffset: 500 });
+      beaconMarker.bindTooltip('SCOUT BEACON (±4m)', {
+        permanent: true,
+        direction: 'bottom',
+        offset: [0, 8],
+        className: 'scout-beacon-tooltip',
+      });
+      layerGroup.addLayer(beaconMarker);
+    }
+  }, [posts, currentZoom, clusterRadiusPx, selectedPostId, onSelectPost, center]);
 
   // Recenter handler
   const handleRecenter = useCallback(() => {
@@ -356,9 +348,9 @@ export function OddspotMap({
         height: '480px',
         borderRadius: 'var(--radius-lg, 14px)',
         overflow: 'hidden',
-        border: '1px solid var(--border-subtle, #202738)',
-        boxShadow: 'var(--shadow-card, 0 4px 16px rgba(0,0,0,0.4))',
-        background: 'var(--bg-surface, #121722)',
+        border: '1px solid var(--border-subtle, #ECE7DF)',
+        boxShadow: 'var(--shadow-card, 0 1px 3px rgba(24, 24, 27, 0.05))',
+        background: 'var(--bg-surface, #FFFFFF)',
         ...style,
       }}
     >
@@ -371,6 +363,78 @@ export function OddspotMap({
           zIndex: 1,
         }}
       />
+
+      {/* Top-Right Map Controls matching Screenshot 1 */}
+      <div
+        className="map-top-right-controls"
+        style={{
+          position: 'absolute',
+          top: '16px',
+          right: '16px',
+          zIndex: 1000,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'flex-end',
+          gap: '8px',
+        }}
+      >
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid var(--border-subtle, #ECE7DF)',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(24, 24, 27, 0.08)',
+            display: 'flex',
+            flexDirection: 'column',
+            overflow: 'hidden',
+          }}
+        >
+          <button
+            type="button"
+            onClick={() => mapInstanceRef.current?.zoomIn()}
+            aria-label="Zoom in"
+            style={{ width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', borderBottom: '1px solid #ECE7DF' }}
+          >
+            +
+          </button>
+          <button
+            type="button"
+            onClick={() => mapInstanceRef.current?.zoomOut()}
+            aria-label="Zoom out"
+            style={{ width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '18px', fontWeight: 600, color: 'var(--text-primary)', borderBottom: '1px solid #ECE7DF' }}
+          >
+            −
+          </button>
+          <button
+            type="button"
+            onClick={handleRecenter}
+            aria-label="Locate scout"
+            style={{ width: '36px', height: '36px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '16px', color: '#B83818' }}
+          >
+            🧭
+          </button>
+        </div>
+
+        <div
+          style={{
+            background: '#FFFFFF',
+            border: '1px solid var(--border-subtle, #ECE7DF)',
+            borderRadius: '6px',
+            padding: '3px 8px',
+            fontSize: '10.5px',
+            fontFamily: 'var(--font-mono, monospace)',
+            fontWeight: 700,
+            color: 'var(--text-secondary, #524C46)',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '5px',
+            boxShadow: '0 2px 6px rgba(24, 24, 27, 0.06)',
+          }}
+        >
+          <span style={{ color: '#059669', fontSize: '12px' }}>⟐</span>
+          <span>Carto-Voyager</span>
+        </div>
+      </div>
 
       {/* Recenter & Map Legend Controls */}
       <div
@@ -394,11 +458,11 @@ export function OddspotMap({
           style={{
             cursor: 'pointer',
             padding: '8px 14px',
-            background: 'var(--bg-surface, #121722)',
-            color: 'var(--text-primary, #f0f4fc)',
-            border: '1px solid var(--border-strong, #2f3b54)',
+            background: 'var(--bg-surface, #FFFFFF)',
+            color: 'var(--text-primary, #18181B)',
+            border: '1px solid var(--border-strong, #D6CEC2)',
             borderRadius: 'var(--radius-md, 8px)',
-            boxShadow: 'var(--shadow-md, 0 4px 12px rgba(0,0,0,0.5))',
+            boxShadow: 'var(--shadow-md, 0 4px 14px rgba(24, 24, 27, 0.08))',
             fontSize: '12px',
             fontWeight: 700,
             display: 'flex',
@@ -413,25 +477,25 @@ export function OddspotMap({
         <div
           className="map-legend"
           style={{
-            background: 'var(--bg-glass, rgba(18, 23, 34, 0.9))',
+            background: 'var(--bg-glass, rgba(255, 253, 249, 0.86))',
             backdropFilter: 'blur(8px)',
-            border: '1px solid var(--border-subtle, #202738)',
+            border: '1px solid var(--border-subtle, #ECE7DF)',
             borderRadius: 'var(--radius-md, 8px)',
             padding: '8px 12px',
             fontSize: '11px',
-            color: 'var(--text-secondary, #94a3b8)',
+            color: 'var(--text-secondary, #524C46)',
             display: 'flex',
             gap: '12px',
-            boxShadow: 'var(--shadow-sm, 0 2px 8px rgba(0,0,0,0.3))',
+            boxShadow: 'var(--shadow-xs, 0 1px 2px rgba(24, 24, 27, 0.04))',
           }}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span>👁️</span>
-            <span>Exact Pin</span>
+            <span style={{ color: '#FF6F00', fontWeight: 900 }}>📍</span>
+            <span>Public Spot Pin</span>
           </div>
           <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
-            <span style={{ color: '#d946ef', fontWeight: 900 }}>◌</span>
-            <span>400m Privacy Area</span>
+            <span style={{ color: '#EA580C', fontWeight: 900 }}>◌</span>
+            <span>400m Uncertainty Area</span>
           </div>
         </div>
       </div>

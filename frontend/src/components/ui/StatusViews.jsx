@@ -1,4 +1,3 @@
-import React from 'react';
 
 /**
  * LoadingSkeleton - Accessible animated pulse placeholder for async content
@@ -39,7 +38,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                 style={{
                   height: '16px',
                   width: '90%',
-                  background: 'var(--bg-elevated, #1a2030)',
+                  background: 'var(--bg-elevated, #FFF3E0)',
                   borderRadius: 'var(--radius-sm, 4px)',
                   animation: 'skeleton-pulse 1.5s ease-in-out infinite',
                 }}
@@ -48,7 +47,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                 style={{
                   height: '14px',
                   width: '75%',
-                  background: 'var(--bg-elevated, #1a2030)',
+                  background: 'var(--bg-elevated, #FFF3E0)',
                   borderRadius: 'var(--radius-sm, 4px)',
                   animation: 'skeleton-pulse 1.5s ease-in-out infinite 0.2s',
                 }}
@@ -65,8 +64,8 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                 display: 'flex',
                 gap: 'var(--space-4, 16px)',
                 padding: 'var(--space-4, 16px)',
-                background: 'var(--bg-surface, #121722)',
-                border: '1px solid var(--border-subtle, #202738)',
+                background: 'var(--bg-surface, #FFFFFF)',
+                border: '1px solid var(--border-subtle, #E6DFD5)',
                 borderRadius: 'var(--radius-md, 10px)',
                 boxShadow: 'var(--shadow-card, 0 4px 12px rgba(0,0,0,0.3))',
               }}
@@ -76,7 +75,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                   width: '90px',
                   height: '90px',
                   flexShrink: 0,
-                  background: 'var(--bg-elevated, #1a2030)',
+                  background: 'var(--bg-elevated, #FFF3E0)',
                   borderRadius: 'var(--radius-md, 8px)',
                   animation: 'skeleton-pulse 1.5s ease-in-out infinite',
                 }}
@@ -94,7 +93,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                   style={{
                     height: '20px',
                     width: '65%',
-                    background: 'var(--bg-elevated, #1a2030)',
+                    background: 'var(--bg-elevated, #FFF3E0)',
                     borderRadius: 'var(--radius-sm, 4px)',
                     animation: 'skeleton-pulse 1.5s ease-in-out infinite 0.1s',
                   }}
@@ -103,7 +102,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                   style={{
                     height: '14px',
                     width: '45%',
-                    background: 'var(--bg-elevated, #1a2030)',
+                    background: 'var(--bg-elevated, #FFF3E0)',
                     borderRadius: 'var(--radius-sm, 4px)',
                     animation: 'skeleton-pulse 1.5s ease-in-out infinite 0.2s',
                   }}
@@ -119,7 +118,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                     style={{
                       height: '18px',
                       width: '50px',
-                      background: 'var(--bg-elevated, #1a2030)',
+                      background: 'var(--bg-elevated, #FFF3E0)',
                       borderRadius: 'var(--radius-full, 9999px)',
                       animation: 'skeleton-pulse 1.5s ease-in-out infinite 0.3s',
                     }}
@@ -128,7 +127,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
                     style={{
                       height: '18px',
                       width: '60px',
-                      background: 'var(--bg-elevated, #1a2030)',
+                      background: 'var(--bg-elevated, #FFF3E0)',
                       borderRadius: 'var(--radius-full, 9999px)',
                       animation: 'skeleton-pulse 1.5s ease-in-out infinite 0.35s',
                     }}
@@ -146,7 +145,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
             style={{
               height: '120px',
               width: '100%',
-              background: 'var(--bg-elevated, #1a2030)',
+              background: 'var(--bg-elevated, #FFF3E0)',
               borderRadius: 'var(--radius-md, 10px)',
               animation: 'skeleton-pulse 1.5s ease-in-out infinite',
             }}
@@ -170,7 +169,7 @@ export function LoadingSkeleton({ count = 3, type = 'card' }) {
  */
 export function EmptyState({
   title = 'No Spots Found Here Yet',
-  message = 'Be the first scout to discover and document an anomaly in this sector!',
+  message = 'Be the first scout to discover and document a curiosity in this sector!',
   icon = '🧭',
   actionText,
   onAction,
@@ -187,11 +186,11 @@ export function EmptyState({
         justifyContent: 'center',
         textAlign: 'center',
         padding: 'var(--space-10, 40px) var(--space-6, 24px)',
-        background: 'var(--bg-surface, #121722)',
-        border: '1px dashed var(--border-strong, #2f3b54)',
+        background: 'var(--bg-surface, #FFFFFF)',
+        border: '1px dashed var(--border-strong, #D1C7BA)',
         borderRadius: 'var(--radius-lg, 14px)',
         margin: 'var(--space-6, 24px) 0',
-        color: 'var(--text-primary, #f0f4fc)',
+        color: 'var(--text-primary, #1A1814)',
       }}
     >
       <div
@@ -199,7 +198,7 @@ export function EmptyState({
           fontSize: '3.5rem',
           lineHeight: 1,
           marginBottom: 'var(--space-4, 16px)',
-          filter: 'drop-shadow(var(--accent-glow, 0 0 10px rgba(0,240,255,0.3)))',
+          filter: 'drop-shadow(var(--accent-glow, 0 0 10px rgba(255, 111, 0, 0.28)))',
         }}
       >
         {icon}
@@ -210,7 +209,7 @@ export function EmptyState({
           margin: 0,
           fontSize: 'var(--text-xl, 1.25rem)',
           fontFamily: 'var(--font-heading, sans-serif)',
-          color: 'var(--text-primary, #f0f4fc)',
+          color: 'var(--text-primary, #1A1814)',
         }}
       >
         {title}
@@ -220,7 +219,7 @@ export function EmptyState({
         style={{
           margin: 'var(--space-2, 8px) 0 var(--space-6, 24px)',
           fontSize: 'var(--text-sm, 0.875rem)',
-          color: 'var(--text-secondary, #94a3b8)',
+          color: 'var(--text-secondary, #6E675F)',
           maxWidth: '460px',
           lineHeight: 'var(--leading-relaxed, 1.6)',
         }}
@@ -239,12 +238,12 @@ export function EmptyState({
                 cursor: 'pointer',
                 padding: 'var(--space-2, 8px) var(--space-5, 20px)',
                 borderRadius: 'var(--radius-md, 8px)',
-                background: 'var(--accent, #00f0ff)',
-                color: 'var(--text-inverse, #0b0e14)',
+                background: 'var(--accent-cta, #C2410C)',
+                color: 'var(--text-inverse, #FFFFFF)',
                 border: 'none',
                 fontWeight: 600,
                 fontSize: 'var(--text-sm, 0.875rem)',
-                boxShadow: 'var(--shadow-sm, 0 2px 4px rgba(0,0,0,0.3))',
+                boxShadow: 'var(--shadow-sm, 0 1px 2px rgba(24, 24, 27, 0.04))',
               }}
             >
               {actionText}
@@ -260,9 +259,9 @@ export function EmptyState({
                 cursor: 'pointer',
                 padding: 'var(--space-2, 8px) var(--space-4, 16px)',
                 borderRadius: 'var(--radius-md, 8px)',
-                background: 'var(--bg-elevated, #1a2030)',
-                color: 'var(--text-primary, #f0f4fc)',
-                border: '1px solid var(--border-subtle, #202738)',
+                background: 'var(--bg-elevated, #FFF7ED)',
+                color: 'var(--text-primary, #18181B)',
+                border: '1px solid var(--border-subtle, #ECE7DF)',
                 fontWeight: 500,
                 fontSize: 'var(--text-sm, 0.875rem)',
               }}
@@ -292,10 +291,15 @@ export function ErrorBanner({
   const errorCode = code || error?.code;
 
   const isWarning = variant === 'warning';
-  const borderColor = isWarning ? 'var(--color-warning, #f59e0b)' : 'var(--color-danger, #ef4444)';
+  const borderColor = isWarning
+    ? 'var(--badge-gold-border, var(--color-warning, #B45309))'
+    : 'var(--badge-red-border, var(--color-danger, #B91C1C))';
   const bgColor = isWarning
-    ? 'var(--color-warning-bg, rgba(245, 158, 11, 0.12))'
-    : 'var(--color-danger-bg, rgba(239, 68, 68, 0.12))';
+    ? 'var(--badge-gold-bg, var(--color-warning-bg, #FFFBEB))'
+    : 'var(--badge-red-bg, var(--color-danger-bg, #FEF2F2))';
+  const textColor = isWarning
+    ? 'var(--badge-gold-text, #92400E)'
+    : 'var(--badge-red-text, #991B1B)';
 
   return (
     <div
@@ -312,7 +316,7 @@ export function ErrorBanner({
         border: `1px solid ${borderColor}`,
         borderRadius: 'var(--radius-md, 8px)',
         margin: 'var(--space-3, 12px) 0',
-        color: 'var(--text-primary, #f0f4fc)',
+        color: textColor,
         fontSize: 'var(--text-sm, 0.875rem)',
       }}
     >
@@ -327,10 +331,10 @@ export function ErrorBanner({
                 fontSize: 'var(--text-2xs, 11px)',
                 padding: '2px 6px',
                 borderRadius: 'var(--radius-sm, 4px)',
-                background: 'var(--bg-elevated, #1a2030)',
-                color: 'var(--text-muted, #64748b)',
+                background: 'var(--badge-neutral-bg, var(--bg-elevated, #FFF3E0))',
+                color: 'var(--badge-neutral-text, var(--text-muted, #6E675F))',
                 fontFamily: 'var(--font-mono, monospace)',
-                border: '1px solid var(--border-subtle, #202738)',
+                border: '1px solid var(--badge-neutral-border, var(--border-subtle, #E6DFD5))',
               }}
             >
               [{errorCode}]
@@ -348,8 +352,8 @@ export function ErrorBanner({
               cursor: 'pointer',
               padding: '4px 10px',
               borderRadius: 'var(--radius-sm, 4px)',
-              background: 'var(--bg-surface, #121722)',
-              color: 'var(--text-primary, #f0f4fc)',
+              background: 'var(--bg-surface, #FFFFFF)',
+              color: 'var(--text-primary, #1A1814)',
               border: `1px solid ${borderColor}`,
               fontSize: 'var(--text-xs, 0.75rem)',
               fontWeight: 600,
@@ -368,7 +372,7 @@ export function ErrorBanner({
               cursor: 'pointer',
               background: 'transparent',
               border: 'none',
-              color: 'var(--text-muted, #64748b)',
+              color: textColor,
               fontSize: '1.1rem',
               padding: '2px 6px',
               lineHeight: 1,

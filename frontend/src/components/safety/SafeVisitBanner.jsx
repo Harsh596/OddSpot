@@ -8,13 +8,13 @@ import { getLocalSolarTime } from '../../utils/safety';
 export { getLocalSolarTime };
 
 export function SafeVisitBanner({ post }) {
-  if (!post) return null;
-
-  const warnings = Array.isArray(post.warnings) ? post.warnings : [];
-  const coordinates = post.location?.coordinates;
+  const warnings = Array.isArray(post?.warnings) ? post.warnings : [];
+  const coordinates = post?.location?.coordinates;
   const longitude = Array.isArray(coordinates) ? coordinates[0] : null;
 
   const solar = useMemo(() => getLocalSolarTime(longitude), [longitude]);
+
+  if (!post) return null;
 
   const hasPrivate = warnings.includes('private_property');
   const hasNight = warnings.includes('unsafe_night');

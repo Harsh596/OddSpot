@@ -149,7 +149,7 @@ export function NotificationsDrawer({
     if (markingAll) return;
     setMarkingAll(true);
     try {
-      const res = await api.markNotificationsRead({ all: true });
+      await api.markNotificationsRead({ all: true });
       setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
       if (onUnreadCountUpdate) {
         onUnreadCountUpdate(0);

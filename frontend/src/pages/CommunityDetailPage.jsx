@@ -2,7 +2,7 @@
 // Detailed Community view featuring banner, Join/Leave membership action,
 // rules and flairs sidebar, + Post shortcut, and sortable community feed.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { OddometerPill } from '../components/meter/OddometerPill';
@@ -23,6 +23,8 @@ export function CommunityDetailPage({ slug, navigate }) {
   const [sort, setSort] = useState('hot'); // 'hot' | 'new' | 'top'
   const [loadingPosts, setLoadingPosts] = useState(false);
   const [joining, setJoining] = useState(false);
+  const [ownerLeaveNotice, setOwnerLeaveNotice] = useState(false);
+  const [actionError, setActionError] = useState('');
 
   // Load community metadata
   const loadCommunity = useCallback(async () => {
@@ -70,8 +72,11 @@ export function CommunityDetailPage({ slug, navigate }) {
       return;
     }
 
+    setOwnerLeaveNotice(false);
+    setActionError('');
+
     if (memberRole === 'owner') {
-      alert('Community founders cannot leave without transferring ownership.');
+      setOwnerLeaveNotice(true);
       return;
     }
 
@@ -93,7 +98,7 @@ export function CommunityDetailPage({ slug, navigate }) {
         }
       }
     } catch (err) {
-      alert(err.message || 'Action failed');
+      setActionError(err.message || 'Action failed. Please try again.');
     } finally {
       setJoining(false);
     }
@@ -157,7 +162,15 @@ export function CommunityDetailPage({ slug, navigate }) {
             </div>
 
             {memberRole === 'owner' ? (
-              <span className="badge-owner-tag">👑 Chapter Founder</span>
+              <button
+                type="button"
+                className="badge-owner-tag"
+                onClick={handleJoinToggle}
+                style={{ cursor: 'pointer', border: '1px solid var(--badge-gold-border, #FDBA74)', background: 'var(--badge-gold-bg, #FEF3C7)', color: 'var(--badge-gold-text, #92400E)', padding: '6px 12px', borderRadius: '9999px', fontWeight: 700, fontSize: '12px' }}
+                title="Click for chapter owner details"
+              >
+                👑 Chapter Founder
+              </button>
             ) : (
               <button
                 type="button"
@@ -178,6 +191,42 @@ export function CommunityDetailPage({ slug, navigate }) {
             </button>
           </div>
         </div>
+
+        {/* Inline Chapter Founder Notice Banner */}
+        {ownerLeaveNotice && (
+          <div
+            className="alert-info"
+            style={{
+              marginTop: '12px',
+              padding: '10px 14px',
+              borderRadius: '8px',
+              background: 'var(--advisory-bg, #FFFBEB)',
+              border: '1.5px solid var(--advisory-border, #F59E0B)',
+              color: 'var(--advisory-text, #92400E)',
+              fontSize: '13px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+            }}
+          >
+            <span>
+              👑 <strong>Chapter Founder Notice:</strong> As the founder of <em>{community.name}</em>, you remain its permanent custodian and cannot leave without transferring ownership to another active scout.
+            </span>
+            <button
+              type="button"
+              onClick={() => setOwnerLeaveNotice(false)}
+              style={{ background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 800, color: 'var(--advisory-text, #92400E)' }}
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
+        {actionError && (
+          <div className="alert-error" style={{ marginTop: '12px' }}>
+            {actionError}
+          </div>
+        )}
       </div>
 
       {/* Main Two-Column Layout: Feed + Sidebar */}

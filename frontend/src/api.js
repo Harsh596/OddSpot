@@ -303,6 +303,40 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ refreshToken }),
     }),
+  forgotPassword: (email) =>
+    apiRequest('/auth/forgot-password', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  resetPassword: ({ token, newPassword }) =>
+    apiRequest('/auth/reset-password', {
+      method: 'POST',
+      body: JSON.stringify({ token, newPassword }),
+    }),
+  requestEmailVerification: (email) =>
+    apiRequest('/auth/verify-email/request', {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    }),
+  confirmEmailVerification: (token) =>
+    apiRequest('/auth/verify-email/confirm', {
+      method: 'POST',
+      body: JSON.stringify({ token }),
+    }),
+  changePassword: ({ currentPassword, newPassword }) =>
+    apiRequest('/auth/change-password', {
+      method: 'POST',
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
+  deleteMyAccount: (currentPassword) =>
+    apiRequest('/auth/me', {
+      method: 'DELETE',
+      body: JSON.stringify({ currentPassword }),
+    }),
+  terminateAllSessions: () =>
+    apiRequest('/auth/logout-all', {
+      method: 'POST',
+    }),
 
   // Public Configuration
   getConfig: (forceReload) => getPublicConfig(forceReload),
@@ -441,6 +475,11 @@ export const api = {
     apiRequest('/users/me/onboarding-complete', {
       method: 'POST',
     }),
+  updateMyProfile: (payload) =>
+    apiRequest('/users/me', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
   updatePreferences: (payload) =>
     apiRequest('/users/me/preferences', {
       method: 'PATCH',
@@ -559,6 +598,13 @@ export const api = {
     apiRequest(`/admin/users/${id}/role`, {
       method: 'PATCH',
       body: JSON.stringify({ role, reason }),
+    }),
+
+  // Uploads
+  signUpload: (payload = {}) =>
+    apiRequest('/uploads/sign', {
+      method: 'POST',
+      body: JSON.stringify(payload),
     }),
 };
 

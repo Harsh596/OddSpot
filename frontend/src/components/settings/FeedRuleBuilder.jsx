@@ -499,7 +499,7 @@ export default function FeedRuleBuilder() {
               <label htmlFor="sort-select">
                 <strong>Feed Sorting Strategy</strong>
               </label>
-              <p className="form-hint">Order of incoming anomalies.</p>
+              <p className="form-hint">Order of incoming spots.</p>
               <select
                 id="sort-select"
                 value={sortBy}

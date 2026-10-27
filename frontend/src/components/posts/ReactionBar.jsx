@@ -11,28 +11,28 @@ const REACTION_CONFIG = [
     label: 'Mind Blown',
     emoji: '🤯',
     description: 'Completely defies explanation',
-    color: '#ff007f',
+    color: 'var(--accent-cta, #C2410C)',
   },
   {
     type: 'eyebrow_raise',
     label: 'Eyebrow Raise',
     emoji: '🤨',
     description: 'Suspicious and mildly unsettling',
-    color: '#00e5ff',
+    color: 'var(--accent-primary, #FF6F00)',
   },
   {
     type: 'cursed',
     label: 'Cursed Oddity',
     emoji: '🔮',
     description: 'Haunting vibes and weird energy',
-    color: '#a855f7',
+    color: 'var(--accent-secondary, #FFB300)',
   },
   {
     type: 'legendary',
     label: 'Legendary Find',
     emoji: '🏆',
     description: 'Hall-of-fame neighborhood landmark',
-    color: '#eab308',
+    color: 'var(--accent-text, #B45309)',
   },
 ];
 

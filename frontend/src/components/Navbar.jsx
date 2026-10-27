@@ -1,25 +1,46 @@
-import React, { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
-import { useTheme } from '../context/ThemeContext';
 import { NotificationsDrawer } from './notifications/NotificationsDrawer';
 
+const POPULAR_CITIES = [
+  { name: 'Bengaluru', country: 'India', flag: '🇮🇳' },
+  { name: 'London', country: 'United Kingdom', flag: '🇬🇧' },
+  { name: 'Tokyo', country: 'Japan', flag: '🇯🇵' },
+  { name: 'Reykjavík', country: 'Iceland', flag: '🇮🇸' },
+  { name: 'New York', country: 'USA', flag: '🇺🇸' },
+];
+
 /**
- * Navbar - Bespoke top navigation bar with distinct orange brand badge,
- * tactile quick links, notification bell with unread counter, and profile dropdown.
+ * Navbar - Tailwind-docs-style top navigation bar with:
+ * - 60px height, hairline grid border, glass backdrop
+ * - Solar/radar emblem + Oddspot wordmark + v1.0 kicker pill
+ * - Architectural nav tabs with active 2px bottom indicator
+ * - Cmd+K Spotlight Command Modal with live search & keyboard navigation
+ * - Accessibility focus traps and mobile scroll locking
  */
 export function Navbar({ currentRoute = '#/home', navigate }) {
   const { user, logout } = useAuth();
-  const { theme, setTheme, themes, currentThemeMeta } = useTheme();
 
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
   const [profileDropdownOpen, setProfileDropdownOpen] = useState(false);
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [unreadCount, setUnreadCount] = useState(0);
 
+  // Spotlight Command Bar State
+  const [commandModalOpen, setCommandModalOpen] = useState(false);
+  const [commandQuery, setCommandQuery] = useState('');
+  const [selectedIndex, setSelectedIndex] = useState(0);
+  const [liveCommunities, setLiveCommunities] = useState([]);
+  const [livePosts, setLivePosts] = useState([]);
+  const [_isSearching, setIsSearching] = useState(false);
+
   const profileRef = useRef(null);
-  const themeRef = useRef(null);
+  const profileTriggerRef = useRef(null);
+  const profileMenuRef = useRef(null);
+  const searchTriggerRef = useRef(null);
+  const spotlightModalRef = useRef(null);
+  const spotlightInputRef = useRef(null);
 
   // Poll notifications unread count when user is logged in
   useEffect(() => {
@@ -46,59 +67,309 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
     };
   }, [user]);
 
-  // Close menus on route change
+  // Prevent background scrolling when mobile menu or Command Modal is open
   useEffect(() => {
-    setMobileMenuOpen(false);
-    setThemeDropdownOpen(false);
-    setProfileDropdownOpen(false);
-  }, [currentRoute]);
+    if (mobileMenuOpen || commandModalOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [mobileMenuOpen, commandModalOpen]);
 
-  // Close on outside click or Escape key
+  // Global Cmd+K / Ctrl+K and '/' shortcut to open Spotlight Modal
   useEffect(() => {
-    const handleKeyDown = (e) => {
-      if (e.key === 'Escape') {
-        setMobileMenuOpen(false);
-        setThemeDropdownOpen(false);
-        setProfileDropdownOpen(false);
+    const handleGlobalKeyDown = (e) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 'k') {
+        e.preventDefault();
+        setCommandModalOpen((prev) => !prev);
+        return;
+      }
+
+      if (e.key === '/' && !commandModalOpen) {
+        const activeTag = document.activeElement?.tagName?.toLowerCase();
+        const isEditable = document.activeElement?.isContentEditable;
+        if (activeTag !== 'input' && activeTag !== 'textarea' && activeTag !== 'select' && !isEditable) {
+          e.preventDefault();
+          setCommandModalOpen(true);
+        }
       }
     };
 
+    window.addEventListener('keydown', handleGlobalKeyDown);
+    return () => window.removeEventListener('keydown', handleGlobalKeyDown);
+  }, [commandModalOpen]);
+
+  // Focus input when spotlight opens & reset query
+  useEffect(() => {
+    if (commandModalOpen) {
+      setSelectedIndex(0);
+      setTimeout(() => {
+        spotlightInputRef.current?.focus();
+      }, 30);
+    } else {
+      setCommandQuery('');
+      setLiveCommunities([]);
+      setLivePosts([]);
+    }
+  }, [commandModalOpen]);
+
+  // Keyboard focus trap inside Command Modal
+  useEffect(() => {
+    if (!commandModalOpen) return;
+    const modalEl = spotlightModalRef.current;
+    if (!modalEl) return;
+
+    const handleModalTrap = (e) => {
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setCommandModalOpen(false);
+        searchTriggerRef.current?.focus();
+        return;
+      }
+
+      if (e.key === 'Tab') {
+        const focusable = Array.from(modalEl.querySelectorAll('input, button:not([disabled]), [tabindex="0"]'));
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first || !modalEl.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !modalEl.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      }
+    };
+
+    window.addEventListener('keydown', handleModalTrap, true);
+    return () => window.removeEventListener('keydown', handleModalTrap, true);
+  }, [commandModalOpen]);
+
+
+  // Keyboard focus trap inside Scout Profile menu
+  useEffect(() => {
+    if (!profileDropdownOpen) return;
+    const menuEl = profileMenuRef.current;
+    if (!menuEl) return;
+
+    const focusable = menuEl.querySelectorAll('button:not([disabled]), [tabindex="0"], a[href]');
+    if (focusable.length > 0) {
+      focusable[0]?.focus();
+    }
+
+    const handleTrap = (e) => {
+      if (e.key === 'Tab') {
+        const items = Array.from(menuEl.querySelectorAll('button:not([disabled]), [tabindex="0"], a[href]'));
+        if (items.length === 0) return;
+        const first = items[0];
+        const last = items[items.length - 1];
+
+        if (e.shiftKey) {
+          if (document.activeElement === first || !menuEl.contains(document.activeElement)) {
+            e.preventDefault();
+            last.focus();
+          }
+        } else {
+          if (document.activeElement === last || !menuEl.contains(document.activeElement)) {
+            e.preventDefault();
+            first.focus();
+          }
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        setProfileDropdownOpen(false);
+        profileTriggerRef.current?.focus();
+      }
+    };
+
+    window.addEventListener('keydown', handleTrap, true);
+    return () => window.removeEventListener('keydown', handleTrap, true);
+  }, [profileDropdownOpen]);
+
+  // Close menus on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+    setProfileDropdownOpen(false);
+    setCommandModalOpen(false);
+  }, [currentRoute]);
+
+  // Close on outside click
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (profileRef.current && !profileRef.current.contains(e.target)) {
         setProfileDropdownOpen(false);
       }
-      if (themeRef.current && !themeRef.current.contains(e.target)) {
-        setThemeDropdownOpen(false);
-      }
     };
 
-    window.addEventListener('keydown', handleKeyDown);
     document.addEventListener('mousedown', handleClickOutside);
     return () => {
-      window.removeEventListener('keydown', handleKeyDown);
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
 
-  const handleNav = (targetRoute) => {
+  const handleNav = useCallback((targetRoute) => {
     navigate(targetRoute);
     setMobileMenuOpen(false);
     setProfileDropdownOpen(false);
-    setThemeDropdownOpen(false);
+    setCommandModalOpen(false);
+  }, [navigate]);
+
+  const isStaff = user && (user.role === 'admin' || user.role === 'moderator');
+
+  // Debounced search for Spotlight query
+  useEffect(() => {
+    const query = commandQuery.trim();
+    if (!query) {
+      setLiveCommunities([]);
+      setLivePosts([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    const timer = setTimeout(async () => {
+      try {
+        const [commRes, postRes] = await Promise.allSettled([
+          api.getNearbyCommunities({ q: query }),
+          api.getPosts({ q: query, limit: 4 }),
+        ]);
+
+        if (commRes.status === 'fulfilled' && commRes.value) {
+          const list = commRes.value.communities || (Array.isArray(commRes.value) ? commRes.value : []);
+          setLiveCommunities(list.slice(0, 4));
+        } else {
+          setLiveCommunities([]);
+        }
+
+        if (postRes.status === 'fulfilled' && postRes.value) {
+          const list = postRes.value.posts || (Array.isArray(postRes.value) ? postRes.value : []);
+          setLivePosts(list.slice(0, 4));
+        } else {
+          setLivePosts([]);
+        }
+      } catch {
+        // Silently fail
+      } finally {
+        setIsSearching(false);
+      }
+    }, 200);
+
+    return () => clearTimeout(timer);
+  }, [commandQuery]);
+
+  // Build flattened navigable items for keyboard navigation (ArrowUp/ArrowDown + Enter)
+  const spotlightItems = useMemo(() => {
+    const items = [];
+    const q = commandQuery.trim().toLowerCase();
+
+    // 1. Route Navigation Actions
+    const actions = [
+      { id: 'act-dispatch', label: 'Go to Dispatch Feed', category: 'Navigation', icon: '🏠', shortcut: 'G D', action: () => handleNav('#/home') },
+      { id: 'act-radar', label: 'Go to Radar Map', category: 'Navigation', icon: '🧭', shortcut: 'G R', action: () => handleNav('#/explore') },
+      { id: 'act-create', label: 'Post a New Find', category: 'Actions', icon: '✨', shortcut: 'N P', action: () => handleNav('#/create') },
+      { id: 'act-surprise', label: 'Roll Random Spot', category: 'Actions', icon: '🎲', shortcut: 'R', action: () => handleNav('#/random') },
+      { id: 'act-chapters', label: 'Browse Chapter Communities', category: 'Navigation', icon: '🌐', shortcut: 'G C', action: () => handleNav('#/communities') },
+      { id: 'act-guide', label: 'Open Field Manual', category: 'Help', icon: '📖', shortcut: 'G M', action: () => handleNav('#/guide') },
+    ];
+
+    if (user) {
+      actions.push({ id: 'act-profile', label: 'My Scout Dossier & Visits', category: 'Profile', icon: '🎖️', shortcut: 'G P', action: () => handleNav('#/profile') });
+      actions.push({ id: 'act-settings', label: 'Discovery Settings & Theme', category: 'Profile', icon: '⚙️', shortcut: 'G S', action: () => handleNav('#/settings') });
+    }
+
+    if (isStaff) {
+      actions.push({ id: 'act-admin', label: 'Open Admin Console', category: 'Admin', icon: '🛡️', shortcut: 'G A', action: () => handleNav('#/admin') });
+    }
+
+    const filteredActions = q
+      ? actions.filter((a) => a.label.toLowerCase().includes(q) || a.category.toLowerCase().includes(q))
+      : actions;
+
+    filteredActions.forEach((a) => items.push({ ...a, group: 'Actions & Shortcuts' }));
+
+    // 2. Popular Cities
+    const matchingCities = q
+      ? POPULAR_CITIES.filter((c) => c.name.toLowerCase().includes(q) || c.country.toLowerCase().includes(q))
+      : POPULAR_CITIES;
+
+    matchingCities.forEach((city) => {
+      items.push({
+        id: `city-${city.name}`,
+        label: `${city.flag} ${city.name}, ${city.country}`,
+        category: 'Explore City',
+        icon: '📍',
+        action: () => handleNav(`#/explore?q=${encodeURIComponent(city.name)}`),
+        group: 'Cities & Regions',
+      });
+    });
+
+    // 3. Live Communities
+    if (liveCommunities.length > 0) {
+      liveCommunities.forEach((comm) => {
+        items.push({
+          id: `comm-${comm.slug || comm.id}`,
+          label: comm.name,
+          subtitle: comm.city ? `${comm.city}, ${comm.country || ''}` : comm.description,
+          category: 'Chapter',
+          icon: '🌐',
+          action: () => handleNav(`#/c/${comm.slug || comm.id}`),
+          group: 'Chapters',
+        });
+      });
+    }
+
+    // 4. Live Spots
+    if (livePosts.length > 0) {
+      livePosts.forEach((post) => {
+        items.push({
+          id: `post-${post.id}`,
+          label: post.title,
+          subtitle: post.locationName || post.city,
+          category: 'Spot',
+          icon: '📍',
+          action: () => handleNav(`#/post/${post.id}`),
+          group: 'Oddities',
+        });
+      });
+    }
+
+    return items;
+  }, [commandQuery, handleNav, user, isStaff, liveCommunities, livePosts]);
+
+  // Handle keyboard navigation inside Spotlight Modal
+  const handleSpotlightKeyDown = (e) => {
+    if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (spotlightItems.length ? (prev + 1) % spotlightItems.length : 0));
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      setSelectedIndex((prev) => (spotlightItems.length ? (prev - 1 + spotlightItems.length) % spotlightItems.length : 0));
+    } else if (e.key === 'Enter') {
+      e.preventDefault();
+      if (spotlightItems[selectedIndex]) {
+        spotlightItems[selectedIndex].action();
+      }
+    }
   };
 
   const isHomeActive = currentRoute === '#/home' || currentRoute === '#/' || !currentRoute;
   const isExploreActive = currentRoute.startsWith('#/explore') || currentRoute.startsWith('#/feed');
   const isCommunitiesActive = currentRoute.startsWith('#/communities') || currentRoute.startsWith('#/c/');
   const isRandomActive = currentRoute.startsWith('#/random');
-  const isCreateActive = currentRoute === '#/create';
   const isGuideActive = currentRoute.startsWith('#/guide');
+  const isProfileActive = currentRoute.startsWith('#/profile') || currentRoute.startsWith('#/user/');
   const isSettingsActive = currentRoute.startsWith('#/settings');
   const isAdminActive = currentRoute.startsWith('#/admin');
   const isLoginActive = currentRoute === '#/login';
   const isSignupActive = currentRoute === '#/signup';
-
-  const isStaff = user && (user.role === 'admin' || user.role === 'moderator');
 
   return (
     <header className="navbar-header" style={{ position: 'sticky', top: 0, zIndex: 'var(--z-sticky, 100)' }}>
@@ -111,20 +382,9 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
         className="navbar"
         role="navigation"
         aria-label="Main Navigation"
-        style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          padding: '0.75rem 1.75rem',
-          background: 'var(--bg-glass, rgba(255, 253, 249, 0.94))',
-          backdropFilter: 'blur(16px)',
-          WebkitBackdropFilter: 'blur(16px)',
-          borderBottom: '1px solid var(--border-color, #E6DFD5)',
-          boxShadow: 'var(--shadow-sm, 0 2px 8px -1px rgba(255, 111, 0, 0.06))',
-        }}
       >
-        {/* Left Cluster: Brand Badge */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }}>
+        {/* Left Cluster: Brand Emblem, Wordmark, and v1.0 Pill */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem', height: '100%' }}>
           <div
             className="nav-brand"
             onClick={() => handleNav('#/home')}
@@ -132,245 +392,138 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
             role="button"
             aria-label="Oddspot Home"
             onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNav('#/home')}
-            style={{
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '0.5rem',
-              cursor: 'pointer',
-              textDecoration: 'none',
-              userSelect: 'none',
-            }}
           >
-            {/* Distinct Orange Brand Badge */}
+            {/* Eye Logo & Brand */}
             <span
               style={{
                 display: 'inline-flex',
                 alignItems: 'center',
-                gap: '0.45rem',
-                background: 'linear-gradient(135deg, #FF6F00 0%, #FF8F00 100%)',
-                color: '#FFFFFF',
-                padding: '0.35rem 0.85rem',
-                borderRadius: 'var(--radius-full, 9999px)',
-                boxShadow: '0 3px 12px rgba(255, 111, 0, 0.35)',
-                fontWeight: 800,
-                fontSize: '1.05rem',
-                letterSpacing: '-0.3px',
+                justifyContent: 'center',
+                width: '32px',
+                height: '32px',
+                fontSize: '1.25rem',
+                flexShrink: 0,
               }}
+              aria-hidden="true"
             >
-              <span style={{ fontSize: '1.15rem', lineHeight: 1 }}>👁️</span>
-              <span>Oddspot</span>
+              👁
             </span>
+
+            {/* Wordmark */}
             <span
               style={{
-                fontSize: '0.72rem',
-                fontWeight: 700,
-                textTransform: 'uppercase',
-                letterSpacing: '0.08em',
-                color: 'var(--text-secondary, #6E675F)',
-                background: 'var(--bg-elevated, #FFF3E0)',
-                padding: '2px 8px',
-                borderRadius: '6px',
-                border: '1px solid var(--border-color, #E6DFD5)',
+                fontFamily: 'var(--font-sans, "Plus Jakarta Sans", sans-serif)',
+                fontWeight: 800,
+                fontSize: '1.2rem',
+                letterSpacing: '-0.025em',
+                color: 'var(--text-primary, #18181B)',
               }}
-              className="desktop-only"
             >
-              Field Log
+              OddSpot
+            </span>
+
+            {/* Scout Log Monospace Pill */}
+            <span
+              className="tw-kicker desktop-only"
+              style={{
+                fontSize: '10px',
+                padding: '2px 7px',
+                borderRadius: '4px',
+                background: 'var(--badge-gold-bg, #FEF3C7)',
+                color: 'var(--badge-gold-text, #92400E)',
+                border: '1px solid var(--badge-gold-border, #FCD34D)',
+                fontFamily: 'var(--font-mono, monospace)',
+                fontWeight: 800,
+                letterSpacing: '0.06em',
+              }}
+            >
+              SCOUT LOG
             </span>
           </div>
 
-          {/* Desktop Navigation Links */}
-          <div
-            className="nav-links desktop-only"
-            style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '0.35rem',
-            }}
-          >
+          {/* Center-Left Architectural Nav Tabs */}
+          <div className="nav-links desktop-only" role="menubar">
             <button
               type="button"
+              role="menuitem"
               className={`nav-btn ${isHomeActive ? 'active' : ''}`}
               onClick={() => handleNav('#/home')}
               aria-current={isHomeActive ? 'page' : undefined}
             >
-              🏠 Dispatch
+              Dispatch
             </button>
 
             <button
               type="button"
+              role="menuitem"
               className={`nav-btn ${isExploreActive ? 'active' : ''}`}
               onClick={() => handleNav('#/explore')}
               aria-current={isExploreActive ? 'page' : undefined}
             >
-              🧭 Radar
+              Radar Map
             </button>
 
             <button
               type="button"
+              role="menuitem"
               className={`nav-btn ${isRandomActive ? 'active' : ''}`}
               onClick={() => handleNav('#/random')}
               aria-current={isRandomActive ? 'page' : undefined}
             >
-              🎲 Random
+              Random
             </button>
 
             <button
               type="button"
+              role="menuitem"
               className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
               onClick={() => handleNav('#/communities')}
               aria-current={isCommunitiesActive ? 'page' : undefined}
             >
-              🌐 Chapters
+              Chapters
             </button>
 
             <button
               type="button"
+              role="menuitem"
               className={`nav-btn ${isGuideActive ? 'active' : ''}`}
               onClick={() => handleNav('#/guide')}
               aria-current={isGuideActive ? 'page' : undefined}
             >
-              📖 Field Manual
+              Field Manual
+            </button>
+
+            <button
+              type="button"
+              role="menuitem"
+              className={`nav-btn ${isProfileActive ? 'active' : ''}`}
+              onClick={() => handleNav(user ? '#/profile' : '#/login')}
+              aria-current={isProfileActive ? 'page' : undefined}
+            >
+              Profile
             </button>
           </div>
         </div>
 
-        {/* Right Cluster: Action Buttons & User Controls */}
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-          {/* Post a Find Action Button */}
+        {/* Center-Right Cluster: Quick Search Button & Actions */}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.625rem' }}>
+          {/* Tailwind-docs-style Quick Search Button */}
           <button
+            ref={searchTriggerRef}
             type="button"
-            className="btn-primary desktop-only"
-            onClick={() => handleNav('#/create')}
-            aria-current={isCreateActive ? 'page' : undefined}
-            style={{
-              padding: '0.45rem 1rem',
-              fontSize: '0.85rem',
-              fontWeight: 700,
-            }}
+            className="nav-search-trigger"
+            onClick={() => setCommandModalOpen(true)}
+            aria-label="Search oddities, cities, chapters (Command K)"
+            title="Search oddities, cities, chapters (⌘K)"
           >
-            <span>+</span> Post a Find
+            <span style={{ fontSize: '0.85rem' }} aria-hidden="true">🔍</span>
+            <span className="desktop-only" style={{ maxWidth: '180px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+              Search oddities, cities...
+            </span>
+            <kbd className="tw-kbd" style={{ fontSize: '10px', padding: '1px 5px', marginLeft: '2px' }}>
+              ⌘K
+            </kbd>
           </button>
-
-          {/* Theme Preset Selector */}
-          <div ref={themeRef} style={{ position: 'relative' }}>
-            <button
-              type="button"
-              onClick={() => setThemeDropdownOpen((prev) => !prev)}
-              aria-label="Change theme palette"
-              aria-expanded={themeDropdownOpen}
-              style={{
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                background: 'var(--bg-elevated, #FFF3E0)',
-                color: 'var(--text-primary, #1A1814)',
-                border: '1px solid var(--border-color, #E6DFD5)',
-                padding: '0.45rem 0.75rem',
-                borderRadius: 'var(--radius-full, 9999px)',
-                fontSize: '0.8rem',
-                fontWeight: 600,
-                transition: 'all var(--transition-fast)',
-              }}
-            >
-              <span>{currentThemeMeta?.icon || '☀️'}</span>
-              <span className="desktop-only">{currentThemeMeta?.name || 'Theme'}</span>
-              <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
-            </button>
-
-            {themeDropdownOpen && (
-              <div
-                role="menu"
-                aria-label="Select Theme Palette"
-                style={{
-                  position: 'absolute',
-                  top: 'calc(100% + 8px)',
-                  right: 0,
-                  width: '230px',
-                  background: 'var(--bg-surface, #FFFFFF)',
-                  border: '1px solid var(--border-color, #E6DFD5)',
-                  borderRadius: 'var(--radius-card, 16px)',
-                  boxShadow: 'var(--shadow-md, 0 6px 20px -2px rgba(255, 111, 0, 0.12))',
-                  padding: '0.5rem',
-                  zIndex: 'var(--z-dropdown, 200)',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  gap: '4px',
-                }}
-              >
-                <div
-                  style={{
-                    padding: '6px 8px',
-                    fontSize: '0.7rem',
-                    fontWeight: 800,
-                    textTransform: 'uppercase',
-                    color: 'var(--text-secondary, #6E675F)',
-                    letterSpacing: '0.5px',
-                  }}
-                >
-                  Indie Color Palettes
-                </div>
-                {themes.map((t) => (
-                  <button
-                    key={t.id}
-                    type="button"
-                    role="menuitem"
-                    onClick={() => {
-                      setTheme(t.id);
-                      setThemeDropdownOpen(false);
-                    }}
-                    style={{
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.5rem',
-                      padding: '0.5rem 0.65rem',
-                      borderRadius: '8px',
-                      background: theme === t.id ? 'var(--accent-highlight, #FFF8E1)' : 'transparent',
-                      color: theme === t.id ? 'var(--accent-primary, #FF6F00)' : 'var(--text-primary, #1A1814)',
-                      border: theme === t.id ? '1px solid var(--accent-border, #FFCC80)' : '1px solid transparent',
-                      textAlign: 'left',
-                      fontSize: '0.8rem',
-                      fontWeight: theme === t.id ? 700 : 500,
-                      width: '100%',
-                    }}
-                  >
-                    <span>{t.icon}</span>
-                    <div style={{ flexGrow: 1 }}>
-                      <div>{t.name}</div>
-                    </div>
-                    {theme === t.id && <span style={{ fontSize: '11px', color: 'var(--accent-primary)' }}>✓</span>}
-                  </button>
-                ))}
-
-                <div style={{ height: '1px', background: 'var(--border-color, #E6DFD5)', margin: '4px 0' }} />
-
-                <button
-                  type="button"
-                  onClick={() => handleNav('#/settings')}
-                  style={{
-                    cursor: 'pointer',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '6px 8px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: 'var(--bg-elevated, #FFF3E0)',
-                    color: 'var(--accent-primary, #FF6F00)',
-                    fontSize: '0.78rem',
-                    fontWeight: 700,
-                    width: '100%',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <span>🎨</span>
-                  <span>Palette Customizer</span>
-                </button>
-              </div>
-            )}
-          </div>
-
           {/* Auth State Cluster */}
           {user ? (
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -387,86 +540,129 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
-                  background: notificationsOpen ? 'var(--accent-highlight, #FFF8E1)' : 'var(--bg-elevated, #FFF3E0)',
-                  color: 'var(--text-primary, #1A1814)',
-                  border: '1px solid var(--border-color, #E6DFD5)',
-                  borderRadius: 'var(--radius-full, 9999px)',
-                  width: '36px',
-                  height: '36px',
-                  fontSize: '1rem',
-                  transition: 'all var(--transition-fast)',
+                  background: notificationsOpen ? 'var(--bg-elevated, #FFF7ED)' : 'transparent',
+                  color: 'var(--text-primary, #18181B)',
+                  border: '1px solid var(--border-subtle, #ECE7DF)',
+                  borderRadius: '8px',
+                  width: '34px',
+                  height: '34px',
+                  fontSize: '0.95rem',
+                  transition: 'all var(--transition-fast, 150ms ease)',
                 }}
               >
                 <span>🔔</span>
                 {unreadCount > 0 && (
                   <span
-                    style={{
-                      position: 'absolute',
-                      top: '-4px',
-                      right: '-4px',
-                      background: '#FF6F00',
-                      color: '#FFFFFF',
-                      fontSize: '0.65rem',
-                      fontWeight: 800,
-                      padding: '2px 5px',
-                      borderRadius: '9999px',
-                      border: '2px solid var(--bg-surface, #FFFFFF)',
-                      lineHeight: 1,
-                      minWidth: '18px',
-                      textAlign: 'center',
-                      boxShadow: '0 2px 6px rgba(255, 111, 0, 0.4)',
-                    }}
+                    className="nav-unread-badge"
+                    aria-label={`${unreadCount} unread field transmissions`}
                   >
                     {unreadCount > 99 ? '99+' : unreadCount}
                   </span>
                 )}
               </button>
 
-              {/* Profile Dropdown Trigger */}
-              <div ref={profileRef} style={{ position: 'relative' }}>
+              {/* Profile Dropdown Cluster */}
+              <div ref={profileRef} style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
+                {/* Clicking user logo or username directly opens profile */}
                 <button
                   type="button"
                   className="nav-profile-btn"
-                  onClick={() => setProfileDropdownOpen((prev) => !prev)}
-                  aria-expanded={profileDropdownOpen}
-                  aria-label="Open scout account menu"
+                  onClick={() => handleNav('#/profile')}
+                  aria-label={`Open ${user.username}'s scout profile`}
+                  title={`Open ${user.username}'s scout profile`}
                   style={{
                     cursor: 'pointer',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '0.45rem',
-                    background: profileDropdownOpen ? 'var(--accent-highlight, #FFF8E1)' : 'var(--bg-elevated, #FFF3E0)',
-                    color: 'var(--text-primary, #1A1814)',
-                    border: profileDropdownOpen ? '1px solid var(--accent-border, #FFCC80)' : '1px solid var(--border-color, #E6DFD5)',
-                    borderRadius: 'var(--radius-full, 9999px)',
-                    padding: '0.35rem 0.75rem',
-                    fontSize: '0.82rem',
-                    fontWeight: 700,
-                    transition: 'all var(--transition-fast)',
+                    gap: '0.5rem',
+                    background: isProfileActive ? 'var(--bg-elevated, #FFF7ED)' : 'transparent',
+                    color: 'var(--text-primary, #18181B)',
+                    border: '1px solid var(--border-subtle, #ECE7DF)',
+                    borderRight: 'none',
+                    borderRadius: '8px 0 0 8px',
+                    padding: '0 0.5rem 0 0.65rem',
+                    height: '36px',
+                    fontSize: '0.8125rem',
+                    transition: 'all var(--transition-fast, 150ms ease)',
                   }}
                 >
-                  <span
+                  <div style={{ textAlign: 'right', lineHeight: 1.15 }} className="desktop-only">
+                    <div style={{ fontWeight: 800, fontSize: '0.8125rem', color: 'var(--text-primary)' }}>
+                      {user.username}
+                    </div>
+                    <div style={{ fontSize: '9px', fontFamily: 'var(--font-mono, monospace)', letterSpacing: '0.08em', color: 'var(--text-muted)' }}>
+                      {user.role === 'admin' ? 'ADMIN' : user.role === 'moderator' ? 'MOD' : 'SCOUT'}
+                    </div>
+                  </div>
+                  {/* User Avatar Logo */}
+                  <div
                     style={{
-                      width: '22px',
-                      height: '22px',
+                      width: '26px',
+                      height: '26px',
                       borderRadius: '50%',
-                      background: '#FF6F00',
+                      background: 'var(--accent-primary, #B83818)',
                       color: '#FFFFFF',
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      fontWeight: 800,
                       fontSize: '11px',
+                      boxShadow: isProfileActive ? '0 0 0 2px var(--accent-primary)' : 'none',
                     }}
                   >
-                    🧭
+                    {user.avatarUrl ? (
+                      <img
+                        src={user.avatarUrl}
+                        alt={user.username}
+                        style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                      />
+                    ) : (
+                      user.username ? user.username.charAt(0).toUpperCase() : 'S'
+                    )}
+                  </div>
+                </button>
+
+                {/* Dropdown Menu Caret Trigger */}
+                <button
+                  ref={profileTriggerRef}
+                  type="button"
+                  onClick={() => setProfileDropdownOpen((prev) => !prev)}
+                  aria-expanded={profileDropdownOpen}
+                  aria-haspopup="menu"
+                  aria-label="Toggle scout account menu"
+                  title="Account menu & options"
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: profileDropdownOpen ? 'var(--bg-elevated, #FFF7ED)' : 'transparent',
+                    color: 'var(--text-primary, #18181B)',
+                    border: '1px solid var(--border-subtle, #ECE7DF)',
+                    borderRadius: '0 8px 8px 0',
+                    width: '22px',
+                    height: '36px',
+                    fontSize: '10px',
+                    padding: 0,
+                    transition: 'all var(--transition-fast, 150ms ease)',
+                  }}
+                >
+                  <span
+                    style={{
+                      transform: profileDropdownOpen ? 'rotate(180deg)' : 'none',
+                      transition: 'transform 150ms ease',
+                      display: 'inline-block',
+                      opacity: 0.7,
+                    }}
+                  >
+                    ▾
                   </span>
-                  <span>{user.username}</span>
-                  <span style={{ fontSize: '9px', opacity: 0.6 }}>▾</span>
                 </button>
 
                 {/* Profile Dropdown Menu */}
                 {profileDropdownOpen && (
                   <div
+                    ref={profileMenuRef}
                     role="menu"
                     aria-label="Scout Profile Menu"
                     style={{
@@ -475,9 +671,9 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                       right: 0,
                       width: '240px',
                       background: 'var(--bg-surface, #FFFFFF)',
-                      border: '1px solid var(--border-color, #E6DFD5)',
-                      borderRadius: 'var(--radius-card, 16px)',
-                      boxShadow: 'var(--shadow-md, 0 6px 20px -2px rgba(255, 111, 0, 0.12))',
+                      border: '1px solid var(--border-subtle, #ECE7DF)',
+                      borderRadius: 'var(--radius-card, 14px)',
+                      boxShadow: 'var(--shadow-md, 0 8px 24px -4px rgba(24, 24, 27, 0.12))',
                       padding: '0.65rem',
                       zIndex: 'var(--z-dropdown, 200)',
                       display: 'flex',
@@ -485,37 +681,73 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                       gap: '4px',
                     }}
                   >
-                    {/* User Header */}
+                    {/* User Header - Clickable to open profile */}
                     <div
+                      onClick={() => handleNav('#/profile')}
+                      role="button"
+                      tabIndex={0}
+                      title="Open your Scout Dossier"
                       style={{
                         padding: '0.5rem 0.65rem 0.75rem',
-                        borderBottom: '1px solid var(--border-color, #E6DFD5)',
+                        borderBottom: '1px solid var(--border-subtle, #ECE7DF)',
                         marginBottom: '4px',
+                        cursor: 'pointer',
+                        borderRadius: '6px',
+                        transition: 'background 120ms ease',
                       }}
+                      onKeyDown={(e) => (e.key === 'Enter' || e.key === ' ') && handleNav('#/profile')}
                     >
-                      <div style={{ fontWeight: 800, fontSize: '0.95rem', color: 'var(--text-primary)' }}>
-                        {user.username}
-                      </div>
-                      <div style={{ display: 'flex', gap: '6px', marginTop: '4px', alignItems: 'center' }}>
-                        <span
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                        <div
                           style={{
-                            fontSize: '0.68rem',
-                            fontWeight: 700,
-                            padding: '1px 6px',
-                            borderRadius: '4px',
-                            background: '#FFF3E0',
-                            color: '#E65100',
-                            border: '1px solid #FFE0B2',
-                            textTransform: 'uppercase',
+                            width: '28px',
+                            height: '28px',
+                            borderRadius: '50%',
+                            background: 'var(--accent-primary, #B83818)',
+                            color: '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            fontWeight: 800,
+                            fontSize: '11px',
                           }}
                         >
-                          {user.role || 'Scout'}
-                        </span>
-                        {user.score !== undefined && (
-                          <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
-                            · {user.score} pts
-                          </span>
-                        )}
+                          {user.avatarUrl ? (
+                            <img
+                              src={user.avatarUrl}
+                              alt={user.username}
+                              style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            user.username ? user.username.charAt(0).toUpperCase() : 'S'
+                          )}
+                        </div>
+                        <div>
+                          <div style={{ fontWeight: 800, fontSize: '0.92rem', color: 'var(--text-primary)' }}>
+                            {user.username}
+                          </div>
+                          <div style={{ display: 'flex', gap: '6px', marginTop: '2px', alignItems: 'center' }}>
+                            <span
+                              style={{
+                                fontSize: '0.68rem',
+                                fontWeight: 700,
+                                padding: '1px 6px',
+                                borderRadius: '4px',
+                                background: 'var(--badge-gold-bg, #FEF3C7)',
+                                color: 'var(--badge-gold-text, #92400E)',
+                                border: '1px solid var(--badge-gold-border, #FCD34D)',
+                                textTransform: 'uppercase',
+                              }}
+                            >
+                              {user.role || 'Scout'}
+                            </span>
+                            {user.score !== undefined && (
+                              <span style={{ fontSize: '0.72rem', color: 'var(--text-secondary)' }}>
+                                · {user.score} pts
+                              </span>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
 
@@ -527,12 +759,12 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        padding: '0.55rem 0.65rem',
-                        borderRadius: '8px',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '6px',
                         border: 'none',
                         background: 'transparent',
                         color: 'var(--text-primary)',
-                        fontSize: '0.85rem',
+                        fontSize: '0.8125rem',
                         fontWeight: 600,
                         cursor: 'pointer',
                         textAlign: 'left',
@@ -547,16 +779,17 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                       type="button"
                       role="menuitem"
                       onClick={() => handleNav('#/settings')}
+                      aria-current={isSettingsActive ? 'page' : undefined}
                       style={{
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        padding: '0.55rem 0.65rem',
-                        borderRadius: '8px',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '6px',
                         border: 'none',
                         background: 'transparent',
                         color: 'var(--text-primary)',
-                        fontSize: '0.85rem',
+                        fontSize: '0.8125rem',
                         fontWeight: 600,
                         cursor: 'pointer',
                         textAlign: 'left',
@@ -572,16 +805,17 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                         type="button"
                         role="menuitem"
                         onClick={() => handleNav('#/admin')}
+                        aria-current={isAdminActive ? 'page' : undefined}
                         style={{
                           display: 'flex',
                           alignItems: 'center',
                           gap: '0.5rem',
-                          padding: '0.55rem 0.65rem',
-                          borderRadius: '8px',
+                          padding: '0.5rem 0.65rem',
+                          borderRadius: '6px',
                           border: 'none',
-                          background: 'var(--bg-highlight, #FFF8E1)',
-                          color: '#E65100',
-                          fontSize: '0.85rem',
+                          background: 'var(--bg-elevated, #FFF7ED)',
+                          color: 'var(--accent-primary, #FF6F00)',
+                          fontSize: '0.8125rem',
                           fontWeight: 700,
                           cursor: 'pointer',
                           textAlign: 'left',
@@ -593,7 +827,7 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                       </button>
                     )}
 
-                    <div style={{ height: '1px', background: 'var(--border-color, #E6DFD5)', margin: '4px 0' }} />
+                    <div style={{ height: '1px', background: 'var(--border-subtle, #ECE7DF)', margin: '4px 0' }} />
 
                     <button
                       type="button"
@@ -603,12 +837,12 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                         display: 'flex',
                         alignItems: 'center',
                         gap: '0.5rem',
-                        padding: '0.55rem 0.65rem',
-                        borderRadius: '8px',
+                        padding: '0.5rem 0.65rem',
+                        borderRadius: '6px',
                         border: 'none',
                         background: 'transparent',
                         color: 'var(--color-danger, #DC2626)',
-                        fontSize: '0.85rem',
+                        fontSize: '0.8125rem',
                         fontWeight: 600,
                         cursor: 'pointer',
                         textAlign: 'left',
@@ -628,7 +862,7 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                 type="button"
                 className={`btn-secondary ${isLoginActive ? 'active' : ''}`}
                 onClick={() => handleNav('#/login')}
-                style={{ padding: '0.45rem 0.9rem', fontSize: '0.85rem' }}
+                style={{ padding: '0 0.85rem', height: '34px', fontSize: '0.8125rem' }}
               >
                 Log In
               </button>
@@ -636,7 +870,7 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                 type="button"
                 className={`btn-primary ${isSignupActive ? 'active' : ''}`}
                 onClick={() => handleNav('#/signup')}
-                style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}
+                style={{ padding: '0 0.95rem', height: '34px', fontSize: '0.8125rem' }}
               >
                 Sign Up
               </button>
@@ -646,19 +880,22 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
           {/* Mobile Menu Hamburger */}
           <button
             type="button"
-            className="mobile-only"
+            className="mobile-only nav-hamburger-btn"
             onClick={() => setMobileMenuOpen((prev) => !prev)}
             aria-label={mobileMenuOpen ? 'Close menu' : 'Open menu'}
             aria-expanded={mobileMenuOpen}
             style={{
               cursor: 'pointer',
-              background: 'var(--bg-elevated, #FFF3E0)',
+              background: 'transparent',
               color: 'var(--text-primary)',
-              border: '1px solid var(--border-color, #E6DFD5)',
+              border: '1px solid var(--border-subtle, #ECE7DF)',
               borderRadius: '8px',
-              padding: '6px 10px',
-              fontSize: '1.1rem',
-              display: 'none',
+              padding: '0',
+              width: '34px',
+              height: '34px',
+              fontSize: '1rem',
+              alignItems: 'center',
+              justifyContent: 'center',
             }}
           >
             {mobileMenuOpen ? '✕' : '☰'}
@@ -666,34 +903,42 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
         </div>
       </nav>
 
-      {/* Mobile Menu Drawer */}
+      {/* Mobile Navigation Drawer */}
       {mobileMenuOpen && (
         <div
           className="mobile-drawer"
           style={{
             background: 'var(--bg-surface, #FFFFFF)',
-            borderBottom: '1px solid var(--border-color, #E6DFD5)',
-            padding: '1rem 1.5rem',
+            borderBottom: '1px solid var(--border-subtle, #ECE7DF)',
+            padding: '1rem 1.25rem',
             display: 'flex',
             flexDirection: 'column',
-            gap: '0.65rem',
+            gap: '0.5rem',
             boxShadow: 'var(--shadow-md)',
           }}
         >
+          {/* Quick Search on mobile */}
           <button
             type="button"
-            className="btn-primary"
-            onClick={() => handleNav('#/create')}
-            style={{ width: '100%', marginBottom: '0.5rem' }}
+            className="nav-search-trigger"
+            onClick={() => {
+              setMobileMenuOpen(false);
+              setCommandModalOpen(true);
+            }}
+            style={{ width: '100%', justifyContent: 'space-between', marginBottom: '0.5rem' }}
           >
-            + Post a Find
+            <span style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              <span>🔍</span>
+              <span>Search oddities, cities...</span>
+            </span>
+            <kbd className="tw-kbd">⌘K</kbd>
           </button>
 
           <button
             type="button"
             className={`nav-btn ${isHomeActive ? 'active' : ''}`}
             onClick={() => handleNav('#/home')}
-            style={{ width: '100%', textAlign: 'left' }}
+            style={{ width: '100%', textAlign: 'left', height: '44px' }}
           >
             🏠 Dispatch Feed
           </button>
@@ -702,54 +947,55 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
             type="button"
             className={`nav-btn ${isExploreActive ? 'active' : ''}`}
             onClick={() => handleNav('#/explore')}
-            style={{ width: '100%', textAlign: 'left' }}
+            style={{ width: '100%', textAlign: 'left', height: '44px' }}
           >
-            🧭 Explore Radar
+            🧭 Radar Map
           </button>
 
           <button
             type="button"
             className={`nav-btn ${isRandomActive ? 'active' : ''}`}
             onClick={() => handleNav('#/random')}
-            style={{ width: '100%', textAlign: 'left' }}
+            style={{ width: '100%', textAlign: 'left', height: '44px' }}
           >
-            🎲 Random Oddity
+            🎲 Surprise Oddity
           </button>
 
           <button
             type="button"
             className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
             onClick={() => handleNav('#/communities')}
-            style={{ width: '100%', textAlign: 'left' }}
+            style={{ width: '100%', textAlign: 'left', height: '44px' }}
           >
-            🌐 Communities Hub
+            🌐 Chapters
           </button>
 
           <button
             type="button"
             className={`nav-btn ${isGuideActive ? 'active' : ''}`}
             onClick={() => handleNav('#/guide')}
-            style={{ width: '100%', textAlign: 'left' }}
+            style={{ width: '100%', textAlign: 'left', height: '44px' }}
           >
             📖 Field Manual
           </button>
 
+          <button
+            type="button"
+            className={`nav-btn ${isProfileActive ? 'active' : ''}`}
+            onClick={() => handleNav(user ? '#/profile' : '#/login')}
+            style={{ width: '100%', textAlign: 'left', height: '44px' }}
+          >
+            🎖️ Scout Profile {user ? `(${user.username})` : ''}
+          </button>
+
           {user && (
             <>
-              <div style={{ height: '1px', background: 'var(--border-color, #E6DFD5)', margin: '4px 0' }} />
-              <button
-                type="button"
-                className="nav-btn"
-                onClick={() => handleNav('#/profile')}
-                style={{ width: '100%', textAlign: 'left' }}
-              >
-                🧭 Scout Profile ({user.username})
-              </button>
+              <div style={{ height: '1px', background: 'var(--border-subtle, #ECE7DF)', margin: '4px 0' }} />
               <button
                 type="button"
                 className="nav-btn"
                 onClick={() => handleNav('#/settings')}
-                style={{ width: '100%', textAlign: 'left' }}
+                style={{ width: '100%', textAlign: 'left', height: '44px' }}
               >
                 ⚙️ Settings & Theme
               </button>
@@ -758,7 +1004,7 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                   type="button"
                   className="nav-btn"
                   onClick={() => handleNav('#/admin')}
-                  style={{ width: '100%', textAlign: 'left', color: '#E65100' }}
+                  style={{ width: '100%', textAlign: 'left', height: '44px', color: 'var(--accent-primary)' }}
                 >
                   🛡️ Admin Panel
                 </button>
@@ -767,12 +1013,164 @@ export function Navbar({ currentRoute = '#/home', navigate }) {
                 type="button"
                 className="nav-btn"
                 onClick={logout}
-                style={{ width: '100%', textAlign: 'left', color: 'var(--color-danger)' }}
+                style={{ width: '100%', textAlign: 'left', height: '44px', color: 'var(--color-danger)' }}
               >
                 🚪 Log Out
               </button>
             </>
           )}
+        </div>
+      )}
+
+      {/* Spotlight Command Modal (Cmd+K / Ctrl+K / /) */}
+      {commandModalOpen && (
+        <div
+          className="spotlight-backdrop"
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setCommandModalOpen(false);
+              searchTriggerRef.current?.focus();
+            }
+          }}
+          role="presentation"
+        >
+          <div
+            ref={spotlightModalRef}
+            className="spotlight-dialog"
+            role="dialog"
+            aria-modal="true"
+            aria-label="Spotlight Quick Jump & Search"
+          >
+            {/* Spotlight Header Input */}
+            <div className="spotlight-header">
+              <span style={{ fontSize: '1rem', color: 'var(--text-muted)' }} aria-hidden="true">
+                🔍
+              </span>
+              <input
+                ref={spotlightInputRef}
+                type="text"
+                className="spotlight-input"
+                placeholder="Search oddities, cities (Bengaluru, London, Tokyo), chapters, or actions..."
+                value={commandQuery}
+                onChange={(e) => {
+                  setCommandQuery(e.target.value);
+                  setSelectedIndex(0);
+                }}
+                onKeyDown={handleSpotlightKeyDown}
+                aria-label="Command search input"
+              />
+              {commandQuery && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setCommandQuery('');
+                    spotlightInputRef.current?.focus();
+                  }}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--text-muted)',
+                    cursor: 'pointer',
+                    fontSize: '0.85rem',
+                    padding: '2px 6px',
+                  }}
+                  aria-label="Clear query"
+                >
+                  ✕
+                </button>
+              )}
+              <kbd className="tw-kbd" style={{ fontSize: '10px' }}>ESC</kbd>
+            </div>
+
+            {/* Spotlight Results Body */}
+            <div className="spotlight-body" role="listbox">
+              {spotlightItems.length === 0 ? (
+                <div style={{ padding: '2rem 1rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                  No matching oddities, cities, or chapters found for &ldquo;{commandQuery}&rdquo;.
+                </div>
+              ) : (
+                (() => {
+                  let currentGroup = '';
+                  return spotlightItems.map((item, index) => {
+                    const isNewGroup = item.group !== currentGroup;
+                    currentGroup = item.group;
+                    const isSelected = index === selectedIndex;
+
+                    return (
+                      <div key={item.id}>
+                        {isNewGroup && (
+                          <div className="spotlight-group-title">
+                            {item.group}
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          role="option"
+                          aria-selected={isSelected}
+                          className={`spotlight-item ${isSelected ? 'selected' : ''}`}
+                          onClick={() => item.action()}
+                          onMouseEnter={() => setSelectedIndex(index)}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '10px', minWidth: 0 }}>
+                            <span style={{ fontSize: '1rem', flexShrink: 0 }}>{item.icon}</span>
+                            <div style={{ minWidth: 0, overflow: 'hidden' }}>
+                              <div style={{ fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                {item.label}
+                              </div>
+                              {item.subtitle && (
+                                <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                  {item.subtitle}
+                                </div>
+                              )}
+                            </div>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', flexShrink: 0 }}>
+                            {item.category && (
+                              <span
+                                style={{
+                                  fontSize: '0.6875rem',
+                                  padding: '1px 6px',
+                                  borderRadius: '4px',
+                                  background: 'var(--badge-neutral-bg, #F4F1EA)',
+                                  color: 'var(--badge-neutral-text, #18181B)',
+                                  border: '1px solid var(--badge-neutral-border, #E4E4E7)',
+                                }}
+                              >
+                                {item.category}
+                              </span>
+                            )}
+                            {item.shortcut && (
+                              <kbd className="tw-kbd" style={{ fontSize: '9px', padding: '1px 4px' }}>
+                                {item.shortcut}
+                              </kbd>
+                            )}
+                          </div>
+                        </button>
+                      </div>
+                    );
+                  });
+                })()
+              )}
+            </div>
+
+            {/* Spotlight Footer */}
+            <div className="spotlight-footer">
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+                <span>
+                  <kbd className="tw-kbd" style={{ fontSize: '9px' }}>↑</kbd>{' '}
+                  <kbd className="tw-kbd" style={{ fontSize: '9px' }}>↓</kbd> Navigate
+                </span>
+                <span>
+                  <kbd className="tw-kbd" style={{ fontSize: '9px' }}>↵</kbd> Select
+                </span>
+                <span>
+                  <kbd className="tw-kbd" style={{ fontSize: '9px' }}>esc</kbd> Close
+                </span>
+              </div>
+              <span style={{ fontWeight: 600, color: 'var(--accent-primary)' }}>Oddspot Spotlight</span>
+            </div>
+          </div>
         </div>
       )}
 

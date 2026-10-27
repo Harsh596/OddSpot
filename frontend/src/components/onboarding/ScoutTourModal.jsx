@@ -321,7 +321,7 @@ export default function ScoutTourModal({ isOpen, onClose, onComplete }) {
               <p className="first-mission-desc">
                 Spot something weird within 1 km of where you stand right now — a peculiar sticker, an
                 unusual door, a secret sculpture, or strange architecture. Post it to start its Oddometer,
-                or discover an anomaly nearby!
+                or discover an oddity nearby!
               </p>
               <div className="first-mission-stats">
                 <div className="mission-stat-pill">
