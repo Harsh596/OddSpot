@@ -2130,6 +2130,59 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase P15: Signed Image Upload Provider Interface (Allowlist Default + Cloudinary/R2 Stubs)
+
+### 1. Summary of Changes & Implementation Details
+- **Task P15-T1: Upload Provider Service & Upload Signing Route (`backend/services/uploadProvider.js`, `backend/routes/uploads.js`, `backend/validators/uploads.validators.js`, `backend/config/rateLimits.js`, `backend/app.js`)**:
+  - Created `backend/services/uploadProvider.js` with pluggable architecture supporting:
+    - Default `'allowlist'` mode (zero external keys required): returns 501 `UPLOAD_PROVIDER_DISABLED` with message prompting user to supply allowlisted HTTPS image URLs directly.
+    - Cloudinary signature adapter (`UPLOAD_PROVIDER=cloudinary`): verifies `CLOUDINARY_CLOUD_NAME`, `CLOUDINARY_API_KEY`, `CLOUDINARY_API_SECRET`. Generates HMAC-SHA1 signature over parameters `folder=oddspot&timestamp=${timestamp}&transformation=fl_strip_profile`.
+    - Cloudflare R2 / S3 presigned-URL stub adapter (`UPLOAD_PROVIDER=r2`).
+    - Documented EXIF metadata stripping rationale (`fl_strip_profile` to prevent physical GPS and device leaks) and automated content moderation hooks (e.g. AWS Rekognition / WebPurify).
+  - Enforced strict MIME type allowlist (`image/jpeg`, `image/png`, `image/webp`), rejecting unsupported types with 400 `VALIDATION_FAILED`.
+  - Enforced 5 MB maximum file size (`5242880` bytes), rejecting oversized uploads with 413 `PAYLOAD_TOO_LARGE`.
+  - Added `uploadSignLimiter` in `backend/config/rateLimits.js` enforcing per-user hourly rate limit of 20 signing requests per hour.
+  - Mounted upload router at `/api/v1/uploads` and `/api/uploads` with `POST /sign`.
+- **Task P15-T2: Strict Image URL SSRF Protection & Host Allowlist Enforcement (`backend/utils/imageUrlValidator.js`, `backend/validators/posts.validators.js`, `backend/routes/posts.js`)**:
+  - Created `backend/utils/imageUrlValidator.js` with pure syntactic URL parsing and zero server-side network fetches (`fetch`/`http.get` completely absent).
+  - Blocks all SSRF vectors:
+    - Enforces `https:` protocol (blocks `http:`, `javascript:`, `data:`, `file:`, `ftp:`).
+    - Blocks embedded credentials in URLs (`username:password@`).
+    - Blocks all IP literals: IPv4, IPv6 brackets (`[::1]`), integer/hex/octal encodings.
+    - Blocks loopback (`localhost`, `127.0.0.1`), link-local metadata services (`169.254.169.254`), and RFC1918 private ranges (`10.0.0.0/8`, `172.16.0.0/12`, `192.168.0.0/16`).
+    - Enforces `process.env.IMAGE_HOST_ALLOWLIST` when configured (comma-separated domains with wildcard support).
+  - Integrated `validateImageUrl` and `isSecureImageUrl` into `backend/validators/posts.validators.js` (`imageSchema` and `recordVisitSchema`) and `backend/routes/posts.js` for post creation and visit photo submission.
+- **Environment & Documentation (`backend/.env.example`)**:
+  - Documented `UPLOAD_PROVIDER`, `IMAGE_HOST_ALLOWLIST`, `CLOUDINARY_*`, and `R2_*` variables in `.env.example`.
+- **Test Suite (`backend/test/phase15.test.js`, `backend/tests/phase15.test.js`)**:
+  - Test 1: Rejection of unsupported MIME types (400) and files > 5MB (413).
+  - Test 2: 501 `UPLOAD_PROVIDER_DISABLED` in default allowlist mode; 200 with `fl_strip_profile` HMAC-SHA1 signature in Cloudinary mode.
+  - Test 3: SSRF blocking (localhost, 127.0.0.1, 169.254.169.254, credentials in URL) and `IMAGE_HOST_ALLOWLIST` enforcement.
+
+### 2. Files Touched
+- `backend/services/uploadProvider.js` *(New)*
+- `backend/utils/imageUrlValidator.js` *(New)*
+- `backend/validators/uploads.validators.js` *(New)*
+- `backend/validators/index.js`
+- `backend/validators/posts.validators.js`
+- `backend/routes/uploads.js` *(New)*
+- `backend/routes/posts.js`
+- `backend/config/rateLimits.js`
+- `backend/app.js`
+- `backend/.env.example`
+- `backend/test/phase15.test.js` *(New)*
+- `backend/tests/phase15.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 353 / 353** tests across 119 suites (0 failures).
+- **`node --test test/phase15.test.js`**: **Passed: 4 / 4** tests (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

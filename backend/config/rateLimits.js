@@ -58,6 +58,13 @@ const reportLimiter = createRateLimiter({
   message: 'Too many reports submitted, please slow down',
 });
 
+const uploadSignLimiter = createRateLimiter({
+  prefix: 'upload:sign',
+  windowMs: 60 * 60 * 1000, // 1 hour
+  max: () => getWriteRateLimitMax(20),
+  message: 'Upload signing limit reached (maximum 20 per hour), please try again later',
+});
+
 module.exports = {
   getAuthRateLimitMax,
   getWriteRateLimitMax,
@@ -66,5 +73,7 @@ module.exports = {
   voteLimiter,
   commentLimiter,
   reportLimiter,
+  uploadSignLimiter,
   createRateLimiter,
 };
+

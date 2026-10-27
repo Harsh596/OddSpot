@@ -10,18 +10,15 @@ const {
   normalizeText,
 } = require('./common');
 const { resolveCountry, toCityKey } = require('../utils/place');
+const { isSecureImageUrl, validateImageUrl } = require('../utils/imageUrlValidator');
 
-function isSecureImageUrl(url) {
-  if (typeof url !== 'string') return false;
-  try {
-    const parsed = new URL(url);
-    if (parsed.protocol === 'https:') return true;
-    if (process.env.NODE_ENV !== 'production' && parsed.protocol === 'http:' && parsed.hostname === 'localhost') {
-      return true;
-    }
-    return false;
-  } catch {
-    return false;
+function validateImageItem(url, ctx) {
+  const result = validateImageUrl(url);
+  if (!result.valid) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: result.error || 'Images must use secure HTTPS URLs',
+    });
   }
 }
 
@@ -30,22 +27,12 @@ const imageSchema = z
   .union([
     z
       .string({ invalid_type_error: 'Image URL must be a string' })
-      .refine(isSecureImageUrl, {
-        message: 'Images must use secure HTTPS URLs',
-      })
-      .refine((url) => url.length <= 500, {
-        message: 'Image URL must not exceed 500 characters',
-      }),
+      .superRefine(validateImageItem),
     z
       .object({
         url: z
           .string({ required_error: 'Image URL is required', invalid_type_error: 'Image URL must be a string' })
-          .refine(isSecureImageUrl, {
-            message: 'Images must use secure HTTPS URLs',
-          })
-          .refine((url) => url.length <= 500, {
-            message: 'Image URL must not exceed 500 characters',
-          }),
+          .superRefine(validateImageItem),
         width: z
           .number({ invalid_type_error: 'Width must be a number' })
           .int('Width must be an integer')
@@ -498,8 +485,8 @@ const recordVisitSchema = z
       .string()
       .max(500, 'Photo URL must not exceed 500 characters')
       .refine(
-        (url) => !url || url.startsWith('https://'),
-        'Photo URL must use HTTPS'
+        (url) => !url || isSecureImageUrl(url),
+        'Photo URL must be a valid secure image URL'
       )
       .optional(),
     note: z

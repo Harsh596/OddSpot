@@ -37,6 +37,7 @@ const {
   notifyMentions,
   notifyVisit,
 } = require('../services/notifications');
+const { validateImageUrl } = require('../utils/imageUrlValidator');
 
 const router = Router();
 
@@ -103,11 +104,12 @@ router.post(
 
       for (const img of images) {
         const url = typeof img === 'string' ? img : img?.url;
-        if (typeof url !== 'string' || !url.startsWith('https://') || url.length > 500) {
+        const urlValidation = validateImageUrl(url);
+        if (!urlValidation.valid) {
           return res.status(400).json(
             formatErrorResponse(
               ErrorCodes.VALIDATION_FAILED,
-              'Images must use secure HTTPS URLs not exceeding 500 characters'
+              urlValidation.error || 'Images must use secure HTTPS URLs not exceeding 500 characters'
             )
           );
         }
