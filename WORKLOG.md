@@ -2239,6 +2239,62 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase 18 (P18): Complete Documentation Suite (Run: test 2)
+
+### 1. Overview & Architecture Deliverables
+Authored the authoritative, complete documentation suite for Oddspot across 6 core files, with zero placeholder text or mock credentials, matching live routes and schemas:
+
+1. **`docs/API.md` (36 KB)**:
+   - Full REST API reference for all endpoints across `/api/v1/*` (Auth, Posts, Feeds, Communities, Visits, Notifications, Users, Moderation, Uploads, Health/Probes).
+   - Auth requirements, rate limits, request JSON schemas and examples, response JSON examples, error codes, and copy-pasteable curl commands.
+2. **`docs/SECURITY.md` (18 KB)**:
+   - Location privacy threat model (curious scouts, grid probers, Sybil networks, malicious posters, eavesdroppers).
+   - Exact mathematical derivation for deterministic HMAC-SHA256 polar coordinate fuzzing ($r \in [150\text{m}, 400\text{m}]$, $\theta \in [0, 2\pi)$).
+   - `feedLocation` anti-trilateration architecture (permanent storage, 2dsphere indexing, quantized 500m distance rounding, snapped radii, sanitized ETag hashes).
+   - Reveal-on-arrival protections ($\le 300\text{m}$ Haversine proximity, 10/day quota tracked in `AuditLog`, memory-only client storage).
+   - Residual limitations and impossible travel speed checks ($>500\text{ km/h}$).
+   - Cryptographic token rotation (15m HS256 access tokens, rotating 7-day refresh tokens with token family reuse detection and automatic family-wide revocation, `kid` keyring rotation).
+   - Pre-deployment security verification checklist.
+3. **`docs/DATA.md` (26 KB)**:
+   - Complete schema dictionary for all 17 collections (`users`, `posts`, `votes`, `comments`, `postcommenters`, `communities`, `memberships`, `visits`, `reports`, `notifications`, `refreshtokens`, `emailtokens`, `idempotencykeys`, `auditlogs`, `joblocks`, `ratelimits`, `schemaversions`).
+   - Fields, types, required flags, defaults, indexes, and descriptions.
+   - Dynamic and static TTL indexes (`notifications` 30d, `idempotencykeys` 24h, `refreshtokens` 7d, `emailtokens` dynamic, `ratelimits` dynamic).
+   - Compound and 2dsphere indexes.
+   - Global counter mutation matrix mapping each counter (`user.stats.posts`, `user.stats.visits`, `post.meter.*`, `community.memberCount`, `ratelimits.hits`) to route, service, atomic operator, and reconciliation mechanism (`reconcileCounters.js`).
+4. **`docs/RUNBOOK.md` (16 KB)**:
+   - Step-by-step incident playbooks with copy-pasteable bash commands and verification:
+     - Playbook 1: Leaked `JWT_SECRET` (Emergency Hard Revocation vs Zero-Downtime Keyring Rotation) or `LOCATION_FUZZ_SALT` rotation (`backfillFeedLocation.js` + `syncIndexes.js`).
+     - Playbook 2: Accidental data deletion & disaster recovery (`backup.sh`, staging drill first via `jsonBackupRestore.js`, migrations, index sync, counter reconcile, and storage check).
+     - Playbook 3: Coordinated brigading & abuse wave mitigation (automated velocity freeze $\ge 10$ distinct users in 60s, review quarantine $\ge 5$ reports, manual freeze, shadow-banning, mod queue triage).
+     - Playbook 4: Atlas M0 512 MB storage limit management (>400 MB soft alert, `storageReport.js`, WiredTiger TTL checks, manual audit log / notification pruning, zero data-URI verification, collection compaction).
+5. **`docs/ARCHITECTURE.md` (12 KB)**:
+   - High-level system topology, frontend/backend/database/media component breakdown.
+   - Request lifecycle & middleware pipeline trace (Helmet -> CORS -> Logger -> JSON Depth -> RateLimiter -> Idempotency -> Auth -> Validation -> Controller -> Serializer -> ETag -> Compression).
+   - 4 Mermaid diagrams: System Topology, Request Middleware Pipeline, Location Privacy & Reveal-on-Arrival sequence, and Refresh Token Family Rotation sequence.
+   - Oddometer mechanics: dynamic scoring formula ($S = 3C + 1L - 1D + 2V$), tier progression ratchet, velocity freeze, and logarithmic decay hot rank score.
+6. **Root `README.md` (10 KB)**:
+   - Modernized overview, feature matrix, architecture, quickstart setup, testing commands, full environment variables table, and complete documentation directory index.
+
+### 2. Files Touched
+- `docs/API.md` *(New)*
+- `docs/SECURITY.md` *(New)*
+- `docs/DATA.md` *(New)*
+- `docs/RUNBOOK.md` *(New)*
+- `docs/ARCHITECTURE.md` *(New)*
+- `README.md`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 372 / 372** tests across 125 suites (0 failures).
+- **`npm run build` (frontend)**: **Built clean in 187ms**.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Documentation Hygiene**: Verified all 6 files contain zero placeholder text (`TODO`, `FIXME`, `TBD`, `XXX`), match live schemas and endpoints, and provide full operational clarity.
+
+
 
 
 

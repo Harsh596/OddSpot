@@ -113,7 +113,12 @@
   - [x] Dedicated regression test suite: `backend/test/phase15.test.js` (and mirror `backend/tests/phase15.test.js` passing 4/4 comprehensive test suites across MIME rejection, 5MB file cap, allowlist mode 501, Cloudinary HMAC signature, and SSRF/allowlist blocking).
 - [ ] **P16: Input Normalization & Payload Size Caps**
 - [ ] **P17: OpenAPI Specification & API Routing**
-- [ ] **P18: Test Safety, In-Memory Replica Set & Assertions**
+- [x] **P18: Complete Documentation Suite (API.md, SECURITY.md, DATA.md, RUNBOOK.md, ARCHITECTURE.md, README.md)**
+  - [x] Task P18-T1: `docs/API.md` documenting every endpoint across `/api/v1/*` with auth, rate limits, schemas, error codes, and copy-pasteable curl examples.
+  - [x] Task P18-T2: `docs/SECURITY.md` documenting location privacy threat model, exact HMAC polar fuzzing math, feedLocation architecture, reveal-on-arrival protections (<= 300m, 10/day quota), anti-trilateration analysis, residual limitations, auth/token rotation security, and pre-deploy security checklist.
+  - [x] Task P18-T3: `docs/DATA.md` documenting all 17 collections (`users`, `posts`, `votes`, `comments`, `postcommenters`, `communities`, `memberships`, `visits`, `reports`, `notifications`, `refreshtokens`, `emailtokens`, `idempotencykeys`, `auditlogs`, `joblocks`, `ratelimits`, `schemaversions`), fields, TTLs, compound indexes, and global counter mutation matrix.
+  - [x] Task P18-T4: `docs/RUNBOOK.md` step-by-step incident playbooks for (1) leaked `JWT_SECRET` / `FUZZ_SECRET` rotation, (2) accidental data deletion & disaster restore, (3) coordinated brigading & abuse wave mitigation, and (4) Atlas M0 512 MB storage capacity management (>400 MB alert).
+  - [x] Task P18-T5: `docs/ARCHITECTURE.md` system topology, component breakdown, request lifecycle middleware pipeline, Mermaid diagrams, Oddometer mechanics, and updated root `README.md`.
 - [ ] **P19: Automated Test Data Cleanup Utility**
 
 ### Review & Hardening Phases (R1–R4)

@@ -1,152 +1,177 @@
-# Oddspot
+# Oddspot 📍
 
-Oddspot is a location-based forum where people post strange, bizarre, and overlooked real-world oddities they discover, allowing scouts nearby to find and visit them.
+**Oddspot** is a hyper-local, community-driven exploration platform where people discover, document, and physically visit strange, bizarre, and overlooked real-world oddities—from roadside kinetic sculptures and architectural anomalies to hidden staircases and retro neon relics.
 
-A dynamic "Oddity Score" meter ranks spots based on community interactions (likes, dislikes, comments), scaling visibility from local city feeds up to country-wide feeds once threshold engagement is reached.
+Built with a **zero-trust location privacy architecture**, Oddspot protects contributor privacy and sensitive sites using deterministic HMAC polar coordinate fuzzing and proximity-based reveal-on-arrival mechanics.
 
 ---
 
-## Architecture & Folder Structure
+## 🚀 Key Features
 
-The repository is structured into independent frontend and backend workspaces:
+- **📍 Location Privacy & Anti-Trilateration**: Sensitive spots are protected by deterministic HMAC-SHA256 polar coordinate fuzzing ($150\text{m}..400\text{m}$). Queries operate exclusively on fuzzed coordinates with quantized distance rounding, eliminating geometric trilateration.
+- **🧭 Reveal-on-Arrival**: In-the-wild physical discovery unlocks exact coordinates only when a verified scout approaches within $\le 300\text{m}$ (subject to a 10/day anti-scraping quota).
+- **⚡ Oddometer & Tier Progression**: A dynamic social vitality gauge calculates engagement scores ($S = 3C + 1L - 1D + 2V$). High-scoring oddities ratchet up from **Local Whisper** to **Neighborhood Eyebrow-Raiser**, **City Sensation**, and ultimately **Country-Wide Certified Oddity!**.
+- **🛡️ Anti-Brigading & Sybil Defense**: Coordinated voting or commenting spikes trigger an automated velocity freeze, locking score inflation until moderator review.
+- **🗺️ Interactive Leaflet Map & Radar**: Web Mercator clustering, GPS distance filters (1..25 km), and radius overlays for fuzzed spots.
+- **🏕️ Communities & Chapters**: Localized chapters (`/c/:slug`) with scoped member feeds, leadership roles, custom flairs, and chapter rules.
+- **🎒 Scout Progression & Badges**: 5-step interactive onboarding tour, mission sweep trackers, and earned badges (`scout`, `first_visit`, `10_visits`).
+- **🎨 Live Theme Engine & Feed Rules**: 4 design token presets (`Neon Night`, `Paper Zine`, `Terminal`, `Vaporwave`), real-time WCAG 2.2 contrast ratio verification, and a visual discovery rule builder.
+- **🔔 Notifications & Threaded Comments**: Depth-3 discussion threads with markdown spoilers (`>!spoiler!<`), solve flow for mystery spots, and unread notification drawer.
+- **🔒 Hardened Security & Zero SSRF**: Strictly enforced HTTPS image allowlisting, zero server-side fetching, JSON nesting depth limits, CRLF-sanitized logging, and rotating refresh token families with reuse detection.
 
-```text
+---
+
+## 🏗️ Architecture & Technology Stack
+
+```
 OddSpot/
-├── backend/                  # Node.js + Express API server (CommonJS)
-│   ├── config/
-│   │   └── meter.js          # Tunable meter weights, decay, and tier thresholds
-│   ├── middleware/
-│   │   └── auth.js           # JWT Bearer verification middleware
-│   ├── models/               # Mongoose data models
-│   │   ├── User.js           # Users, credentials, badges, stats
-│   │   ├── Post.js           # Geocoded posts with 2dsphere index & meter scores
-│   │   ├── Comment.js        # Post discussion comments
-│   │   ├── Vote.js           # Unique (userId, postId) voting ledger
-│   │   └── Report.js         # Community moderation reports
-│   ├── routes/
-│   │   ├── auth.js           # Signup, login, and auth profile routes
-│   │   └── posts.js          # Post creation, nearby feed, voting, comments, reporting
-│   ├── scripts/
-│   │   ├── seed.js           # Initial database seed script
-│   │   ├── syncIndexes.js    # Mongoose 2dsphere / compound index synchronizer
-│   │   └── smokeTest.js      # Automated 23-point smoke test suite
-│   ├── services/
-│   │   └── meter.js          # Meter score computation, delta updates, and tier progression
-│   ├── db.js                 # MongoDB connection manager
-│   ├── server.js             # Express app entrypoint (Helmet, CORS, Rate limiting)
-│   ├── package.json
-│   └── .env.example          # Backend environment variable template
+├── backend/                  # Node.js 20+ & Express 5 API Server (CommonJS)
+│   ├── config/               # Meter weights, JWT keyring, auth constants
+│   ├── middleware/           # Rate limiting, auth, logging, idempotency
+│   ├── models/               # Mongoose schemas (17 MongoDB collections)
+│   ├── routes/               # API controllers (/api/v1/* and /api/*)
+│   ├── scripts/              # Migrations, backups, smoke tests, reconciler
+│   ├── services/             # Meter engine, notifications, token rotator
+│   ├── test/                 # Node test runner suite (370+ automated tests)
+│   └── utils/                # HMAC fuzzing, image validation, serializers
 │
-├── frontend/                 # Vite + React web application (ESM, Plain layout)
+├── frontend/                 # React 19 + Leaflet Single-Page App (Vite + ESM)
 │   ├── src/
-│   │   ├── context/
-│   │   │   └── AuthContext.jsx # Global auth state, localStorage token sync, 401 interceptor
-│   │   ├── components/
-│   │   │   └── Navbar.jsx      # Navigation bar and auth controls
-│   │   ├── pages/
-│   │   │   ├── NearbyFeed.jsx  # Geolocation feed, radius filter, like/dislike, load more
-│   │   │   ├── CreatePost.jsx  # Find creation form, GPS auto-fill, hide-exact option
-│   │   │   ├── PostDetail.jsx  # Safe plain-text post viewer, comments thread, reporting
-│   │   │   ├── Login.jsx       # Login form
-│   │   │   └── Signup.jsx      # Registration form with validation
-│   │   ├── api.js              # Centralized API fetch client
-│   │   ├── App.jsx             # Main router and shell layout
-│   │   └── App.css             # Modular clean stylesheets
+│   │   ├── components/       # Map, Oddometer gauge, Drawer, Modals
+│   │   ├── context/          # Auth context, Theme engine with WCAG guard
+│   │   ├── pages/            # Home, Explore, Random, PostDetail, Profile
+│   │   ├── styles/           # CSS custom property design tokens
+│   │   └── utils/            # Markdown parser, map clustering, safety
 │   ├── package.json
-│   ├── vite.config.js
-│   └── .env.example          # Frontend environment variable template
+│   └── vite.config.js
 │
-├── README.md                 # Project documentation (this file)
-└── WORKLOG.md                # Detailed implementation decisions and test logs
+└── docs/                     # Authoritative Documentation Suite
+    ├── API.md                # Comprehensive OpenAPI / REST API reference
+    ├── SECURITY.md           # Threat model, HMAC math, token security
+    ├── DATA.md               # 17 MongoDB collections, indexes, counter matrix
+    ├── RUNBOOK.md            # Incident playbooks (secrets, disaster, abuse)
+    ├── ARCHITECTURE.md       # System design, middleware pipeline, diagrams
+    ├── DEPLOY.md             # Docker deployment & Nginx configuration
+    ├── THREAT_MODEL.md       # OWASP API Security Top 10 remediation audit
+    └── RESTORE.md            # Database backup & restore drill procedures
 ```
 
 ---
 
-## Setup & Prerequisites
+## 🛠️ Quickstart Guide
 
-- **Node.js**: v18+ (tested on Node v20/v24)
-- **MongoDB Atlas** cluster with `MONGODB_URI` connection string
+### Prerequisites
+- **Node.js**: v20.x or higher
+- **MongoDB**: MongoDB Atlas M0 cluster or local replica set (`MONGODB_URI`)
 
 ### 1. Backend Setup
 
-1. Navigate to `backend/`:
-   ```bash
-   cd backend
-   ```
-2. Create your `.env` from the template:
-   ```bash
-   cp .env.example .env
-   ```
-   Fill in your `MONGODB_URI` and a secure `JWT_SECRET`.
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Synchronize database indexes (including the `2dsphere` index on `location`):
-   ```bash
-   npm run db:sync
-   ```
-5. Start the backend development server:
-   ```bash
-   npm run dev
-   # Server starts on http://localhost:5001
-   ```
+```bash
+cd backend
+
+# 1. Configure environment variables
+cp .env.example .env
+# Edit .env and supply your MONGODB_URI and a 32+ character JWT_SECRET
+
+# 2. Install dependencies
+npm install
+
+# 3. Synchronize database indexes & collections
+npm run db:sync
+
+# 4. Start the backend API server
+npm run dev
+# Backend starts on http://localhost:5001
+```
 
 ### 2. Frontend Setup
 
-1. In a separate terminal, navigate to `frontend/`:
-   ```bash
-   cd frontend
-   ```
-2. Create your `.env` from the template:
-   ```bash
-   cp .env.example .env
-   ```
-   Default `VITE_API_URL` points to `http://localhost:5001/api`.
-3. Install dependencies:
-   ```bash
-   npm install
-   ```
-4. Start the frontend development server:
-   ```bash
-   npm run dev
-   # App runs at http://localhost:5173
-   ```
-5. To create a production build:
-   ```bash
-   npm run build
-   ```
-
----
-
-## Running the Automated Smoke Test
-
-Oddspot includes an end-to-end automated test suite that validates authentication, input sanitization, geospatial proximity, anti-trilateration protections, meter tier progression, reporting, and auto-fuzzing without touching production data:
-
 ```bash
-cd backend
-npm run test:smoke
+cd frontend
+
+# 1. Configure environment variables
+cp .env.example .env
+
+# 2. Install dependencies
+npm install
+
+# 3. Start Vite development server
+npm run dev
+# Frontend starts on http://localhost:5173
 ```
 
-All test records are prefixed with `test_` and are automatically purged at the conclusion of the test run.
+---
+
+## 🧪 Testing & Verification
+
+Oddspot includes a test suite covering unit tests, integration tests, red-team penetration tests, and manual verification scripts:
+
+```bash
+# Run backend test suite (370+ unit and integration tests)
+cd backend && npm test
+
+# Run frontend production build verification
+cd frontend && npm run build
+
+# Run automated penetration test suites
+cd backend
+node --test test/redteam1.test.js  # BOLA, mass assignment, token race
+node --test test/redteam2.test.js  # Anti-trilateration, Sybil surge
+node --test test/redteam3.test.js  # Rate limit bypass, IPv6, ReDoS
+node --test test/redteam4.test.js  # Full-stack XSS, SSRF, rule fuzzing
+
+# Run automated smoke test against isolated database
+node scripts/smokeTest.js
+
+# Run manual check validation scripts
+bash scripts/manualChecks.sh
+bash scripts/manualChecks2.sh
+
+# Run MongoDB storage & capacity audit (<400 MB check)
+node scripts/storageReport.js --warn-threshold 400
+```
 
 ---
 
-## Privacy & Security Protections
+## ⚙️ Environment Variables Reference
 
-1. **Anti-Trilateration Distance Sanitization**:
-   When a user flags a spot with `hideExact: true`, the API:
-   - Fuzzes coordinates to a ~500m grid (`[fuzzedLng, fuzzedLat]`).
-   - Calculates distances strictly against the fuzzed point rather than the true coordinate.
-   - Quantizes reported `distanceMeters` to 500m increments.
-   - Snaps feed query radii to discrete tiers (`1km`, `2km`, `5km`, `10km`, `25km`) and filters feed inclusion in memory against the fuzzed point distance, blocking radius-probing bisection attacks.
-2. **Community Auto-Fuzzing**:
-   When a post receives 3 or more reports for `unsafe_or_private` grounds, the system automatically marks `hideExact: true` to prevent unauthorized foot traffic.
-3. **No Direct Image Binaries**:
-   MongoDB stores only validated `https://` URLs; binary media is kept outside the database.
-4. **Hardening**:
-   - `helmet` security headers.
-   - Restricted CORS origin matching `FRONTEND_URL`.
-   - Payload limit capped at 100kb.
-   - Rate limiting on authentication attempts, post creation, voting, and reporting.
-   - All user input rendered safely as plain text in the UI (no `dangerouslySetInnerHTML`).
+| Variable | Required | Default | Description |
+|---|---|---|---|
+| `NODE_ENV` | Yes | `development` | Set to `production` in live environments. |
+| `PORT` | No | `5001` | TCP port for the Express HTTP server. |
+| `MONGODB_URI` | Yes | — | MongoDB Atlas or replica set connection URI. |
+| `JWT_SECRET` | Yes | — | Cryptographic secret for HS256 tokens ($\ge 32$ chars). |
+| `JWT_SECRETS` | No | `{}` | JSON dictionary for zero-downtime key rotation (`kid`). |
+| `JWT_CURRENT_KEY_ID` | No | — | Active key identifier for signing new access tokens. |
+| `LOCATION_FUZZ_SALT`| No | Server Salt | Salt used for HMAC-SHA256 polar coordinate fuzzing. |
+| `FRONTEND_URL` | No | `http://localhost:5173` | Comma-separated whitelist of allowed CORS origins. |
+| `TRUST_PROXY` | No | `0` | Set to `1` behind reverse proxies (Nginx, Cloudflare). |
+| `UPLOAD_PROVIDER` | No | `allowlist` | Upload mode: `allowlist`, `cloudinary`, or `r2`. |
+| `IMAGE_HOST_ALLOWLIST`| No | — | Comma-separated domain allowlist for image URLs. |
+| `METRICS_TOKEN` | No | — | Constant-time bearer token required for `GET /metrics`. |
+| `METER_COUNTRY_THRESHOLD`| No | `50` | Oddometer score required to unlock country-wide feed. |
+| `REPORT_FUZZ_THRESHOLD` | No | `3` | Reports required to initiate review quarantine. |
+
+---
+
+## 📚 Complete Documentation Suite
+
+For comprehensive technical specifications, refer to the documentation in `/docs`:
+
+- **[REST API Reference (API.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/API.md)**: Exhaustive endpoint documentation across `/api/v1/*`, authentication requirements, rate limits, JSON schemas, error codes, and copy-pasteable curl examples.
+- **[Security & Privacy Specification (SECURITY.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/SECURITY.md)**: Location privacy threat model, exact HMAC polar fuzzing math, anti-trilateration guarantees, token family reuse detection, and pre-deploy security checklist.
+- **[Database Architecture (DATA.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/DATA.md)**: Full schema dictionary for all 17 collections, compound indexes, TTL eviction policies, and the global counter mutation matrix.
+- **[Operations & Incident Runbook (RUNBOOK.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/RUNBOOK.md)**: Incident response playbooks for secret rotation, disaster recovery restores, brigading mitigation, and Atlas M0 storage management.
+- **[System Architecture (ARCHITECTURE.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/ARCHITECTURE.md)**: High-level topology, component breakdown, request middleware pipeline, Mermaid sequence diagrams, and Oddometer mechanics.
+- **[Production Deployment Guide (DEPLOY.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/DEPLOY.md)**: Container setup, Nginx reverse proxy, resource constraints, and readiness probe integration.
+- **[OWASP API Threat Model (THREAT_MODEL.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/THREAT_MODEL.md)**: OWASP API Security Top 10 remediation audit and test verification matrix.
+- **[Database Backup & Restore Drill (RESTORE.md)](file:///Users/harshmishra/Documents/SST/OddSpot/OddSpot/docs/RESTORE.md)**: Point-in-time backup generation, staging restore drills, and counter reconciliation.
+
+---
+
+## 📄 License & Ethical Scout Code
+
+Oddspot code is provided under the MIT License. Scouts using this software agree to the **Oddspot Ethical Scout Code**:
+1. Respect private property: never trespass or post interior photos of private residences.
+2. Leave no trace: pack out trash and leave curious artifacts exactly as found.
+3. Observe safety advisories: adhere to nighttime warnings and rugged terrain alerts.
