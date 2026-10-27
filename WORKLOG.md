@@ -2072,9 +2072,64 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`npm run build` (frontend)**: Clean production build in 144ms (0 errors, 64 modules).
 - **`npm test` (backend)**: **Passed: 338 / 338** tests across 111 suites (0 failures).
 - **`node --test test/phaseF9.test.js`**: **Passed: 9 / 9** tests (0 failures).
+- **Zero breaking schema changes.**
+
+## Phase F10: Notifications Drawer, Communities Hub & Profile Layout (Run: test 2)
+
+### 1. Summary of Changes & Implementation Details
+- **Task F10-T1: Notifications Bell & Slide-Out Drawer (`frontend/src/components/notifications/NotificationsDrawer.jsx`, `frontend/src/components/Navbar.jsx`)**:
+  - Created `<NotificationsDrawer />` component integrated into top navigation bar and mobile drawer.
+  - Added live notification bell button in Navbar with animated red unread badge (`nav-unread-badge`), polling `GET /api/v1/notifications` every 30 seconds and fetching immediately on bell click.
+  - Slide-out drawer with backdrop overlay blur, ESC / backdrop click dismiss, and filter tabs (`All` vs `Unread Only`).
+  - Formatted notifications with relative timestamps ("just now", "5m ago", "2h ago", "yesterday", or date), contextual type icons (`comment` 💬, `reply` ↩️, `visit` 📍, `mention` 📣, `tier_up` 🏆), and target post preview links.
+  - Clicking any notification marks it read immediately via `POST /api/v1/notifications/read` with `{ ids: [id] }` and navigates to the target post.
+  - "Mark All Read" action button batch marks all notifications read via `POST /api/v1/notifications/read` with `{ all: true }`.
+  - Infinite scroll / "Load More" cursor pagination supporting `nextCursor` and `hasMore`.
+- **Task F10-T2: Communities Hub & Detail Page (`frontend/src/pages/CommunitiesPage.jsx`, `frontend/src/pages/CommunityDetailPage.jsx`, `frontend/src/App.jsx`)**:
+  - Added routes: `#/communities` and `#/c/:slug` in `frontend/src/App.jsx` with `CommunityDetailRouteWrapper`.
+  - Added navigation links for "🌐 Communities" to desktop Navbar and mobile navigation drawer.
+  - Built `CommunitiesPage.jsx` (`#/communities`):
+    - Sub-tabs for "📍 Nearby Chapters" (browser GPS geolocation -> `GET /api/v1/communities/nearby?latitude=...&longitude=...&radiusKm=50`) and "🔍 Browse All Communities" (search bar filtering by name, slug, city, or description).
+    - Community cards showing icon, name, slug `c/:slug`, scope badge (`city`, `country`, `interest`), member count, rules/flairs chips, and location.
+    - "+ Create Community" modal dialog collecting `name`, auto-generated lowercase `slug`, `scope` (`city` | `country` | `interest`), `city`, `country`, `description`, dynamic rule chips editor, and dynamic flair chips editor, posting to `POST /api/v1/communities`.
+  - Built `CommunityDetailPage.jsx` (`#/c/:slug`):
+    - Hero banner featuring community name, `c/:slug` handle, scope badge, location, mission description, and live active scout count.
+    - Dynamic membership action: Chapter Founder badge (`👑 Chapter Founder`) for owners, or interactive `+ Join Chapter` / `✓ Joined (Leave)` toggle calling `POST /api/v1/communities/:slug/join` and `leave` with optimistic member count update.
+    - Quick shortcut button `+ Post a Find` taking scouts directly to spot creation.
+    - Sidebar displaying official community rules numbered list and tagged flairs cloud.
+    - Sortable community post feed with tabs for `🔥 Hot`, `✨ New`, and `🏆 Top`, fetching from `GET /api/v1/communities/:slug/posts?sort=...` and rendering post cards with Oddometer pills.
+- **Task F10-T3: Customizable Profile Widget Ordering (`frontend/src/pages/ProfilePage.jsx`)**:
+  - Refactored `ProfilePage.jsx` into modular widgets: `badges` (Scout Badges & Ranks), `stats` (Exploration Dossier / Spot Counters), and `tabs` (Authored Finds, Verified Check-Ins, Field Notes).
+  - Added "⚙️ Customize Layout" panel with Move Up (▲) / Move Down (▼) buttons for real-time widget reordering.
+  - Added instant layout presets: "Classic" (`['badges', 'stats', 'tabs']`), "Stats First" (`['stats', 'badges', 'tabs']`), and "Activity First" (`['tabs', 'badges', 'stats']`).
+  - Dual persistence: saves to `localStorage` (`oddspot_profile_layout`) for instant zero-latency page loads and syncs to backend via `api.updatePreferences({ profileLayout: { widgetOrder } })` (`PATCH /api/v1/users/me/preferences`).
+- **Styling**:
+  - Added complete responsive CSS in `frontend/src/App.css` for slide-out notifications drawer, unread badges, communities hub grid, community detail hero card, rules & flairs widgets, and profile layout customizer.
+- **API Client Extensions (`frontend/src/api.js`)**:
+  - Added `getNotifications`, `markNotificationsRead`, `getNearbyCommunities`, `getCommunity`, `createCommunity`, `joinCommunity`, `leaveCommunity`, and `getCommunityPosts`.
+
+### 2. Files Touched
+- `frontend/src/api.js`
+- `frontend/src/components/notifications/NotificationsDrawer.jsx` *(New)*
+- `frontend/src/pages/CommunitiesPage.jsx` *(New)*
+- `frontend/src/pages/CommunityDetailPage.jsx` *(New)*
+- `frontend/src/pages/ProfilePage.jsx`
+- `frontend/src/components/Navbar.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/App.css`
+- `backend/test/phaseF10.test.js` *(New)*
+- `backend/tests/phaseF10.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm run build` (frontend)**: Clean production build in 138ms (0 errors, 67 modules).
+- **`npm test` (backend)**: **Passed: 349 / 349** tests across 115 suites (0 failures).
+- **`node --test test/phaseF10.test.js`**: **Passed: 11 / 11** tests (0 failures).
 - **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
+
 
 
 

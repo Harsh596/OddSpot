@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
+import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { NotificationsDrawer } from './notifications/NotificationsDrawer';
 
 /**
  * Navbar - Accessible responsive navigation shell with desktop links,
@@ -12,6 +14,33 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
   const { theme, setTheme, themes, currentThemeMeta } = useTheme();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [themeDropdownOpen, setThemeDropdownOpen] = useState(false);
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  // Poll notifications unread count when user is logged in
+  useEffect(() => {
+    if (!user) {
+      setUnreadCount(0);
+      return;
+    }
+    let isMounted = true;
+    const pollUnread = async () => {
+      try {
+        const res = await api.getNotifications({ limit: 1 });
+        if (isMounted && res.unreadCount !== undefined) {
+          setUnreadCount(res.unreadCount);
+        }
+      } catch {
+        // Silently handle
+      }
+    };
+    pollUnread();
+    const interval = setInterval(pollUnread, 30000);
+    return () => {
+      isMounted = false;
+      clearInterval(interval);
+    };
+  }, [user]);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -39,6 +68,8 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
   const isHomeActive = currentRoute === '#/home' || currentRoute === '#/' || !currentRoute;
   const isExploreActive =
     currentRoute.startsWith('#/explore') || currentRoute.startsWith('#/feed');
+  const isCommunitiesActive =
+    currentRoute.startsWith('#/communities') || currentRoute.startsWith('#/c/');
   const isRandomActive = currentRoute.startsWith('#/random');
   const isCreateActive = currentRoute === '#/create';
   const isGuideActive = currentRoute.startsWith('#/guide');
@@ -205,6 +236,28 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
 
           <button
             type="button"
+            className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
+            onClick={() => handleNav('#/communities')}
+            aria-current={isCommunitiesActive ? 'page' : undefined}
+            style={{
+              cursor: 'pointer',
+              background: isCommunitiesActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+              color: isCommunitiesActive ? 'var(--accent, #00f0ff)' : 'var(--text-secondary, #94a3b8)',
+              border: isCommunitiesActive
+                ? '1px solid var(--accent-border, rgba(0,240,255,0.35))'
+                : '1px solid transparent',
+              padding: 'var(--space-2, 8px) var(--space-3, 12px)',
+              fontSize: 'var(--text-sm, 0.875rem)',
+              fontWeight: 600,
+              borderRadius: 'var(--radius-md, 8px)',
+              transition: 'all var(--transition-fast, 150ms ease)',
+            }}
+          >
+            🌐 Communities
+          </button>
+
+          <button
+            type="button"
             className={`nav-btn ${isGuideActive ? 'active' : ''}`}
             onClick={() => handleNav('#/guide')}
             aria-current={isGuideActive ? 'page' : undefined}
@@ -366,6 +419,35 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
                   gap: 'var(--space-3, 12px)',
                 }}
               >
+                {/* Notification Bell Button */}
+                <button
+                  type="button"
+                  className="nav-bell-btn"
+                  onClick={() => setNotificationsOpen(true)}
+                  title="Field Transmissions (Notifications)"
+                  style={{
+                    position: 'relative',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    background: notificationsOpen ? 'var(--accent-subtle, rgba(0,240,255,0.15))' : 'var(--bg-elevated, #1a2030)',
+                    color: 'var(--text-primary, #f0f4fc)',
+                    border: '1px solid var(--border-subtle, #202738)',
+                    borderRadius: 'var(--radius-md, 8px)',
+                    padding: '6px 10px',
+                    fontSize: '0.95rem',
+                  }}
+                  aria-label={`Notifications, ${unreadCount} unread`}
+                >
+                  <span>🔔</span>
+                  {unreadCount > 0 && (
+                    <span className="nav-unread-badge">
+                      {unreadCount > 99 ? '99+' : unreadCount}
+                    </span>
+                  )}
+                </button>
+
                 <button
                   type="button"
                   className="nav-profile-btn"
@@ -600,6 +682,64 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
             </button>
             <button
               type="button"
+              className={`nav-btn ${isCommunitiesActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/communities')}
+              style={{
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 'var(--space-3, 12px)',
+                background: isCommunitiesActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+                color: isCommunitiesActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
+                border: '1px solid var(--border-subtle, #202738)',
+                borderRadius: 'var(--radius-md, 8px)',
+                fontSize: 'var(--text-sm, 0.875rem)',
+                fontWeight: 600,
+              }}
+            >
+              🌐 Communities Hub
+            </button>
+            {user && (
+              <button
+                type="button"
+                className="nav-btn"
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setNotificationsOpen(true);
+                }}
+                style={{
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  padding: 'var(--space-3, 12px)',
+                  background: 'transparent',
+                  color: 'var(--text-primary, #f0f4fc)',
+                  border: '1px solid var(--border-subtle, #202738)',
+                  borderRadius: 'var(--radius-md, 8px)',
+                  fontSize: 'var(--text-sm, 0.875rem)',
+                  fontWeight: 600,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                }}
+              >
+                <span>🔔 Transmissions / Notifications</span>
+                {unreadCount > 0 && (
+                  <span
+                    style={{
+                      background: 'var(--accent, #00f0ff)',
+                      color: '#0a0d14',
+                      fontSize: '11px',
+                      fontWeight: 700,
+                      padding: '2px 8px',
+                      borderRadius: '999px',
+                    }}
+                  >
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+            )}
+            <button
+              type="button"
               className={`nav-btn ${isGuideActive ? 'active' : ''}`}
               onClick={() => handleNav('#/guide')}
               style={{
@@ -771,6 +911,14 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
           }
         }
       `}</style>
+
+      {/* Notifications Drawer */}
+      <NotificationsDrawer
+        isOpen={notificationsOpen}
+        onClose={() => setNotificationsOpen(false)}
+        navigate={handleNav}
+        onUnreadCountUpdate={setUnreadCount}
+      />
     </header>
   );
 }

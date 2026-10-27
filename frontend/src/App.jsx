@@ -21,6 +21,8 @@ import { PostDetail } from './pages/PostDetail';
 import { ProfilePage } from './pages/ProfilePage';
 import GuidePage from './pages/GuidePage';
 import SettingsPage from './pages/SettingsPage';
+import CommunitiesPage from './pages/CommunitiesPage';
+import CommunityDetailPage from './pages/CommunityDetailPage';
 import ScoutTourModal from './components/onboarding/ScoutTourModal';
 import HelpPopover from './components/onboarding/HelpPopover';
 import { Login } from './pages/Login';
@@ -33,6 +35,14 @@ import './App.css';
 function PostDetailRouteWrapper({ navigate }) {
   const { id } = useParams();
   return <PostDetail postId={id} navigate={navigate} />;
+}
+
+/**
+ * Route wrapper extracting community slug param for CommunityDetailPage
+ */
+function CommunityDetailRouteWrapper({ navigate }) {
+  const { slug } = useParams();
+  return <CommunityDetailPage slug={slug} navigate={navigate} />;
 }
 
 /**
@@ -83,6 +93,8 @@ function AppShell() {
   else if (path.startsWith('/random')) pageKey = 'random';
   else if (path.startsWith('/create')) pageKey = 'create';
   else if (path.startsWith('/post/')) pageKey = 'postDetail';
+  else if (path.startsWith('/communities')) pageKey = 'communities';
+  else if (path.startsWith('/c/')) pageKey = 'communityDetail';
   else if (path.startsWith('/profile') || path.startsWith('/user/')) pageKey = 'profile';
   else if (path.startsWith('/guide')) pageKey = 'guide';
   else if (path.startsWith('/settings')) pageKey = 'settings';
@@ -100,6 +112,8 @@ function AppShell() {
             <Route path="/random" element={<RandomPage navigate={navigate} />} />
             <Route path="/create" element={<CreatePost navigate={navigate} />} />
             <Route path="/post/:id" element={<PostDetailRouteWrapper navigate={navigate} />} />
+            <Route path="/communities" element={<CommunitiesPage navigate={navigate} />} />
+            <Route path="/c/:slug" element={<CommunityDetailRouteWrapper navigate={navigate} />} />
             <Route path="/profile" element={<ProfilePage navigate={navigate} />} />
             <Route path="/user/:username" element={<ProfileRouteWrapper navigate={navigate} />} />
             <Route path="/guide" element={<GuidePage onOpenTour={() => setShowTour(true)} navigate={navigate} />} />

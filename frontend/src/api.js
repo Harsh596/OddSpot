@@ -448,5 +448,54 @@ export const api = {
     }),
   getMyPosts: () => apiRequest('/users/me/posts'),
   exportMyData: () => apiRequest('/users/me/export'),
+
+  // Notifications
+  getNotifications: ({ cursor, limit = 20, unreadOnly } = {}) => {
+    const params = new URLSearchParams();
+    if (cursor) params.append('cursor', cursor);
+    if (limit) params.append('limit', limit);
+    if (unreadOnly) params.append('unreadOnly', 'true');
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/notifications${query}`);
+  },
+  markNotificationsRead: ({ ids, all } = {}) =>
+    apiRequest('/notifications/read', {
+      method: 'POST',
+      body: JSON.stringify({ ids, all }),
+    }),
+
+  // Communities
+  getNearbyCommunities: ({ latitude, longitude, radius = 50000, q, limit = 20 } = {}) => {
+    const params = new URLSearchParams();
+    if (latitude !== undefined && latitude !== '') params.append('latitude', latitude);
+    if (longitude !== undefined && longitude !== '') params.append('longitude', longitude);
+    if (radius) params.append('radius', radius);
+    if (q && q.trim()) params.append('q', q.trim());
+    if (limit) params.append('limit', limit);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/communities/nearby${query}`);
+  },
+  getCommunity: (slug) => apiRequest(`/communities/${encodeURIComponent(slug)}`),
+  createCommunity: (payload) =>
+    apiRequest('/communities', {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    }),
+  joinCommunity: (slug) =>
+    apiRequest(`/communities/${encodeURIComponent(slug)}/join`, {
+      method: 'POST',
+    }),
+  leaveCommunity: (slug) =>
+    apiRequest(`/communities/${encodeURIComponent(slug)}/leave`, {
+      method: 'POST',
+    }),
+  getCommunityPosts: (slug, { cursor, limit = 20, sort = 'hot' } = {}) => {
+    const params = new URLSearchParams();
+    if (cursor) params.append('cursor', cursor);
+    if (limit) params.append('limit', limit);
+    if (sort) params.append('sort', sort);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/communities/${encodeURIComponent(slug)}/posts${query}`);
+  },
 };
 
