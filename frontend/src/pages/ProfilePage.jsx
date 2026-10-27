@@ -2,12 +2,14 @@
 // User Profile view featuring scout header, earned badges, stats,
 // and 3 tabs: Finds Posted, Visited Spots Map, and Joined Communities.
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { OddspotMap } from '../components/map/OddspotMap';
 import { OddometerPill } from '../components/meter/OddometerPill';
 import { LoadingSkeleton, EmptyState, ErrorBanner } from '../components/ui/StatusViews';
+
+const DEFAULT_WIDGET_ORDER = ['badges', 'stats', 'tabs'];
 
 const BADGE_DEFINITIONS = {
   scout: {
@@ -118,7 +120,7 @@ export function ProfilePage({ username: propUsername, navigate }) {
   }, [loadProfile, loadPosts, loadVisits, loadCommunities]);
 
   // Customizable widget ordering: 'badges' | 'stats' | 'tabs'
-  const defaultOrder = useMemo(() => ['badges', 'stats', 'tabs'], []);
+  const defaultOrder = useMemo(() => DEFAULT_WIDGET_ORDER, []);
   const [widgetOrder, setWidgetOrder] = useState(() => {
     try {
       const saved = localStorage.getItem('oddspot_profile_layout');
@@ -129,7 +131,7 @@ export function ProfilePage({ username: propUsername, navigate }) {
         }
       }
     } catch {}
-    return profile?.profileLayout?.widgetOrder || ['badges', 'stats', 'tabs'];
+    return profile?.profileLayout?.widgetOrder || DEFAULT_WIDGET_ORDER;
   });
 
   const [customizingLayout, setCustomizingLayout] = useState(false);
