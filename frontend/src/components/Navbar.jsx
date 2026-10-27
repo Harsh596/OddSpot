@@ -42,6 +42,7 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
   const isRandomActive = currentRoute.startsWith('#/random');
   const isCreateActive = currentRoute === '#/create';
   const isGuideActive = currentRoute.startsWith('#/guide');
+  const isSettingsActive = currentRoute.startsWith('#/settings');
   const isLoginActive = currentRoute === '#/login';
   const isSignupActive = currentRoute === '#/signup';
 
@@ -324,6 +325,32 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
                     {theme === t.id && <span style={{ fontSize: '12px' }}>✓</span>}
                   </button>
                 ))}
+
+                <div style={{ height: '1px', background: 'var(--border-subtle, #202738)', margin: '4px 0' }} />
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setThemeDropdownOpen(false);
+                    handleNav('#/settings');
+                  }}
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '8px',
+                    borderRadius: 'var(--radius-md, 8px)',
+                    border: '1px solid var(--border-accent, rgba(0,240,255,0.2))',
+                    background: 'rgba(0, 240, 255, 0.08)',
+                    color: 'var(--accent, #00f0ff)',
+                    fontSize: 'var(--text-xs, 0.75rem)',
+                    fontWeight: 700,
+                  }}
+                >
+                  <span>🎨</span>
+                  <span>Customizer & Rules</span>
+                </button>
               </div>
             )}
           </div>
@@ -360,6 +387,29 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
                 >
                   <span>🧭</span>
                   <span>{user.username}</span>
+                </button>
+
+                <button
+                  type="button"
+                  className={`nav-settings-btn ${isSettingsActive ? 'active' : ''}`}
+                  onClick={() => handleNav('#/settings')}
+                  title="Theme Customizer & Feed Discovery Rules"
+                  style={{
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    background: isSettingsActive ? 'var(--accent-subtle, rgba(0,240,255,0.15))' : 'var(--bg-elevated, #1a2030)',
+                    color: isSettingsActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
+                    border: isSettingsActive ? '1px solid var(--accent, #00f0ff)' : '1px solid var(--border-subtle, #202738)',
+                    borderRadius: 'var(--radius-md, 8px)',
+                    padding: '6px 10px',
+                    fontSize: 'var(--text-xs, 0.75rem)',
+                    fontWeight: 600,
+                  }}
+                >
+                  <span>⚙️</span>
+                  <span>Settings</span>
                 </button>
 
                 <button
@@ -565,6 +615,24 @@ export function Navbar({ currentRoute = '#/feed', navigate }) {
               }}
             >
               📖 Field Guide
+            </button>
+            <button
+              type="button"
+              className={`nav-btn ${isSettingsActive ? 'active' : ''}`}
+              onClick={() => handleNav('#/settings')}
+              style={{
+                cursor: 'pointer',
+                textAlign: 'left',
+                padding: 'var(--space-3, 12px)',
+                background: isSettingsActive ? 'var(--accent-subtle, rgba(0,240,255,0.12))' : 'transparent',
+                color: isSettingsActive ? 'var(--accent, #00f0ff)' : 'var(--text-primary, #f0f4fc)',
+                border: '1px solid var(--border-subtle, #202738)',
+                borderRadius: 'var(--radius-md, 8px)',
+                fontSize: 'var(--text-sm, 0.875rem)',
+                fontWeight: 600,
+              }}
+            >
+              ⚙️ Settings & Customizer
             </button>
           </div>
 

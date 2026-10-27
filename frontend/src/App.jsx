@@ -20,6 +20,7 @@ import { CreatePost } from './pages/CreatePost';
 import { PostDetail } from './pages/PostDetail';
 import { ProfilePage } from './pages/ProfilePage';
 import GuidePage from './pages/GuidePage';
+import SettingsPage from './pages/SettingsPage';
 import ScoutTourModal from './components/onboarding/ScoutTourModal';
 import HelpPopover from './components/onboarding/HelpPopover';
 import { Login } from './pages/Login';
@@ -84,6 +85,7 @@ function AppShell() {
   else if (path.startsWith('/post/')) pageKey = 'postDetail';
   else if (path.startsWith('/profile') || path.startsWith('/user/')) pageKey = 'profile';
   else if (path.startsWith('/guide')) pageKey = 'guide';
+  else if (path.startsWith('/settings')) pageKey = 'settings';
 
   return (
     <div className="app-shell">
@@ -101,6 +103,7 @@ function AppShell() {
             <Route path="/profile" element={<ProfilePage navigate={navigate} />} />
             <Route path="/user/:username" element={<ProfileRouteWrapper navigate={navigate} />} />
             <Route path="/guide" element={<GuidePage onOpenTour={() => setShowTour(true)} navigate={navigate} />} />
+            <Route path="/settings" element={<SettingsPage navigate={navigate} />} />
             <Route path="/login" element={<Login navigate={navigate} />} />
             <Route path="/signup" element={<Signup navigate={navigate} />} />
             <Route path="*" element={<Navigate to="/home" replace />} />

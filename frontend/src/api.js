@@ -441,6 +441,11 @@ export const api = {
     apiRequest('/users/me/onboarding-complete', {
       method: 'POST',
     }),
+  updatePreferences: (payload) =>
+    apiRequest('/users/me/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify(payload),
+    }),
   getMyPosts: () => apiRequest('/users/me/posts'),
   exportMyData: () => apiRequest('/users/me/export'),
 };

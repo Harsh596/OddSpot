@@ -1979,6 +1979,57 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase F8: Frontend Slice 8 — Theme Engine (4 Presets + Customizer) & Visual Feed Rule Builder
+
+### 1. Summary of Changes
+- **Task F8-T1: Live Theme Context & WCAG Contrast Guard** (`frontend/src/context/ThemeContext.jsx`):
+  - 4 concrete presets: `neon-night`, `paper-zine`, `terminal`, `vaporwave`.
+  - Live CSS variable property injection (`--bg-primary`, `--bg-surface`, `--text-primary`, `--accent-primary`, `--accent-secondary`, `--font-main`, `--glow-accent`).
+  - Strict hex color validation (`/^#[0-9a-fA-F]{6}$/`) prevents CSS injection and ensures sanitize-first variable overrides.
+  - Live WCAG 2.2 contrast ratio computation between `--bg-primary` and `--text-primary` using relative luminance calculation:
+    - If `contrast < 4.5:1`, flags low contrast and renders warning badge `"Low contrast (<4.5:1) text may be hard to read"`.
+    - Included "Fix Contrast" auto-healing action which selects an accessible high-contrast text color (e.g. `#FFFFFF` or `#111111`) guaranteeing compliant readability.
+  - One-click JSON theme export/import ("Share Theme Code") with base64 payload serialization and validation.
+  - Persistence in `localStorage` under `oddspot_theme_v1` (with backward-compatible migration from legacy `oddspot_theme`) and authenticated background sync to `PATCH /api/v1/users/me/preferences`.
+- **Task F8-T2: Visual Feed Rule Builder** (`frontend/src/components/settings/FeedRuleBuilder.jsx`):
+  - Form-driven UI adhering strictly to backend `feedRuleSchema` (version 1).
+  - Mode toggle: Default Oddspot Algorithm vs Custom Rule Engine.
+  - Dynamic controls:
+    - Distance slider (`maxDistanceKm`: 1..50 km).
+    - Tag manager for `includeTags` (up to 10) and `excludeTags` (up to 20) with preset tags pills.
+    - Warning filters (`excludeWarnings`: `private_property`, `walking_required`, `unsafe_night`, `other`).
+    - Post type filter (`onlyTypes`: `find`, `identify`).
+    - Verified visit filter toggle (`onlyVerifiedVisited`).
+    - Score threshold slider (`minScore`: -10..200).
+    - Sort order picker (`sortBy`: `hot`, `new`, `top`, `distance`).
+    - Tag booster rules (`boostTags`: tag + multiplier 0.5x..3.0x, up to 5).
+  - Live read-only JSON inspector previewing generated payload with copy button.
+  - Clean payload serialization saving directly to `PATCH /api/v1/users/me/preferences` via `api.updatePreferences` with local fallback.
+- **Task F8-T3: Settings Page Layout & Navigation Integration** (`frontend/src/pages/SettingsPage.jsx`, `frontend/src/App.jsx`, `frontend/src/components/Navbar.jsx`, `frontend/src/App.css`):
+  - Tabbed settings interface: Visual Theme Customizer, Feed Discovery Rules, and Account & GDPR Data Export (`api.exportMyData()`).
+  - Shell routing at `#/settings` and contextual help popover integration.
+  - Navbar links integrated in user cluster menu, theme selector dropdown, and mobile navigation drawer.
+  - Comprehensive CSS with accessible form controls, glowing sliders, tag chips, and responsive breakpoints.
+
+### 2. Files Touched
+- `frontend/src/api.js`
+- `frontend/src/context/ThemeContext.jsx`
+- `frontend/src/components/settings/FeedRuleBuilder.jsx` *(New)*
+- `frontend/src/pages/SettingsPage.jsx` *(New)*
+- `frontend/src/components/Navbar.jsx`
+- `frontend/src/App.jsx`
+- `frontend/src/App.css`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm run build` (frontend)**: Clean production build in 138ms (0 errors, 60 modules).
+- **`npm test` (backend)**: **Passed: 329 / 329** tests across 107 suites (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 
