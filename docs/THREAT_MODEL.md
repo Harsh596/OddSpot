@@ -375,7 +375,85 @@ Oddspot is a location-sensitive community exploration platform enabling users to
 | **Moderator Hierarchy Escalation** | Role hierarchy blocks banning/unbanning admin or peer mod (403 `AUTH_FORBIDDEN`) | `redteam3.test.js` (Exploit 3) | **REMEDIATED** |
 | **Audit Log Tampering / Forgery** | Zero client-accessible endpoints for audit creation; write-only by internal services | `redteam3.test.js` (Exploit 3) | **REMEDIATED** |
 | **CRLF & ANSI Log Injection (CWE-117)** | Request-ID sanitization + `sanitizeCrlf` strips CRLF and ANSI escape sequences | `redteam3.test.js` (Exploit 4) | **REMEDIATED** |
-| **ReDoS & Parser Flooding (CWE-1333)** | Zero dynamic regex compilation; strict pre-transform Zod length bounds (< 50ms rejection) | `redteam3.test.js` (Exploit 5) | **REMEDIATED** |
 | **Timing Attacks on METRICS_TOKEN** | SHA-256 fixed-buffer hashing + `crypto.timingSafeEqual` constant-time verification | `redteam3.test.js` (Timing Suite) | **REMEDIATED** |
+
+---
+
+## 8. Red-Team Pass 4: Full-Stack XSS, SSRF, Upload Bypass & Rule Interpreter Fuzzing
+
+### Detailed Threat Analysis & Mitigations (Pass 4)
+
+#### 1. Full-Stack Markdown/Spoiler mXSS & Theme CSS Injection Prevention (CWE-79 / CWE-116)
+- **Attack Vector:** An attacker submits polyglot XSS payloads (`"><script>alert(1)</script>`, `[click](javascript:alert(1))`, `[click](data:text/html;base64,...)`, `>!<img src=x onerror=alert(1)>!<`, `<svg><onload=alert(1)>`, `<math><mtext><table><mglyph><style><img src=x onerror=alert(1)>`) via post body or comments, or attempts CSS injection via theme customizer color overrides (`red; background: url(...)`, `expression(...)`).
+- **Affected Endpoints/Components:** Post body/comment rendering in `frontend/src/utils/markdown.js`, Visual Theme Customizer in `frontend/src/context/ThemeContext.jsx` and `frontend/src/utils/themeValidator.js`.
+- **Remediation & Defense:**
+  - `renderSafeMarkdown` parses markdown using `marked` followed by strict `DOMPurify` sanitization with `PURIFY_CONFIG`.
+  - Forbids all script execution containers: `script`, `style`, `iframe`, `object`, `embed`, `form`, `input`, `svg`, `math`, and `img`.
+  - Forbids all inline event handlers (`onerror`, `onload`, `onclick`, `onmouseover`, `onfocus`, `style`).
+  - `afterSanitizeAttributes` hook enforces strict protocol allowlists on all `<a>` tags: only `https://`, `http://`, or `#` anchors are preserved; all `javascript:` and `data:` URIs are unconditionally stripped.
+  - Theme customizer validates user overrides against `isValidHexColor`: strictly matches `/^#[0-9a-fA-F]{6}$/`. Any non-hex string or CSS injection payload is discarded.
+- **Verification:** `backend/test/redteam4.test.js` (Exploit 1) — 0 executable tags, event handlers, or javascript:/data: URLs survive in the rendered DOM tree across the polyglot corpus, and all invalid CSS injection payloads are rejected.
+
+#### 2. Syntactic Zero-DNS SSRF Prevention across All Image Ingestion Surfaces (CWE-918 / API8:2023)
+- **Attack Vector:** An adversary supplies internal IP literals, IPv6-mapped IPv4 addresses (`[::1]`, `[::ffff:169.254.169.254]`, `[::ffff:127.0.0.1]`), octal/hex IP representations (`0x7f000001`, `0177.0.0.1`), or embedded credentials (`https://scout:secret@images.oddspot.test/pic.jpg`) to probe cloud metadata services (e.g., AWS EC2 IMDS 169.254.169.254) or internal cluster endpoints.
+- **Affected Endpoints:** Post creation (`POST /api/v1/posts`), verified visit logging (`POST /api/v1/posts/:id/visit`), user avatar update (`PATCH /api/v1/users/me`), community creation (`POST /api/v1/communities`).
+- **Remediation & Defense:**
+  - `validateSafeImageUrl` (`backend/utils/imageUrlValidator.js`) performs strict syntactic inspection before any URL is saved.
+  - CRITICAL: Never initiates network HTTP/HTTPS requests or DNS resolution on user-supplied URLs (Zero SSRF by design).
+  - Enforces `https:` protocol strictly, blocks URL embedded credentials (`username`/`password`), and strips brackets from IPv6 hostnames.
+  - `isIpOrInternalHost` detects and blocks standard IPv4/IPv6 addresses via `net.isIP`, bracketed/mapped IPv6 addresses (`::ffff:`), integer/hex/octal encodings, 2-to-4 part dotted numbers, and internal TLDs (`.local`, `.internal`, `.lan`, `localhost`).
+  - Mongoose models (`Post`, `Visit`, `User`, `Community`) enforce schema-level validators preventing persistence of unverified URLs.
+- **Verification:** `backend/test/redteam4.test.js` (Exploit 2) — 100% of the SSRF bypass corpus is rejected with HTTP 400 `VALIDATION_FAILED` across all 4 surfaces.
+
+#### 3. Whitelisted Feed Rule Interpreter Fuzzing & Prototype Pollution (CWE-1321 / CWE-94)
+- **Attack Vector:** An adversary attempts prototype pollution (`__proto__`, `constructor.prototype`), operator injection (`$where`, `$function`, `$accumulator`), negative distances, extreme multipliers (`1e308`), or `NaN` inputs in custom feed rules to execute server-side JavaScript in MongoDB or cause floating-point errors.
+- **Affected Endpoints:** Custom feed evaluation (`POST /api/v1/users/me/preferences`, `GET /api/v1/feed/home`).
+- **Remediation & Defense:**
+  - `validateFeedRules` in `backend/services/feedRuleInterpreter.js` executes JSON string pre-scanning forbidding dynamic execution tokens (`eval`, `Function`, `vm`, `$where`, `$function`, `$accumulator`).
+  - Strict Zod schema with `.strict()` rejects unexpected keys, including `__proto__` and `constructor`.
+  - Numeric ranges are strictly bounded: `maxDistanceKm` between 1 and 50 km, `multiplier` between 0.5 and 3.0, `minScore` between -50 and 500, array lengths capped.
+  - Query construction uses only static whitelisted MongoDB filter properties (`tags`, `warnings`, `type`, `meter.score`) without any dynamic code evaluation.
+- **Verification:** `backend/test/redteam4.test.js` (Exploit 3) — 100% of malicious and out-of-boundary rule objects are rejected before reaching MongoDB.
+
+#### 4. Cross-Community Privilege Escalation Resistance (BFLA / API5:2023)
+- **Attack Vector:** A regular community member or non-member attempts to deface community rules (`PATCH /api/v1/communities/:slug` or `PUT /api/v1/communities/:slug/rules`) or delete another user's post within a community without moderator privileges.
+- **Affected Endpoints:** Community rules update (`PATCH /api/v1/communities/:slug`, `PUT /api/v1/communities/:slug/rules`), post deletion (`DELETE /api/v1/posts/:id`).
+- **Remediation & Defense:**
+  - `handleUpdateCommunity` in `backend/routes/communities.js` queries `Membership` for the authenticated caller and verifies membership role is `owner` or `moderator` (or site staff `moderator`/`admin`). Regular members and outsiders receive HTTP 403 `FORBIDDEN`.
+  - `DELETE /api/v1/posts/:id` in `backend/routes/posts.js` checks if the post belongs to a community (`post.communityId`) and allows deletion only if caller is the post author, site staff, or a community `owner`/`moderator`. Normal members attempting to delete another member's post receive HTTP 403 `FORBIDDEN`.
+- **Verification:** `backend/test/redteam4.test.js` (Exploit 4) — Non-moderator rule updates and post deletions return 403 `FORBIDDEN`; community owners successfully manage their community.
+
+#### 5. Verification & Password Reset Token Replay Immunity (CWE-294 / CWE-613)
+- **Attack Vector:** An attacker intercepts or observes a one-time email verification or password reset token and replays it after initial use, or attempts to use an expired token.
+- **Affected Endpoints:** `POST /api/v1/auth/verify-email`, `POST /api/v1/auth/reset-password`.
+- **Remediation & Defense:**
+  - Email verification: on successful verification, `User.emailVerificationTokenHash` and `emailVerificationExpires` are atomically `$unset`, and the corresponding `EmailToken` document is stamped with `usedAt: now`. Subsequent submissions fail token lookup and return HTTP 400 `AUTH_INVALID_TOKEN`.
+  - Password reset: on successful reset, `User.passwordResetTokenHash` and `passwordResetExpires` are atomically `$unset`, `tokenVersion` is incremented, and `EmailToken.usedAt` is stamped. Subsequent submissions fail token lookup and return HTTP 400 `AUTH_INVALID_TOKEN`.
+  - Expiration enforcement: both endpoints query with `{ expiresAt: { $gt: new Date() } }` (or `passwordResetExpires: { $gt: new Date() }`). Expired tokens immediately return HTTP 400 `AUTH_INVALID_TOKEN`.
+- **Verification:** `backend/test/redteam4.test.js` (Exploit 5) — Replayed or expired verification/reset tokens strictly return 400 `AUTH_INVALID_TOKEN`.
+
+#### 6. Notification Privacy & In-Memory Isolation
+- **Attack Vector:** An attacker attempts to read another user's private notification stream or mark another user's notifications as read.
+- **Affected Endpoints:** `GET /api/v1/notifications`, `POST /api/v1/notifications/read`.
+- **Remediation & Defense:**
+  - All queries strictly enforce `userId: req.user.id` at the database filter level.
+  - Notification updates strictly bound by `userId: req.user.id` in `updateMany({ _id: { $in: ids }, userId: req.user.id })`, ensuring modified count is 0 for foreign notifications.
+  - Zero client endpoints exist for direct creation or spoofing of notifications; creation occurs solely via internal service calls.
+- **Verification:** `backend/test/redteam4.test.js` (Exploit 4 Suite) — Cross-user notification retrieval leaks zero records, and cross-user read mutation modifies zero records.
+
+---
+
+## 9. Red-Team Pass 4 Verification Summary
+
+| Threat / Exploit Vector | Defense Mechanism | Exploit Test Suite | Status |
+|---|---|---|---|
+| **Markdown & Spoiler Mutation XSS (mXSS)** | `marked` + `DOMPurify` with strict tag/attr forbidding (`script`, `svg`, `math`, `img`, `on*`) | `redteam4.test.js` (Exploit 1) | **REMEDIATED** |
+| **Theme Customizer CSS Injection** | `isValidHexColor` strict regex `^#[0-9a-fA-F]{6}$` filtering all color overrides | `redteam4.test.js` (Exploit 1) | **REMEDIATED** |
+| **Syntactic Zero-DNS SSRF (Corpus Bypass)** | `validateSafeImageUrl` blocks IP literals, mapped IPv6, hex/octal encodings & credentials across 4 surfaces | `redteam4.test.js` (Exploit 2) | **REMEDIATED** |
+| **Feed Rule Interpreter Prototype Pollution & Injection** | `.strict()` Zod schema + JSON serialization pre-scan for forbidden execution tokens | `redteam4.test.js` (Exploit 3) | **REMEDIATED** |
+| **Cross-Community Privilege Escalation (Rules/Posts)** | `Membership` role validation restricting rule edits & post moderation to owners/moderators (403) | `redteam4.test.js` (Exploit 4) | **REMEDIATED** |
+| **Cross-User Notification Reading & Spoofing** | Mandatory `userId: req.user.id` query scoping; no public notification creation endpoint | `redteam4.test.js` (Exploit 4) | **REMEDIATED** |
+| **Token Replay & Expired Token Abuse** | Single-use token invalidation (`$unset` hash + `usedAt` timestamp) & `$gt: Date()` expiry checks (400) | `redteam4.test.js` (Exploit 5) | **REMEDIATED** |
+
 
 

@@ -50,6 +50,64 @@ router.patch(
   }
 );
 
+// PATCH /api/v1/users/me - Update user profile (avatarUrl, bio)
+router.patch('/me', requireAuth, async (req, res, next) => {
+  try {
+    const { avatarUrl, bio } = req.body;
+    const update = {};
+    if (avatarUrl !== undefined && avatarUrl !== null && avatarUrl !== '') {
+      const { validateSafeImageUrl } = require('../utils/imageUrlValidator');
+      const avatarValidation = validateSafeImageUrl(avatarUrl);
+      if (!avatarValidation.valid) {
+        return res.status(400).json(
+          formatErrorResponse(
+            ErrorCodes.VALIDATION_FAILED,
+            avatarValidation.error || 'Invalid avatar URL'
+          )
+        );
+      }
+      update.avatarUrl = avatarUrl;
+    } else if (avatarUrl === null || avatarUrl === '') {
+      update.avatarUrl = null;
+    }
+
+    if (bio !== undefined) {
+      update.bio = typeof bio === 'string' ? bio.slice(0, 300) : '';
+    }
+
+    const user = await User.findByIdAndUpdate(
+      req.user.id,
+      { $set: update },
+      { new: true, runValidators: true }
+    ).lean();
+
+    if (!user) {
+      return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'User not found'));
+    }
+
+    return res.status(200).json({
+      ok: true,
+      user: {
+        id: user._id.toString(),
+        username: user.username,
+        avatarUrl: user.avatarUrl || null,
+        bio: user.bio || '',
+      },
+    });
+  } catch (err) {
+    if (err.name === 'ValidationError') {
+      return res.status(400).json(formatErrorResponse(ErrorCodes.VALIDATION_FAILED, err.message));
+    }
+    next(err);
+  }
+});
+
+// PATCH /api/v1/users/me/profile - Alias for profile update
+router.patch('/me/profile', requireAuth, (req, res, next) => {
+  req.url = '/me';
+  return router.handle(req, res, next);
+});
+
 // POST /api/v1/users/me/onboarding-complete - Complete scout onboarding and award 'scout' badge
 router.post('/me/onboarding-complete', requireAuth, async (req, res, next) => {
   try {

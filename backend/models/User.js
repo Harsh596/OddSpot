@@ -12,7 +12,17 @@ const userSchema = new Schema(
     email: { type: String, required: true, unique: true, lowercase: true, trim: true },
     emailLower: { type: String, lowercase: true, trim: true, index: true },
     passwordHash: { type: String, required: true, select: false },
-    avatarUrl: String,
+    avatarUrl: {
+      type: String,
+      validate: {
+        validator: function (val) {
+          if (!val) return true;
+          const { isSecureImageUrl } = require('../utils/imageUrlValidator');
+          return isSecureImageUrl(val);
+        },
+        message: 'Avatar URL must be a valid secure image URL without IP literals or local targets',
+      },
+    },
     bio: { type: String, maxlength: 300 },
     homePlace: placeSchema,
     role: { type: String, enum: ['member', 'moderator', 'admin'], default: 'member' },

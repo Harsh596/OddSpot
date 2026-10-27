@@ -1,7 +1,22 @@
 const { Schema, model } = require('mongoose');
 
 const imageSchema = new Schema(
-  { url: { type: String, required: true }, width: Number, height: Number },
+  {
+    url: {
+      type: String,
+      required: true,
+      validate: {
+        validator: function (val) {
+          if (!val) return true;
+          const { isSecureImageUrl } = require('../utils/imageUrlValidator');
+          return isSecureImageUrl(val);
+        },
+        message: 'Image URL must be a valid secure image URL without IP literals or local targets',
+      },
+    },
+    width: Number,
+    height: Number,
+  },
   { _id: false }
 );
 

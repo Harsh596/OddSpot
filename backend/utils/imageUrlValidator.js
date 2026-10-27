@@ -41,13 +41,13 @@ function isIpOrInternalHost(hostname) {
     return true;
   }
 
-  // 4. Dotted numbers (e.g., partial hex/octal or dotted integer representations like 0177.0.0.1)
+  // 4. Dotted numbers (e.g., partial hex/octal or dotted integer representations like 0177.0.0.1, 127.1, 10.1)
   const parts = cleanHost.split('.');
-  if (parts.length === 4 && parts.every((p) => /^(\d+|0x[0-9a-f]+)$/i.test(p))) {
+  if (parts.length >= 2 && parts.length <= 4 && parts.every((p) => /^(\d+|0x[0-9a-f]+)$/i.test(p))) {
     return true;
   }
 
-  // 5. IPv6 substrings or colons
+  // 5. IPv6 substrings, mapped IPv4 (::ffff:), or colons
   if (cleanHost.includes(':')) {
     return true;
   }
@@ -150,6 +150,7 @@ function isSecureImageUrl(urlStr) {
 
 module.exports = {
   validateImageUrl,
+  validateSafeImageUrl: validateImageUrl,
   isSecureImageUrl,
   isIpOrInternalHost,
   isHostAllowlisted,

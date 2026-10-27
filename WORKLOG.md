@@ -2182,6 +2182,63 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+---
+
+## Phase R4: Red-Team Pass 4 (Full-Stack XSS, SSRF, Upload Bypass & Rule Interpreter Fuzzing)
+
+### 1. Work Completed Per Task
+- **Image URL & SSRF Validation Hardening (`backend/utils/imageUrlValidator.js`)**:
+  - Exported `validateSafeImageUrl` (alias for `validateImageUrl`).
+  - Blocked bracketed IPv6 and IPv6-mapped IPv4 addresses (`[::1]`, `[::ffff:127.0.0.1]`, `[::ffff:169.254.169.254]`) by stripping brackets and scanning for colons or `net.isIP`.
+  - Blocked octal, hex, and integer IP literals (e.g., `0x7f000001`, `0177.0.0.1`, `2130706433`), as well as 2-4 part dotted numbers.
+  - Applied `validateSafeImageUrl` / `isSecureImageUrl` to:
+    - `User.avatarUrl` (`backend/models/User.js`, `backend/routes/users.js` via `PATCH /api/v1/users/me` and `PATCH /api/v1/users/me/profile`).
+    - `Community.iconUrl` (`backend/models/Community.js`, `backend/validators/communities.validators.js`, `backend/routes/communities.js` via `POST /api/v1/communities`, `PATCH /api/v1/communities/:slug`, and `PUT /api/v1/communities/:slug/rules`).
+    - `Post.images.url` (`backend/models/Post.js`, `backend/validators/posts.validators.js`).
+    - `Visit.photoUrl` (`backend/models/Visit.js`, `backend/validators/posts.validators.js`).
+- **Markdown & Spoiler Sanitizer & Theme CSS Injection Prevention (`frontend/src/utils/markdown.js`, `frontend/src/utils/themeValidator.js`)**:
+  - Validated that `renderSafeMarkdown` strictly strips executable tags (`script`, `iframe`, `svg`, `math`, `img`, `object`, `embed`), event handlers (`onerror`, `onload`, `onclick`, `onmouseover`, `onfocus`), and dangerous URL schemes (`javascript:`, `data:text/html`).
+  - Extracted color validation utilities into `frontend/src/utils/themeValidator.js` (`isValidHexColor`, `hexToRgb`, `getRelativeLuminance`, `getContrastRatio`) with re-export from `frontend/src/context/ThemeContext.jsx`.
+  - Verified that `isValidHexColor` strictly permits `/^#[0-9a-fA-F]{6}$/` and rejects CSS injection payloads (`red; background: url(...)`, `expression(...)`, etc.).
+- **Feed Rule Interpreter Fuzzing (`backend/services/feedRuleInterpreter.js`)**:
+  - Verified that `validateFeedRules` strictly rejects prototype pollution (`__proto__`, `constructor`), operator injection (`$where`, `$function`, `$accumulator`), negative distances, extreme multipliers (`1e308`), `NaN`, and out-of-boundary values before reaching MongoDB.
+- **Cross-Community Privilege Escalation Resistance (`backend/routes/communities.js`, `backend/routes/posts.js`)**:
+  - Implemented `handleUpdateCommunity` for `PATCH /api/v1/communities/:slug` and `PUT /api/v1/communities/:slug/rules`, enforcing `owner` or `moderator` role (or site staff) and returning HTTP 403 `FORBIDDEN` for regular members or outsiders.
+  - Updated `DELETE /api/v1/posts/:id` to check `post.communityId` and permit community owner/moderator deletion while returning HTTP 403 `FORBIDDEN` for normal community members attempting to delete another member's post.
+  - Verified notification privacy: cross-user notification reading strictly isolated to `userId: req.user.id`.
+- **Token Replay Immunity (`backend/routes/auth.js`)**:
+  - Verified that email verification tokens and password reset tokens atomically `$unset` hash/expiry upon successful use and stamp `EmailToken.usedAt`, returning HTTP 400 `AUTH_INVALID_TOKEN` on subsequent replay or expiration.
+- **Test Suite (`backend/test/redteam4.test.js`, `backend/tests/redteam4.test.js`)**:
+  - 19 comprehensive tests across 5 exploit suites (all 19 passed, 0 failures).
+- **Threat Model Update (`docs/THREAT_MODEL.md`)**:
+  - Documented Pass 4 threats, mitigations, and verification results in Section 8 & Section 9.
+
+### 2. Files Touched
+- `backend/utils/imageUrlValidator.js`
+- `backend/models/User.js`
+- `backend/models/Community.js`
+- `backend/models/Post.js`
+- `backend/models/Visit.js`
+- `backend/validators/communities.validators.js`
+- `backend/routes/communities.js`
+- `backend/routes/users.js`
+- `backend/routes/posts.js`
+- `frontend/src/utils/themeValidator.js` *(New)*
+- `frontend/src/context/ThemeContext.jsx`
+- `backend/test/redteam4.test.js` *(New)*
+- `backend/tests/redteam4.test.js` *(New)*
+- `docs/THREAT_MODEL.md`
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm test` (backend)**: **Passed: 372 / 372** tests across 125 suites (0 failures).
+- **`node --test test/redteam4.test.js`**: **Passed: 19 / 19** tests across 6 suites (0 failures).
+- **`npm run build` (frontend)**: **Built clean in 190ms**.
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
 
 
 

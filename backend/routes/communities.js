@@ -34,12 +34,26 @@ router.post(
         name,
         slug,
         description,
+        iconUrl,
         scope,
         place,
         coordinates,
         rules,
         flairs,
       } = req.body;
+
+      if (iconUrl) {
+        const { validateSafeImageUrl } = require('../utils/imageUrlValidator');
+        const iconValidation = validateSafeImageUrl(iconUrl);
+        if (!iconValidation.valid) {
+          return res.status(400).json(
+            formatErrorResponse(
+              ErrorCodes.VALIDATION_FAILED,
+              iconValidation.error || 'Invalid community icon URL'
+            )
+          );
+        }
+      }
 
       // Unique slug check
       const existing = await Community.findOne({ slug: slug.toLowerCase() });
@@ -66,6 +80,7 @@ router.post(
               name,
               slug: slug.toLowerCase(),
               description,
+              iconUrl,
               scope,
               place,
               center,
@@ -186,6 +201,80 @@ router.get('/:slug', optionalAuth, async (req, res, next) => {
     next(err);
   }
 });
+
+// Handler for community updates (owner/moderator only)
+async function handleUpdateCommunity(req, res, next) {
+  try {
+    const { slug } = req.params;
+    const community = await Community.findOne({ slug: slug.toLowerCase() });
+    if (!community) {
+      return res.status(404).json(formatErrorResponse(ErrorCodes.NOT_FOUND, 'Community not found'));
+    }
+
+    const membership = await Membership.findOne({
+      userId: req.user.id,
+      communityId: community._id,
+    }).lean();
+
+    const isCommunityMod = membership && ['owner', 'moderator'].includes(membership.role);
+    const isStaff = ['moderator', 'admin'].includes(req.user.role);
+
+    if (!isCommunityMod && !isStaff) {
+      return res.status(403).json(
+        formatErrorResponse(
+          ErrorCodes.FORBIDDEN,
+          'Only community moderators or owners can edit community rules'
+        )
+      );
+    }
+
+    const { rules, description, iconUrl } = req.body;
+    if (rules !== undefined) {
+      if (!Array.isArray(rules) || rules.length > 20 || !rules.every((r) => typeof r === 'string' && r.length <= 200)) {
+        return res.status(400).json(
+          formatErrorResponse(
+            ErrorCodes.VALIDATION_FAILED,
+            'Rules must be an array of up to 20 strings (max 200 characters each)'
+          )
+        );
+      }
+      community.rules = rules;
+    }
+
+    if (description !== undefined) {
+      community.description = typeof description === 'string' ? description.slice(0, 500) : '';
+    }
+
+    if (iconUrl !== undefined) {
+      if (iconUrl) {
+        const { validateSafeImageUrl } = require('../utils/imageUrlValidator');
+        const iconValidation = validateSafeImageUrl(iconUrl);
+        if (!iconValidation.valid) {
+          return res.status(400).json(
+            formatErrorResponse(
+              ErrorCodes.VALIDATION_FAILED,
+              iconValidation.error || 'Invalid icon URL'
+            )
+          );
+        }
+      }
+      community.iconUrl = iconUrl;
+    }
+
+    await community.save();
+    return res.status(200).json({ ok: true, community });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// PATCH /api/v1/communities/:slug - Update community rules/details
+router.patch('/:slug', requireAuth, handleUpdateCommunity);
+router.put('/:slug', requireAuth, handleUpdateCommunity);
+
+// PUT /api/v1/communities/:slug/rules - Edit community rules
+router.put('/:slug/rules', requireAuth, handleUpdateCommunity);
+router.patch('/:slug/rules', requireAuth, handleUpdateCommunity);
 
 // 4. POST /api/v1/communities/:slug/join (requires auth)
 router.post('/:slug/join', requireAuth, async (req, res, next) => {

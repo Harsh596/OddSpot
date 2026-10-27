@@ -5,7 +5,17 @@ const visitSchema = new Schema(
   {
     postId: { type: Schema.Types.ObjectId, ref: 'Post', required: true },
     userId: { type: Schema.Types.ObjectId, ref: 'User', required: true },
-    photoUrl: String,
+    photoUrl: {
+      type: String,
+      validate: {
+        validator: function (val) {
+          if (!val) return true;
+          const { isSecureImageUrl } = require('../utils/imageUrlValidator');
+          return isSecureImageUrl(val);
+        },
+        message: 'Photo URL must be a valid secure image URL without IP literals or local targets',
+      },
+    },
     note: { type: String, maxlength: 500 },
     location: {
       type: { type: String, enum: ['Point'], default: 'Point' },

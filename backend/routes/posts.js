@@ -9,7 +9,7 @@ const {
   commentLimiter,
   reportLimiter,
 } = require('../config/rateLimits');
-const { Post, User, Comment, Report, AuditLog, Visit } = require('../models');
+const { Post, User, Comment, Report, AuditLog, Visit, Membership } = require('../models');
 const { requireAuth, optionalAuth } = require('../middleware/auth');
 const { getReporterWeight, recomputeUserTrust } = require('../services/trust');
 const { idempotency } = require('../middleware/idempotency');
@@ -435,8 +435,18 @@ router.delete(
 
       const isAuthor = post.authorId.toString() === req.user.id.toString();
       const isStaff = ['moderator', 'admin'].includes(req.user.role);
+      let isCommunityMod = false;
+      if (post.communityId) {
+        const membership = await Membership.findOne({
+          userId: req.user.id,
+          communityId: post.communityId,
+        }).lean();
+        if (membership && ['owner', 'moderator'].includes(membership.role)) {
+          isCommunityMod = true;
+        }
+      }
 
-      if (!isAuthor && !isStaff) {
+      if (!isAuthor && !isStaff && !isCommunityMod) {
         return res.status(403).json(
           formatErrorResponse(ErrorCodes.FORBIDDEN, 'Only the author or a moderator can delete this post')
         );

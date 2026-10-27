@@ -5,7 +5,17 @@ const communitySchema = new Schema(
     name: { type: String, required: true, trim: true, maxlength: 60 },
     slug: { type: String, required: true, unique: true, lowercase: true },
     description: { type: String, maxlength: 500 },
-    iconUrl: String,
+    iconUrl: {
+      type: String,
+      validate: {
+        validator: function (val) {
+          if (!val) return true;
+          const { isSecureImageUrl } = require('../utils/imageUrlValidator');
+          return isSecureImageUrl(val);
+        },
+        message: 'Icon URL must be a valid secure image URL without IP literals or local targets',
+      },
+    },
     scope: { type: String, enum: ['city', 'country', 'interest'], default: 'city' },
     place: { city: String, state: String, country: String }, // for local communities
     center: { type: { type: String, enum: ['Point'] }, coordinates: [Number] }, // optional, for "nearby"

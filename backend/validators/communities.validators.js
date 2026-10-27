@@ -3,6 +3,18 @@
 
 const { z } = require('zod');
 const { normalizedString } = require('./common');
+const { validateSafeImageUrl } = require('../utils/imageUrlValidator');
+
+function validateIconUrl(url, ctx) {
+  if (!url) return;
+  const res = validateSafeImageUrl(url);
+  if (!res.valid) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: res.error || 'Icon URL must be a valid secure image URL',
+    });
+  }
+}
 
 const createCommunitySchema = z
   .object({
@@ -26,7 +38,11 @@ const createCommunitySchema = z
       .max(500, 'Description must not exceed 500 characters')
       .optional()
       .default(''),
-    iconUrl: z.string().url('Icon URL must be a valid URL').max(500).optional(),
+    iconUrl: z
+      .string()
+      .max(500, 'Icon URL must not exceed 500 characters')
+      .superRefine(validateIconUrl)
+      .optional(),
     scope: z.enum(['city', 'country', 'interest']).optional().default('city'),
     place: z
       .object({

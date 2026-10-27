@@ -147,7 +147,15 @@
     - [x] Exploit 4: CRLF & ANSI escape sequence injection in X-Request-Id and User-Agent -> sanitized and stripped in logs.
     - [x] Exploit 5: Evil ReDoS payloads ("a".repeat(50000) + "!") in city, tag, and username parameters -> rejected in < 50ms without blocking event loop.
   - [x] Task R3-T6: Update `docs/THREAT_MODEL.md` documenting Rate Limit Bypass, IPv6 subnet evasion, log injection, and ReDoS remediations.
-- [ ] **R4: Final Pre-Release Verification & Hardening**
+- [x] **R4: Red-Team Pass 4 (Full-Stack XSS, SSRF, Upload Bypass & Rule Interpreter Fuzzing)**
+  - [x] Task R4-T1: Apply `validateSafeImageUrl` to `User.avatarUrl` and `Community.iconUrl` as well as post images and visit photos, and block IPv6-mapped IPv4 addresses (`[::1]`, `[::ffff:127.0.0.1]`) and octal/hex IP literals in `imageUrlValidator.js`.
+  - [x] Task R4-T2: Write and pass 5 comprehensive exploit test suites in `backend/test/redteam4.test.js` (and mirror `backend/tests/redteam4.test.js`):
+    - [x] Exploit 1: Markdown & Spoiler mXSS polyglot corpus -> 0 executable tags, event handlers, or dangerous URL schemes survive renderSafeMarkdown; theme customizer CSS injection strictly prevented by 6-char hex color validation.
+    - [x] Exploit 2: SSRF bypass corpus (`https://[::1]/a.jpg`, `https://[::ffff:169.254.169.254]/a.jpg`, `https://127.0.0.1/a.jpg`, `https://0x7f000001/a.jpg`) across post images, visit `photoUrl`, user `avatarUrl`, and community `iconUrl` -> 100% rejected with 400.
+    - [x] Exploit 3: Feed rule interpreter fuzzing (`__proto__`, `constructor`, `$where`, `$function`, negative distance, multiplier: `1e308`, `NaN`) -> 100% rejected by schema validation before reaching MongoDB.
+    - [x] Exploit 4: Cross-community privilege escalation (normal member attempting to edit community rules or delete another user's community post without moderator role) -> 403; cross-user notification reading strictly isolated.
+    - [x] Exploit 5: Replay of expired or used email verification / password reset token -> 400/401 on second use.
+  - [x] Task R4-T3: Update `docs/THREAT_MODEL.md` documenting Red-Team Pass 4 threat analysis and verification table.
 
 ### Frontend & Integration Phases (F1–F10)
 - [x] **F1: React + Vite Setup & Environment Configuration**
