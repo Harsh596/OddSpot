@@ -2029,6 +2029,54 @@ Remediated all 6 blockers (B1–B6) identified in the Wave 2 security review alo
 - **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
 - **Zero breaking schema changes.**
 
+## Phase F9: Frontend Slice 9 — Safety UX, Property/Night Warnings & Structured Report Modal
+
+### 1. Summary of Changes
+- **Task F9-T1: Post Creation Safety & Privacy Checklist** (`frontend/src/components/safety/SafetyChecklist.jsx`, `frontend/src/pages/CreatePost.jsx`):
+  - Created `<SafetyChecklist/>` integrated directly above/alongside coordinates in `CreatePost.jsx`.
+  - Prominent red/amber safety card: *"Never post someone's private home interior, school grounds, or restricted facility."*
+  - Dynamic Private Property Trigger: When user checks caution tag `private_property`:
+    - If `!hideExact`, renders urgent notice *"This spot touches private property — we strongly recommend enabling 'Hide Exact Location' so only approximate coordinates (150-400m fuzz) are shown."* with one-click **"🔒 Enable Hide Exact"** action button.
+    - If `hideExact`, renders green confirmation that location fuzzing is active.
+  - Ethical Scout Code Checklist covering public sightlines, no doxxing (blurring plates/faces), curfews/hours, and Leave No Trace principles.
+  - Advisory pill indicators when `unsafe_night` or `walking_required` tags are checked.
+- **Task F9-T2: Safe-Visit Banner, Solar Night Calculation & Structured Report Modal** (`frontend/src/components/safety/SafeVisitBanner.jsx`, `frontend/src/components/safety/ReportModal.jsx`, `frontend/src/utils/safety.js`, `frontend/src/pages/PostDetail.jsx`):
+  - Created `frontend/src/utils/safety.js` providing `getLocalSolarTime(longitude)` and `REPORT_REASONS`.
+  - `getLocalSolarTime` computes local solar time using Earth's 24h rotation (1 degree = 4 minutes) and accurately detects nighttime (hours >= 20 or < 6).
+  - Built `<SafeVisitBanner/>` rendered at the top of `PostDetail.jsx`:
+    - Automatic dynamic solar night alert: *"🌙 Nighttime Advisory (~HH:MM local solar time): It is currently night at this location. Exercise extra vigilance, bring hands-free lighting, and respect neighborhood and park curfews."*
+    - Badges and actionable tips for `private_property` (*"Respect boundaries — view from public right-of-way only; never trespass"*), `unsafe_night` (*"Daylight visit recommended — poorly lit or isolated after dark"*), `walking_required` (*"Foot access only — wear sturdy shoes"*), and `other` (*"Caution advised — review scout field notes"*).
+  - Built accessible `<ReportModal/>` replacing inline modal in `PostDetail.jsx`:
+    - Submits to `POST /api/v1/posts/:id/report` with 6 structured reason radio cards: `unsafe_or_private`, `nsfw`, `spam`, `doxxing`, `misinformation`, `other`.
+    - Safety Policy Callout explaining automated threshold fuzzing: when 3 or more weighted scouts flag a spot as unsafe or private, backend automatically permanently activates coordinate fuzzing (150–400m HMAC displacement).
+    - Details textarea with character counter (0/500).
+    - Clear feedback handling duplicate reports (409), self-reporting attempts by author (400), unauthenticated users, and success with immediate coordinate update if `res.autoFuzzed`.
+    - Full keyboard accessibility with Escape key to close, focus management, and `role="dialog"`.
+  - Added complete responsive styling and micro-animations in `frontend/src/App.css`.
+  - Created comprehensive test suite in `backend/test/phaseF9.test.js` and `backend/tests/phaseF9.test.js` (9/9 passed).
+
+### 2. Files Touched
+- `frontend/src/utils/safety.js` *(New)*
+- `frontend/src/components/safety/SafetyChecklist.jsx` *(New)*
+- `frontend/src/components/safety/SafeVisitBanner.jsx` *(New)*
+- `frontend/src/components/safety/ReportModal.jsx` *(New)*
+- `frontend/src/pages/CreatePost.jsx`
+- `frontend/src/pages/PostDetail.jsx`
+- `frontend/src/App.css`
+- `backend/test/phaseF9.test.js` *(New)*
+- `backend/tests/phaseF9.test.js` *(New)*
+- `TASKS.md`
+- `WORKLOG.md`
+
+### 3. Verification & Test Results
+- **`npm run build` (frontend)**: Clean production build in 144ms (0 errors, 64 modules).
+- **`npm test` (backend)**: **Passed: 338 / 338** tests across 111 suites (0 failures).
+- **`node --test test/phaseF9.test.js`**: **Passed: 9 / 9** tests (0 failures).
+- **`manualChecks.sh`**: **Passed: 76 / 76** (0 failures).
+- **`manualChecks2.sh`**: **Passed: 85 / 85** (0 failures, 2 pre-launch gaps).
+- **Zero breaking schema changes.**
+
+
 
 
 

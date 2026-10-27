@@ -6,6 +6,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../api';
 import { useAuth } from '../context/AuthContext';
 import { MarkdownEditor } from '../components/markdown/MarkdownEditor';
+import { SafetyChecklist } from '../components/safety/SafetyChecklist';
 
 const DRAFT_STORAGE_KEY = 'oddspot_draft_post';
 
@@ -345,6 +346,16 @@ export function CreatePost({ navigate }) {
           showTemplateButton={true}
           placeholder="How did you stumble upon it? What makes it bizarre? Use >!spoiler!< for secrets or :::details Title for collapsible sections."
         />
+
+        <div className="form-section">
+          <SafetyChecklist
+            hideExact={hideExact}
+            onEnableHideExact={setHideExact}
+            warnings={warnings}
+            latitude={latitude}
+            longitude={longitude}
+          />
+        </div>
 
         <div className="form-section">
           <h3>Location Coordinates *</h3>

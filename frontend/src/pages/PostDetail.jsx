@@ -13,15 +13,8 @@ import { CommentThread } from '../components/posts/CommentThread';
 import OddometerGauge from '../components/meter/OddometerGauge';
 import { VisitActionPanel } from '../components/visits/VisitActionPanel';
 import { ThenAndNowGallery } from '../components/visits/ThenAndNowGallery';
-
-const REPORT_REASONS = [
-  { value: 'unsafe_or_private', label: 'Unsafe or Private Property' },
-  { value: 'nsfw', label: 'NSFW Content' },
-  { value: 'spam', label: 'Spam or Commercial Promotion' },
-  { value: 'doxxing', label: 'Doxxing or Personal Privacy Violation' },
-  { value: 'misinformation', label: 'Misinformation or Fake Location' },
-  { value: 'other', label: 'Other Issue' },
-];
+import { SafeVisitBanner } from '../components/safety/SafeVisitBanner';
+import { ReportModal } from '../components/safety/ReportModal';
 
 const TWENTY_FOUR_HOURS_MS = 24 * 60 * 60 * 1000;
 
@@ -43,10 +36,6 @@ export function PostDetail({ postId, navigate }) {
 
   // Report state
   const [showReportModal, setShowReportModal] = useState(false);
-  const [reportReason, setReportReason] = useState('unsafe_or_private');
-  const [reportDetails, setReportDetails] = useState('');
-  const [submittingReport, setSubmittingReport] = useState(false);
-  const [reportMessage, setReportMessage] = useState({ type: '', text: '' });
 
   // Post Edit state (24h window)
   const [showEditModal, setShowEditModal] = useState(false);
@@ -311,38 +300,6 @@ export function PostDetail({ postId, navigate }) {
     }
   };
 
-  const handleReport = async (e) => {
-    e.preventDefault();
-    setReportMessage({ type: '', text: '' });
-
-    if (!user) {
-      navigate('#/login');
-      return;
-    }
-
-    setSubmittingReport(true);
-    try {
-      const res = await api.reportPost(postId, {
-        reason: reportReason,
-        details: reportDetails.trim(),
-      });
-      setReportMessage({
-        type: 'success',
-        text: 'Report submitted to moderators. Thank you.',
-      });
-      if (res.autoFuzzed) {
-        setPost((prev) => ({ ...prev, hideExact: true }));
-      }
-      setTimeout(() => setShowReportModal(false), 2000);
-    } catch (err) {
-      setReportMessage({
-        type: 'error',
-        text: err.message || 'Failed to submit report.',
-      });
-    } finally {
-      setSubmittingReport(false);
-    }
-  };
 
   if (loading) {
     return <div className="loading-state">Loading oddspot details...</div>;
@@ -431,6 +388,9 @@ export function PostDetail({ postId, navigate }) {
           {post.editedAt && <span className="edited-indicator">(edited)</span>}
         </div>
       </div>
+
+      {/* High-Visibility Safe Visit & Solar Nighttime Advisories */}
+      <SafeVisitBanner post={post} />
 
       {/* Signature Visit Action Panel: Distance, Bearing, Open in Maps & GPS Check-In */}
       <VisitActionPanel
@@ -661,67 +621,28 @@ export function PostDetail({ postId, navigate }) {
         </div>
       )}
 
-      {/* Report Modal */}
+      {/* Structured Moderation Report Modal */}
       {showReportModal && (
-        <div className="modal-backdrop" onClick={() => setShowReportModal(false)}>
-          <div className="modal-content" onClick={(e) => e.stopPropagation()}>
-            <h3>Report this Spot</h3>
-            <p className="subtitle">
-              Help keep Oddspot safe and respectful of real-world spaces.
-            </p>
-
-            {reportMessage.text && (
-              <div className={`alert-${reportMessage.type}`}>
-                {reportMessage.text}
-              </div>
-            )}
-
-            <form onSubmit={handleReport} className="form-stack">
-              <label>
-                Reason *
-                <select
-                  value={reportReason}
-                  onChange={(e) => setReportReason(e.target.value)}
-                  required
-                >
-                  {REPORT_REASONS.map((r) => (
-                    <option key={r.value} value={r.value}>
-                      {r.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Details (Optional)
-                <textarea
-                  value={reportDetails}
-                  onChange={(e) => setReportDetails(e.target.value)}
-                  placeholder="Describe why this location is unsafe or private..."
-                  rows={3}
-                  maxLength={500}
-                />
-              </label>
-
-              <div className="modal-actions">
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  onClick={() => setShowReportModal(false)}
-                >
-                  Cancel
-                </button>
-                <button
-                  type="submit"
-                  className="btn-danger"
-                  disabled={submittingReport}
-                >
-                  {submittingReport ? 'Submitting...' : 'Submit Report'}
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
+        <ReportModal
+          postId={postId}
+          postTitle={post.title}
+          isAuthor={isAuthor}
+          user={user}
+          onClose={() => setShowReportModal(false)}
+          onReportSuccess={(res) => {
+            if (res.autoFuzzed) {
+              setPost((prev) => ({
+                ...prev,
+                hideExact: true,
+                location: {
+                  ...prev.location,
+                  fuzzed: true,
+                },
+              }));
+            }
+          }}
+          navigate={navigate}
+        />
       )}
 
       {/* Threaded Discussion Section */}
