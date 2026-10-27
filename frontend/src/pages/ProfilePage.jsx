@@ -117,6 +117,31 @@ export function ProfilePage({ username: propUsername, navigate }) {
     loadCommunities();
   }, [loadProfile, loadPosts, loadVisits, loadCommunities]);
 
+  // Customizable widget ordering: 'badges' | 'stats' | 'tabs'
+  const defaultOrder = useMemo(() => ['badges', 'stats', 'tabs'], []);
+  const [widgetOrder, setWidgetOrder] = useState(() => {
+    try {
+      const saved = localStorage.getItem('oddspot_profile_layout');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed.widgetOrder) && parsed.widgetOrder.length > 0) {
+          return parsed.widgetOrder;
+        }
+      }
+    } catch {}
+    return profile?.profileLayout?.widgetOrder || ['badges', 'stats', 'tabs'];
+  });
+
+  const [customizingLayout, setCustomizingLayout] = useState(false);
+  const [savingLayout, setSavingLayout] = useState(false);
+
+  // Sync widget order if profile updates
+  useEffect(() => {
+    if (profile?.profileLayout?.widgetOrder && Array.isArray(profile.profileLayout.widgetOrder)) {
+      setWidgetOrder(profile.profileLayout.widgetOrder);
+    }
+  }, [profile]);
+
   if (loading) {
     return (
       <div className="page-container">
@@ -143,31 +168,6 @@ export function ProfilePage({ username: propUsername, navigate }) {
 
   const isSelf = authUser && authUser.username === profile.username;
   const badges = profile.badges || ['scout'];
-
-  // Customizable widget ordering: 'badges' | 'stats' | 'tabs'
-  const defaultOrder = ['badges', 'stats', 'tabs'];
-  const [widgetOrder, setWidgetOrder] = useState(() => {
-    try {
-      const saved = localStorage.getItem('oddspot_profile_layout');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed.widgetOrder) && parsed.widgetOrder.length > 0) {
-          return parsed.widgetOrder;
-        }
-      }
-    } catch {}
-    return profile?.profileLayout?.widgetOrder || defaultOrder;
-  });
-
-  const [customizingLayout, setCustomizingLayout] = useState(false);
-  const [savingLayout, setSavingLayout] = useState(false);
-
-  // Sync widget order if profile updates
-  useEffect(() => {
-    if (profile?.profileLayout?.widgetOrder && Array.isArray(profile.profileLayout.widgetOrder)) {
-      setWidgetOrder(profile.profileLayout.widgetOrder);
-    }
-  }, [profile]);
 
   const moveWidget = (index, direction) => {
     const newIndex = index + direction;

@@ -121,12 +121,19 @@ export const FONT_OPTIONS = [
 const STORAGE_KEY_V1 = 'oddspot_theme_v2';
 const LEGACY_STORAGE_KEY = 'oddspot_theme';
 
-export {
+import {
   isValidHexColor,
   hexToRgb,
   getRelativeLuminance,
   getContrastRatio,
 } from '../utils/themeValidator';
+
+export {
+  isValidHexColor,
+  hexToRgb,
+  getRelativeLuminance,
+  getContrastRatio,
+};
 
 const ThemeContext = createContext(null);
 
